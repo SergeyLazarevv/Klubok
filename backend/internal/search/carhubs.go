@@ -3,47 +3,78 @@ package search
 
 import (
 	"context"
+	"log/slog"
 	"sort"
 
 	"github.com/google/uuid"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 )
 
 type Service struct {
-	geo   *geo.Service
-	road  *road.Service
-	costs *carcost.Refs
+	geo     *geo.Service
+	road    *road.Service
+	costs   *carcost.Refs
+	fares   fares.Provider
+	history *fares.History
+	log     *slog.Logger
 }
 
-func NewService(g *geo.Service, r *road.Service, c *carcost.Refs) *Service {
-	return &Service{geo: g, road: r, costs: c}
+func NewService(g *geo.Service, r *road.Service, c *carcost.Refs, f fares.Provider, h *fares.History, log *slog.Logger) *Service {
+	return &Service{geo: g, road: r, costs: c, fares: f, history: h, log: log}
 }
 
-// CarHubsQuery — откуда и на каких условиях пользователь готов ехать на машине.
-type CarHubsQuery struct {
-	HomeID          uuid.UUID
+// CarParams — на каких условиях пользователь готов ехать на своей машине.
+type CarParams struct {
 	RadiusKm        int
 	MaxDriveHours   float64 // 0 — без ограничения
-	Days            int
-	Travelers       int
 	ConsumptionL100 float64
 	Fuel            carcost.FuelType
 	FuelPrice       carcost.Kop // 0 — взять из справочника
 	AllowBorder     bool
 }
 
+// CarHubsQuery — запрос хабов с расходами на машину на поездку фиксированной длительности.
+type CarHubsQuery struct {
+	HomeID    uuid.UUID
+	Car       CarParams
+	Days      int
+	Travelers int
+}
+
 // CarHub — хаб, до которого можно доехать, и во что обойдётся машина.
 type CarHub struct {
+	reachable
+	Cost      carcost.Cost
+	PerPerson carcost.Kop
+}
+
+// reachable — хаб, до которого пользователь готов доехать; стоимость зависит от длительности поездки.
+type reachable struct {
 	Hub              geo.Hub
 	Leg              road.Leg
 	DriveHours       float64 // в одну сторону, с учётом границы
-	Cost             carcost.Cost
-	PerPerson        carcost.Kop
+	ParkingPerDay    carcost.Kop
 	ParkingEstimated bool
 	Border           *carcost.BorderRule // nil — граница не пересекается
+}
+
+func (r reachable) carCost(fuelPrice carcost.Kop, consumption float64, days int) carcost.Cost {
+	var insurance carcost.Kop
+	if r.Border != nil {
+		insurance = r.Border.Insurance
+	}
+	return carcost.Calc(carcost.Input{
+		OneWayKm:        float64(r.Leg.DistanceM) / 1000,
+		ConsumptionL100: consumption,
+		FuelPrice:       fuelPrice,
+		ParkingPerDay:   r.ParkingPerDay,
+		Days:            days,
+		BorderInsurance: insurance,
+	})
 }
 
 type CarHubsResult struct {
@@ -59,23 +90,41 @@ func (s *Service) CarHubs(ctx context.Context, q CarHubsQuery) (CarHubsResult, e
 	if err != nil {
 		return CarHubsResult{}, err
 	}
-	res := CarHubsResult{Home: home, FuelPrice: q.FuelPrice, FuelSource: "user"}
-	if q.FuelPrice == 0 {
-		if res.FuelPrice, err = s.costs.FuelPrice(ctx, home.CountryCode, "", q.Fuel); err != nil {
-			return CarHubsResult{}, err
-		}
-		res.FuelSource = "reference"
-	}
-
-	hubs, err := s.geo.AirportsWithin(ctx, home.ID, q.RadiusKm)
+	fuelPrice, fuelSource, err := s.fuelPrice(ctx, home, q.Car)
 	if err != nil {
 		return CarHubsResult{}, err
 	}
-	if !q.AllowBorder {
+	hubs, err := s.reachableByCar(ctx, home, q.Car)
+	if err != nil {
+		return CarHubsResult{}, err
+	}
+	res := CarHubsResult{Home: home, FuelPrice: fuelPrice, FuelSource: fuelSource}
+	for _, r := range hubs {
+		cost := r.carCost(fuelPrice, q.Car.ConsumptionL100, q.Days)
+		res.Hubs = append(res.Hubs, CarHub{reachable: r, Cost: cost, PerPerson: cost.Total / carcost.Kop(max(q.Travelers, 1))})
+	}
+	return res, nil
+}
+
+func (s *Service) fuelPrice(ctx context.Context, home geo.Place, car CarParams) (carcost.Kop, string, error) {
+	if car.FuelPrice > 0 {
+		return car.FuelPrice, "user", nil
+	}
+	p, err := s.costs.FuelPrice(ctx, home.CountryCode, "", car.Fuel)
+	return p, "reference", err
+}
+
+// reachableByCar — аэропорты в радиусе, до которых можно доехать за отведённое время, ближайшие по времени первыми.
+func (s *Service) reachableByCar(ctx context.Context, home geo.Place, car CarParams) ([]reachable, error) {
+	hubs, err := s.geo.AirportsWithin(ctx, home.ID, car.RadiusKm)
+	if err != nil {
+		return nil, err
+	}
+	if !car.AllowBorder {
 		hubs = filter(hubs, func(h geo.Hub) bool { return !h.CrossesBorder })
 	}
 	if len(hubs) == 0 {
-		return res, nil
+		return nil, nil
 	}
 
 	points := make([]road.Point, len(hubs))
@@ -86,55 +135,44 @@ func (s *Service) CarHubs(ctx context.Context, q CarHubsQuery) (CarHubsResult, e
 	}
 	legs, err := s.road.Legs(ctx, road.Point{ID: home.ID, Lat: home.Lat, Lon: home.Lon}, points)
 	if err != nil {
-		return CarHubsResult{}, err
+		return nil, err
 	}
 	parking, err := s.costs.Parking(ctx, ids)
 	if err != nil {
-		return CarHubsResult{}, err
+		return nil, err
 	}
 	borders, err := s.costs.BorderRules(ctx, home.CountryCode)
 	if err != nil {
-		return CarHubsResult{}, err
+		return nil, err
 	}
 
+	var out []reachable
 	for _, h := range hubs {
 		leg, ok := legs[h.Place.ID]
 		if !ok {
 			continue // по дороге не доехать
 		}
-		ch := CarHub{Hub: h, Leg: leg, DriveHours: float64(leg.DurationS) / 3600}
-
-		var insurance carcost.Kop
+		r := reachable{Hub: h, Leg: leg, DriveHours: float64(leg.DurationS) / 3600}
 		if h.CrossesBorder {
 			rule, known := borders[h.Place.CountryCode]
 			if !known {
 				rule = carcost.BorderRule{Note: "Нет данных о правилах въезда на машине в эту страну — проверьте самостоятельно."}
 			}
-			ch.Border = &rule
-			ch.DriveHours += rule.CrossingHours
-			insurance = rule.Insurance
+			r.Border = &rule
+			r.DriveHours += rule.CrossingHours
 		}
-		if q.MaxDriveHours > 0 && ch.DriveHours > q.MaxDriveHours {
+		if car.MaxDriveHours > 0 && r.DriveHours > car.MaxDriveHours {
 			continue
 		}
-
 		perDay, known := parking[h.Place.ID]
 		if !known {
-			perDay, ch.ParkingEstimated = carcost.DefaultParkingPerDay, true
+			perDay, r.ParkingEstimated = carcost.DefaultParkingPerDay, true
 		}
-		ch.Cost = carcost.Calc(carcost.Input{
-			OneWayKm:        float64(leg.DistanceM) / 1000,
-			ConsumptionL100: q.ConsumptionL100,
-			FuelPrice:       res.FuelPrice,
-			ParkingPerDay:   perDay,
-			Days:            q.Days,
-			BorderInsurance: insurance,
-		})
-		ch.PerPerson = ch.Cost.Total / carcost.Kop(max(q.Travelers, 1))
-		res.Hubs = append(res.Hubs, ch)
+		r.ParkingPerDay = perDay
+		out = append(out, r)
 	}
-	sort.SliceStable(res.Hubs, func(i, j int) bool { return res.Hubs[i].DriveHours < res.Hubs[j].DriveHours })
-	return res, nil
+	sort.SliceStable(out, func(i, j int) bool { return out[i].DriveHours < out[j].DriveHours })
+	return out, nil
 }
 
 func filter[T any](in []T, keep func(T) bool) []T {

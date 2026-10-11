@@ -12,6 +12,9 @@ type Config struct {
 	ShutdownTimeout time.Duration
 	LogFormat       string // text | json
 	OSRMURL         string
+
+	TravelpayoutsToken  string
+	TravelpayoutsMarker string
 }
 
 func Load() Config {
@@ -22,6 +25,9 @@ func Load() Config {
 		LogFormat:       env("KLUBOK_LOG_FORMAT", "text"),
 		// Публичный демо-сервер OSRM — только для разработки; результаты кэшируются в БД.
 		OSRMURL: env("KLUBOK_OSRM_URL", "https://router.project-osrm.org"),
+
+		TravelpayoutsToken:  env("TRAVELPAYOUTS_TOKEN", ""),
+		TravelpayoutsMarker: env("TRAVELPAYOUTS_MARKER", ""),
 	}
 }
 

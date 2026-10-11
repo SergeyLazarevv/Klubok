@@ -6,8 +6,8 @@ export const api = createClient<paths>({ baseUrl: '/api/v1' })
 
 type Schemas = components['schemas']
 export type Place = Schemas['Place']
-export type CarHub = Schemas['CarHub']
-export type CarHubsResponse = Schemas['CarHubsResponse']
+export type TripOption = Schemas['TripOption']
+export type TripsResponse = Schemas['TripsResponse']
 export type FuelType = Schemas['FuelType']
 export type Money = Schemas['Money']
 export type Problem = Schemas['Problem']

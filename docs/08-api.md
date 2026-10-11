@@ -53,6 +53,10 @@ REST, JSON, префикс `/api/v1`. Контракт — `api/openapi.yaml` (s
 
 ## 8.5. Поиск — MVP
 
+**Реализовано:** `GET /trips?from&to&month=YYYY-MM&min_days&max_days&travelers&use_car&<параметры машины>` — без сохранения поиска; ссылку на результат даёт URL фронтенда (`/?from&to&month&min&max`). Ответ: лучший вариант через каждый аэропорт (билеты на всех + машина), `home_best`, `savings_vs_home`, `no_data`, `partial`, предупреждения. Контракт — `api/openapi.yaml`.
+
+Ниже — исходный набросок с сохранением поиска (`POST /searches`), понадобится для истории поисков в личном кабинете.
+
 `POST /searches`
 
 ```json

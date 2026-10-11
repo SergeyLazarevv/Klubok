@@ -60,6 +60,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
+         * @description Для каждого доступного аэропорта вылета — лучший по полной стоимости вариант: билеты на всех
+         *     + машина (бензин, парковка на фактические дни поездки, страховка). Сортировка — по полной стоимости.
+         *     Цены — из кэша поисков Aviasales, поэтому ищем по месяцу и длительности, а не по точным датам.
+         */
+        get: operations["searchTrips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -158,6 +180,52 @@ export interface components {
             crossing_hours: number;
             note: string;
         };
+        TripsResponse: {
+            home: components["schemas"]["Place"];
+            destination: components["schemas"]["Place"];
+            fuel_price?: components["schemas"]["Money"];
+            /** @description Лучший вариант через каждый аэропорт, дешёвые первыми */
+            options: components["schemas"]["TripOption"][];
+            home_best?: components["schemas"]["TripOption"];
+            /** @description Аэропорты, по которым у источника нет цен на этот месяц */
+            no_data: components["schemas"]["Place"][];
+            /** @description Часть запросов к источнику цен не удалась */
+            partial: boolean;
+        };
+        TripOption: {
+            hub: components["schemas"]["Place"];
+            /** Format: date-time */
+            depart_at: string;
+            /** Format: date-time */
+            return_at: string;
+            trip_days: number;
+            /** @example FS */
+            airline: string;
+            transfers: number;
+            return_transfers: number;
+            duration_to_min: number;
+            duration_back_min: number;
+            /**
+             * Format: date
+             * @description Когда источник видел эту цену
+             */
+            found_on?: string;
+            booking_url?: string;
+            ticket_per_person: components["schemas"]["Money"];
+            tickets: components["schemas"]["Money"];
+            car?: components["schemas"]["TripCar"];
+            total: components["schemas"]["Money"];
+            per_person: components["schemas"]["Money"];
+            savings_vs_home?: components["schemas"]["Money"];
+            warnings: ("border_crossing_by_car" | "stale_price" | "parking_estimated" | "road_approximate")[];
+        };
+        TripCar: {
+            road: components["schemas"]["RoadLeg"];
+            /** Format: double */
+            drive_hours: number;
+            cost: components["schemas"]["CarCost"];
+            border?: components["schemas"]["BorderInfo"];
+        };
         Point: {
             /** Format: double */
             lat: number;
@@ -188,6 +256,17 @@ export interface components {
         };
     };
     parameters: {
+        RadiusKm: number;
+        /** @description Максимум часов за рулём в одну сторону; 0 — без ограничения */
+        MaxDriveHours: number;
+        Travelers: number;
+        /** @description Расход топлива, л/100 км */
+        ConsumptionL100: number;
+        FuelTypeParam: components["schemas"]["FuelType"];
+        /** @description Своя цена топлива за литр; если не задана — из справочника */
+        FuelPriceRub: number;
+        /** @description Учитывать аэропорты в другой стране */
+        AllowBorder: boolean;
         PlaceId: string;
     };
     requestBodies: never;
@@ -252,19 +331,19 @@ export interface operations {
             query: {
                 /** @description Домашний город */
                 from: string;
-                radius_km?: number;
+                radius_km?: components["parameters"]["RadiusKm"];
                 /** @description Максимум часов за рулём в одну сторону; 0 — без ограничения */
-                max_drive_hours?: number;
+                max_drive_hours?: components["parameters"]["MaxDriveHours"];
                 /** @description Длительность поездки в сутках — для парковки */
                 days?: number;
-                travelers?: number;
+                travelers?: components["parameters"]["Travelers"];
                 /** @description Расход топлива, л/100 км */
-                consumption_l100?: number;
-                fuel_type?: components["schemas"]["FuelType"];
+                consumption_l100?: components["parameters"]["ConsumptionL100"];
+                fuel_type?: components["parameters"]["FuelTypeParam"];
                 /** @description Своя цена топлива за литр; если не задана — из справочника */
-                fuel_price_rub?: number;
+                fuel_price_rub?: components["parameters"]["FuelPriceRub"];
                 /** @description Учитывать аэропорты в другой стране */
-                allow_border?: boolean;
+                allow_border?: components["parameters"]["AllowBorder"];
             };
             header?: never;
             path?: never;
@@ -283,6 +362,51 @@ export interface operations {
             };
             404: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
+        };
+    };
+    searchTrips: {
+        parameters: {
+            query: {
+                /** @description Домашний город */
+                from: string;
+                /** @description Город или аэропорт назначения */
+                to: string;
+                /** @description Месяц вылета */
+                month: string;
+                min_days?: number;
+                max_days?: number;
+                travelers?: components["parameters"]["Travelers"];
+                /** @description Есть машина — искать и в соседних аэропортах */
+                use_car?: boolean;
+                radius_km?: components["parameters"]["RadiusKm"];
+                /** @description Максимум часов за рулём в одну сторону; 0 — без ограничения */
+                max_drive_hours?: components["parameters"]["MaxDriveHours"];
+                /** @description Расход топлива, л/100 км */
+                consumption_l100?: components["parameters"]["ConsumptionL100"];
+                fuel_type?: components["parameters"]["FuelTypeParam"];
+                /** @description Своя цена топлива за литр; если не задана — из справочника */
+                fuel_price_rub?: components["parameters"]["FuelPriceRub"];
+                /** @description Учитывать аэропорты в другой стране */
+                allow_border?: components["parameters"]["AllowBorder"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Варианты поездки */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripsResponse"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
         };
     };
 }

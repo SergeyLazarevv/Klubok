@@ -13,7 +13,6 @@ export const useProfileStore = defineStore('profile', () => {
     serializer: { read: (v) => (v ? JSON.parse(v) : null), write: (v) => JSON.stringify(v) },
   })
   const travelers = useLocalStorage(key('travelers'), 1)
-  const tripDays = useLocalStorage(key('tripDays'), 7)
 
   const hasCar = useLocalStorage(key('hasCar'), true)
   const radiusKm = useLocalStorage(key('radiusKm'), 100)
@@ -26,7 +25,7 @@ export const useProfileStore = defineStore('profile', () => {
   const allowBorder = useLocalStorage(key('allowBorder'), false)
 
   return {
-    homePlace, travelers, tripDays,
+    homePlace, travelers,
     hasCar, radiusKm, maxDriveHours, consumptionL100, fuelType, fuelPriceRub, allowBorder,
   }
 })

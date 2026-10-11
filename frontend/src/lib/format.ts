@@ -23,3 +23,27 @@ export function plural(n: number, one: string, few: string, many: string) {
   if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few
   return many
 }
+
+const dayFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+const monthFmt = new Intl.DateTimeFormat('ru-RU', { month: 'long', year: 'numeric' })
+
+/** Дата по местному времени аэропорта: «20 нояб.» — время берём из строки, а не из часового пояса браузера */
+export const localDay = (iso: string) => dayFmt.format(new Date(iso.slice(0, 10) + 'T00:00:00Z'))
+
+/** «2026-11» → «ноябрь 2026» */
+export const monthLabel = (ym: string) => {
+  const [y, m] = ym.split('-').map(Number)
+  return monthFmt.format(new Date(y!, m! - 1, 1))
+}
+
+export const transfersLabel = (n: number) =>
+  n === 0 ? 'прямой' : `${n} ${plural(n, 'пересадка', 'пересадки', 'пересадок')}`
+
+const monthsIn = ['январе', 'феврале', 'марте', 'апреле', 'мае', 'июне', 'июле', 'августе', 'сентябре', 'октябре', 'ноябре', 'декабре']
+const monthsShort = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']
+
+/** «2026-11» → «в ноябре» */
+export const inMonth = (ym: string) => `в ${monthsIn[Number(ym.slice(5, 7)) - 1]}`
+
+/** «2026-11» → «Ноя» */
+export const monthShort = (ym: string) => monthsShort[Number(ym.slice(5, 7)) - 1]

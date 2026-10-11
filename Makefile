@@ -1,4 +1,7 @@
 # Команды разработки. Go: ~/.local/go/bin должен быть в PATH.
+# Секреты (TRAVELPAYOUTS_TOKEN и т.п.) — в .env в корне, он не коммитится.
+-include .env
+export
 COMPOSE := docker compose -f deploy/compose.dev.yml
 BACKEND := backend
 

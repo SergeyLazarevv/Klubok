@@ -78,35 +78,17 @@ paths:
           required: true
           description: Домашний город
           schema: { type: string, format: uuid }
-        - name: radius_km
-          in: query
-          schema: { type: integer, minimum: 0, maximum: 1000, default: 100 }
-        - name: max_drive_hours
-          in: query
-          description: Максимум часов за рулём в одну сторону; 0 — без ограничения
-          schema: { type: number, format: double, minimum: 0, maximum: 24, default: 8 }
+        - $ref: '#/components/parameters/RadiusKm'
+        - $ref: '#/components/parameters/MaxDriveHours'
         - name: days
           in: query
           description: Длительность поездки в сутках — для парковки
           schema: { type: integer, minimum: 1, maximum: 60, default: 7 }
-        - name: travelers
-          in: query
-          schema: { type: integer, minimum: 1, maximum: 9, default: 1 }
-        - name: consumption_l100
-          in: query
-          description: Расход топлива, л/100 км
-          schema: { type: number, format: double, minimum: 2, maximum: 30, default: 8 }
-        - name: fuel_type
-          in: query
-          schema: { $ref: '#/components/schemas/FuelType' }
-        - name: fuel_price_rub
-          in: query
-          description: Своя цена топлива за литр; если не задана — из справочника
-          schema: { type: number, format: double, minimum: 1, maximum: 1000 }
-        - name: allow_border
-          in: query
-          description: Учитывать аэропорты в другой стране
-          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/Travelers'
+        - $ref: '#/components/parameters/ConsumptionL100'
+        - $ref: '#/components/parameters/FuelTypeParam'
+        - $ref: '#/components/parameters/FuelPriceRub'
+        - $ref: '#/components/parameters/AllowBorder'
       responses:
         '200':
           description: Хабы с расходами на машину
@@ -116,8 +98,92 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
 
+  /trips:
+    get:
+      tags: [search]
+      operationId: searchTrips
+      summary: Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
+      description: |
+        Для каждого доступного аэропорта вылета — лучший по полной стоимости вариант: билеты на всех
+        + машина (бензин, парковка на фактические дни поездки, страховка). Сортировка — по полной стоимости.
+        Цены — из кэша поисков Aviasales, поэтому ищем по месяцу и длительности, а не по точным датам.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Домашний город
+          schema: { type: string, format: uuid }
+        - name: to
+          in: query
+          required: true
+          description: Город или аэропорт назначения
+          schema: { type: string, format: uuid }
+        - name: month
+          in: query
+          required: true
+          description: Месяц вылета
+          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: '2026-11' }
+        - name: min_days
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60, default: 3 }
+        - name: max_days
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60, default: 14 }
+        - $ref: '#/components/parameters/Travelers'
+        - name: use_car
+          in: query
+          description: Есть машина — искать и в соседних аэропортах
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/RadiusKm'
+        - $ref: '#/components/parameters/MaxDriveHours'
+        - $ref: '#/components/parameters/ConsumptionL100'
+        - $ref: '#/components/parameters/FuelTypeParam'
+        - $ref: '#/components/parameters/FuelPriceRub'
+        - $ref: '#/components/parameters/AllowBorder'
+      responses:
+        '200':
+          description: Варианты поездки
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripsResponse' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
 components:
   parameters:
+    RadiusKm:
+      name: radius_km
+      in: query
+      schema: { type: integer, minimum: 0, maximum: 1000, default: 100 }
+    MaxDriveHours:
+      name: max_drive_hours
+      in: query
+      description: Максимум часов за рулём в одну сторону; 0 — без ограничения
+      schema: { type: number, format: double, minimum: 0, maximum: 24, default: 8 }
+    Travelers:
+      name: travelers
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 9, default: 1 }
+    ConsumptionL100:
+      name: consumption_l100
+      in: query
+      description: Расход топлива, л/100 км
+      schema: { type: number, format: double, minimum: 2, maximum: 30, default: 8 }
+    FuelTypeParam:
+      name: fuel_type
+      in: query
+      schema: { $ref: '#/components/schemas/FuelType' }
+    FuelPriceRub:
+      name: fuel_price_rub
+      in: query
+      description: Своя цена топлива за литр; если не задана — из справочника
+      schema: { type: number, format: double, minimum: 1, maximum: 1000 }
+    AllowBorder:
+      name: allow_border
+      in: query
+      description: Учитывать аэропорты в другой стране
+      schema: { type: boolean, default: false }
     PlaceId:
       name: id
       in: path
@@ -233,6 +299,70 @@ components:
         insurance: { $ref: '#/components/schemas/Money' }
         crossing_hours: { type: number, format: double }
         note: { type: string }
+
+    TripsResponse:
+      type: object
+      required: [home, destination, options, no_data, partial]
+      properties:
+        home: { $ref: '#/components/schemas/Place' }
+        destination: { $ref: '#/components/schemas/Place' }
+        fuel_price: { $ref: '#/components/schemas/Money' }
+        options:
+          type: array
+          description: Лучший вариант через каждый аэропорт, дешёвые первыми
+          items: { $ref: '#/components/schemas/TripOption' }
+        home_best:
+          $ref: '#/components/schemas/TripOption'
+        no_data:
+          type: array
+          description: Аэропорты, по которым у источника нет цен на этот месяц
+          items: { $ref: '#/components/schemas/Place' }
+        partial:
+          type: boolean
+          description: Часть запросов к источнику цен не удалась
+
+    TripOption:
+      type: object
+      required: [hub, depart_at, return_at, trip_days, airline, transfers, return_transfers,
+                 duration_to_min, duration_back_min, ticket_per_person, tickets, total, per_person, warnings]
+      properties:
+        hub: { $ref: '#/components/schemas/Place' }
+        depart_at: { type: string, format: date-time }
+        return_at: { type: string, format: date-time }
+        trip_days: { type: integer }
+        airline: { type: string, example: FS }
+        transfers: { type: integer }
+        return_transfers: { type: integer }
+        duration_to_min: { type: integer }
+        duration_back_min: { type: integer }
+        found_on:
+          type: string
+          format: date
+          description: Когда источник видел эту цену
+        booking_url: { type: string }
+        ticket_per_person:
+          $ref: '#/components/schemas/Money'
+        tickets:
+          $ref: '#/components/schemas/Money'
+        car: { $ref: '#/components/schemas/TripCar' }
+        total: { $ref: '#/components/schemas/Money' }
+        per_person: { $ref: '#/components/schemas/Money' }
+        savings_vs_home:
+          $ref: '#/components/schemas/Money'
+        warnings:
+          type: array
+          items:
+            type: string
+            enum: [border_crossing_by_car, stale_price, parking_estimated, road_approximate]
+
+    TripCar:
+      type: object
+      required: [road, drive_hours, cost]
+      properties:
+        road: { $ref: '#/components/schemas/RoadLeg' }
+        drive_hours: { type: number, format: double }
+        cost: { $ref: '#/components/schemas/CarCost' }
+        border: { $ref: '#/components/schemas/BorderInfo' }
 
     Point:
       type: object

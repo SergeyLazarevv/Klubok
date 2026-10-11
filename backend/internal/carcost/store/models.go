@@ -48,6 +48,21 @@ type Place struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+type PriceQuote struct {
+	ID              int64
+	Source          string
+	OriginIata      string
+	DestinationIata string
+	DepartAt        pgtype.Timestamptz
+	ReturnAt        pgtype.Timestamptz
+	PriceKop        int64
+	Transfers       int16
+	ReturnTransfers pgtype.Int2
+	Airline         string
+	FoundOn         pgtype.Date
+	FetchedAt       pgtype.Timestamptz
+}
+
 type RoadDistance struct {
 	FromPlaceID uuid.UUID
 	ToPlaceID   uuid.UUID
