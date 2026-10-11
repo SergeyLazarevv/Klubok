@@ -10,7 +10,7 @@
 
 ## Быстрый старт
 
-Нужны Docker, Go 1.27+, Node.js 20.19+.
+Нужны Docker, Go 1.27+, Node.js 24 (`nvm use` — версия в `.nvmrc`).
 
 ```bash
 make up              # PostgreSQL + PostGIS, Redis, Mailpit
@@ -20,13 +20,15 @@ make api             # API на http://127.0.0.1:8080
 make web             # фронтенд на http://127.0.0.1:5173
 ```
 
+Первый запуск фронтенда: `cd frontend && npm install`.
+
 Mailpit (письма в разработке): http://127.0.0.1:8025
 
 ## Документация
 
 Вся документация лежит в [`docs/`](docs/README.md).
 
-## Стек (план)
+## Стек
 
 - Backend: Go, модульный монолит, REST + OpenAPI
 - Frontend: Vue 3 + TypeScript + Vite, PWA

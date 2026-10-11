@@ -120,6 +120,10 @@ components:
           type: string
           description: Код города, к которому относится аэропорт
           example: KUF
+        city_name:
+          type: string
+          description: Название города, к которому относится аэропорт
+          example: Самара
         name: { type: string, example: Самара }
         name_en: { type: string, example: Samara }
         name_to:

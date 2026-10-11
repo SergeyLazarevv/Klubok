@@ -74,6 +74,7 @@ func toAPIPlace(p geo.Place) apigen.Place {
 		Kind:        apigen.PlaceKind(p.Kind),
 		Iata:        p.IATA,
 		CityIata:    optional(p.CityIATA),
+		CityName:    optional(p.CityName),
 		Name:        p.Name,
 		NameEn:      optional(p.NameEn),
 		NameTo:      optional(p.NameTo),

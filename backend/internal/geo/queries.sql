@@ -17,16 +17,20 @@ ON CONFLICT (kind, iata) DO UPDATE SET
     updated_at   = now();
 
 -- name: GetPlace :one
-SELECT id, kind, iata, city_iata, name_ru, name_en, name_to, country_code,
-       ST_Y(location::geometry)::float8 AS lat, ST_X(location::geometry)::float8 AS lon, timezone
-FROM places
-WHERE id = @id AND is_active;
+SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name
+FROM places p
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
+WHERE p.id = @id AND p.is_active;
 
 -- name: SearchPlaces :many
 -- Порядок: точный IATA, точное название, Россия, СНГ, города с аэропортом, короткие названия.
 SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
-       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name
 FROM places p
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
 WHERE p.is_active
   AND (sqlc.narg('kind')::text IS NULL OR p.kind = sqlc.narg('kind')::text)
   AND (
@@ -53,9 +57,12 @@ LIMIT @lim;
 -- Аэропорты в радиусе от точки, по возрастанию расстояния по прямой.
 SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
        ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name,
        (ST_Distance(p.location, o.location) / 1000)::float8 AS distance_km
-FROM places p, places o
-WHERE o.id = @origin_id
+FROM places p
+JOIN places o ON o.id = @origin_id
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
+WHERE true
   AND p.kind = 'airport'
   AND p.is_active
   AND ST_DWithin(p.location, o.location, @radius_m::float8)

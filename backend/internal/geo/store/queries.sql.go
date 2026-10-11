@@ -13,10 +13,12 @@ import (
 )
 
 const getPlace = `-- name: GetPlace :one
-SELECT id, kind, iata, city_iata, name_ru, name_en, name_to, country_code,
-       ST_Y(location::geometry)::float8 AS lat, ST_X(location::geometry)::float8 AS lon, timezone
-FROM places
-WHERE id = $1 AND is_active
+SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name
+FROM places p
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
+WHERE p.id = $1 AND p.is_active
 `
 
 type GetPlaceRow struct {
@@ -31,6 +33,7 @@ type GetPlaceRow struct {
 	Lat         float64
 	Lon         float64
 	Timezone    string
+	CityName    pgtype.Text
 }
 
 func (q *Queries) GetPlace(ctx context.Context, id uuid.UUID) (GetPlaceRow, error) {
@@ -48,6 +51,7 @@ func (q *Queries) GetPlace(ctx context.Context, id uuid.UUID) (GetPlaceRow, erro
 		&i.Lat,
 		&i.Lon,
 		&i.Timezone,
+		&i.CityName,
 	)
 	return i, err
 }
@@ -55,9 +59,12 @@ func (q *Queries) GetPlace(ctx context.Context, id uuid.UUID) (GetPlaceRow, erro
 const listAirportsWithin = `-- name: ListAirportsWithin :many
 SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
        ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name,
        (ST_Distance(p.location, o.location) / 1000)::float8 AS distance_km
-FROM places p, places o
-WHERE o.id = $1
+FROM places p
+JOIN places o ON o.id = $1
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
+WHERE true
   AND p.kind = 'airport'
   AND p.is_active
   AND ST_DWithin(p.location, o.location, $2::float8)
@@ -81,6 +88,7 @@ type ListAirportsWithinRow struct {
 	Lat         float64
 	Lon         float64
 	Timezone    string
+	CityName    pgtype.Text
 	DistanceKm  float64
 }
 
@@ -106,6 +114,7 @@ func (q *Queries) ListAirportsWithin(ctx context.Context, arg ListAirportsWithin
 			&i.Lat,
 			&i.Lon,
 			&i.Timezone,
+			&i.CityName,
 			&i.DistanceKm,
 		); err != nil {
 			return nil, err
@@ -120,8 +129,10 @@ func (q *Queries) ListAirportsWithin(ctx context.Context, arg ListAirportsWithin
 
 const searchPlaces = `-- name: SearchPlaces :many
 SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
-       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name
 FROM places p
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
 WHERE p.is_active
   AND ($1::text IS NULL OR p.kind = $1::text)
   AND (
@@ -163,6 +174,7 @@ type SearchPlacesRow struct {
 	Lat         float64
 	Lon         float64
 	Timezone    string
+	CityName    pgtype.Text
 }
 
 // Порядок: точный IATA, точное название, Россия, СНГ, города с аэропортом, короткие названия.
@@ -187,6 +199,7 @@ func (q *Queries) SearchPlaces(ctx context.Context, arg SearchPlacesParams) ([]S
 			&i.Lat,
 			&i.Lon,
 			&i.Timezone,
+			&i.CityName,
 		); err != nil {
 			return nil, err
 		}

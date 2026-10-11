@@ -89,7 +89,9 @@ sequenceDiagram
 - PWA: `vite-plugin-pwa` (манифест, service worker, установка на телефон, позже push).
 - UI: Tailwind CSS + **shadcn-vue** (компоненты на Reka UI), иконки Lucide ([ADR-0010](adr/0010-ui-tailwind-shadcn-vue.md)).
 - Карты (v2+): MapLibre GL + тайлы OSM.
-- Клиент API генерируется из OpenAPI-спецификации.
+- Клиент API: типы генерируются из OpenAPI (`openapi-typescript`, `npm run gen:api`), запросы — `openapi-fetch`.
+- Шрифт Inter хранится в проекте (`@fontsource-variable/inter`), без внешних CDN.
+- Гостевой профиль — Pinia + localStorage.
 
 ## 4.7. Структура репозитория
 

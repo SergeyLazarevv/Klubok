@@ -29,6 +29,7 @@ type Place struct {
 	Kind        Kind
 	IATA        string
 	CityIATA    string
+	CityName    string // название города для аэропорта: «Гагарин» → «Саратов»
 	Name        string
 	NameEn      string
 	NameTo      string // «в Самару»
@@ -98,6 +99,7 @@ func (s *Service) AirportsWithin(ctx context.Context, originID uuid.UUID, radius
 		p := placeFromRow(store.SearchPlacesRow{
 			ID: r.ID, Kind: r.Kind, Iata: r.Iata, CityIata: r.CityIata, NameRu: r.NameRu, NameEn: r.NameEn,
 			NameTo: r.NameTo, CountryCode: r.CountryCode, Lat: r.Lat, Lon: r.Lon, Timezone: r.Timezone,
+			CityName: r.CityName,
 		})
 		hubs[i] = Hub{Place: p, StraightKm: r.DistanceKm, CrossesBorder: p.CountryCode != origin.CountryCode}
 	}
@@ -110,6 +112,7 @@ func placeFromRow(r store.SearchPlacesRow) Place {
 		Kind:        Kind(r.Kind),
 		IATA:        r.Iata,
 		CityIATA:    r.CityIata.String,
+		CityName:    r.CityName.String,
 		Name:        r.NameRu,
 		NameEn:      r.NameEn.String,
 		NameTo:      r.NameTo.String,
