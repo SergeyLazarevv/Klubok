@@ -1,0 +1,168 @@
+openapi: 3.0.3
+info:
+  title: Klubok API
+  version: 0.1.0
+  description: |
+    API сервиса планирования путешествий Klubok.
+    Обзор и правила — docs/08-api.md. Этот файл — источник истины для контракта.
+servers:
+  - url: /api/v1
+
+tags:
+  - name: places
+    description: Справочник городов и транспортных узлов
+
+paths:
+  /places:
+    get:
+      tags: [places]
+      operationId: searchPlaces
+      summary: Автодополнение точек по названию или IATA-коду
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 64 }
+          description: Начало названия (ru/en) или IATA-код
+        - name: kind
+          in: query
+          required: false
+          schema: { $ref: '#/components/schemas/PlaceKind' }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 20, default: 10 }
+      responses:
+        '200':
+          description: Найденные точки, лучшие совпадения первыми
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Place' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /places/{id}:
+    get:
+      tags: [places]
+      operationId: getPlace
+      summary: Точка по идентификатору
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '200':
+          description: Точка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Place' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /places/{id}/hubs:
+    get:
+      tags: [places]
+      operationId: listPlaceHubs
+      summary: Аэропорты в радиусе от точки
+      description: |
+        Расстояние — по прямой. Расстояние и время по дороге считает модуль road (следующая итерация).
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+        - name: radius_km
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 1000, default: 100 }
+      responses:
+        '200':
+          description: Хабы, отсортированные по расстоянию
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Hub' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+components:
+  parameters:
+    PlaceId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    Problem:
+      description: Ошибка в формате RFC 9457
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    PlaceKind:
+      type: string
+      enum: [city, airport]
+
+    Place:
+      type: object
+      required: [id, kind, iata, name, country_code, location, timezone]
+      properties:
+        id: { type: string, format: uuid }
+        kind: { $ref: '#/components/schemas/PlaceKind' }
+        iata: { type: string, example: KUF }
+        city_iata:
+          type: string
+          description: Код города, к которому относится аэропорт
+          example: KUF
+        name: { type: string, example: Самара }
+        name_en: { type: string, example: Samara }
+        name_to:
+          type: string
+          description: Название в винительном падеже с предлогом
+          example: в Самару
+        country_code: { type: string, example: RU }
+        location: { $ref: '#/components/schemas/Point' }
+        timezone: { type: string, example: Europe/Samara }
+
+    Hub:
+      type: object
+      required: [place, straight_km]
+      properties:
+        place: { $ref: '#/components/schemas/Place' }
+        straight_km:
+          type: number
+          format: double
+          description: Расстояние по прямой от исходной точки, км
+        crosses_border:
+          type: boolean
+          description: Хаб в другой стране
+
+    Point:
+      type: object
+      required: [lat, lon]
+      properties:
+        lat: { type: number, format: double }
+        lon: { type: number, format: double }
+
+    Problem:
+      type: object
+      required: [title, status]
+      properties:
+        type: { type: string, default: about:blank }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: { type: string }
+              message: { type: string }

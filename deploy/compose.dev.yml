@@ -1,0 +1,38 @@
+# Локальное окружение разработки: docker compose -f deploy/compose.dev.yml up -d
+name: klubok
+
+services:
+  postgres:
+    image: postgis/postgis:17-3.5
+    environment:
+      POSTGRES_USER: klubok
+      POSTGRES_PASSWORD: klubok
+      POSTGRES_DB: klubok
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U klubok -d klubok"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "127.0.0.1:8025:8025" # веб-интерфейс писем
+      - "127.0.0.1:1025:1025" # SMTP
+
+volumes:
+  pgdata:
