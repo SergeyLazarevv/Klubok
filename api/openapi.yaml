@@ -11,6 +11,8 @@ servers:
 tags:
   - name: places
     description: Справочник городов и транспортных узлов
+  - name: search
+    description: Подбор вариантов поездки
 
 paths:
   /places:
@@ -61,31 +63,56 @@ paths:
               schema: { $ref: '#/components/schemas/Place' }
         '404': { $ref: '#/components/responses/Problem' }
 
-  /places/{id}/hubs:
+  /car-hubs:
     get:
-      tags: [places]
-      operationId: listPlaceHubs
-      summary: Аэропорты в радиусе от точки
+      tags: [search]
+      operationId: listCarHubs
+      summary: Аэропорты, до которых можно доехать на машине, и расходы на дорогу
       description: |
-        Расстояние — по прямой. Расстояние и время по дороге считает модуль road (следующая итерация).
+        Для каждого аэропорта в радиусе — расстояние и время по дороге, расходы на машину туда и обратно
+        (топливо, парковка на время поездки, страховка при въезде в другую страну). Сортировка — по времени в пути с учётом границы.
+        Аэропорты, до которых ехать дольше max_drive_hours (с учётом времени на границе), не возвращаются.
       parameters:
-        - $ref: '#/components/parameters/PlaceId'
+        - name: from
+          in: query
+          required: true
+          description: Домашний город
+          schema: { type: string, format: uuid }
         - name: radius_km
           in: query
-          required: false
           schema: { type: integer, minimum: 0, maximum: 1000, default: 100 }
+        - name: max_drive_hours
+          in: query
+          description: Максимум часов за рулём в одну сторону; 0 — без ограничения
+          schema: { type: number, format: double, minimum: 0, maximum: 24, default: 8 }
+        - name: days
+          in: query
+          description: Длительность поездки в сутках — для парковки
+          schema: { type: integer, minimum: 1, maximum: 60, default: 7 }
+        - name: travelers
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 9, default: 1 }
+        - name: consumption_l100
+          in: query
+          description: Расход топлива, л/100 км
+          schema: { type: number, format: double, minimum: 2, maximum: 30, default: 8 }
+        - name: fuel_type
+          in: query
+          schema: { $ref: '#/components/schemas/FuelType' }
+        - name: fuel_price_rub
+          in: query
+          description: Своя цена топлива за литр; если не задана — из справочника
+          schema: { type: number, format: double, minimum: 1, maximum: 1000 }
+        - name: allow_border
+          in: query
+          description: Учитывать аэропорты в другой стране
+          schema: { type: boolean, default: false }
       responses:
         '200':
-          description: Хабы, отсортированные по расстоянию
+          description: Хабы с расходами на машину
           content:
             application/json:
-              schema:
-                type: object
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items: { $ref: '#/components/schemas/Hub' }
+              schema: { $ref: '#/components/schemas/CarHubsResponse' }
         '404': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
 
@@ -134,18 +161,78 @@ components:
         location: { $ref: '#/components/schemas/Point' }
         timezone: { type: string, example: Europe/Samara }
 
-    Hub:
+    Money:
       type: object
-      required: [place, straight_km]
+      description: Сумма в минимальных единицах валюты (копейках)
+      required: [amount, currency]
+      properties:
+        amount: { type: integer, format: int64, example: 327360 }
+        currency: { type: string, enum: [RUB] }
+
+    FuelType:
+      type: string
+      enum: [ai92, ai95, dt, lpg]
+      default: ai95
+
+    CarHubsResponse:
+      type: object
+      required: [home, fuel_price, fuel_price_source, items]
+      properties:
+        home: { $ref: '#/components/schemas/Place' }
+        fuel_price: { $ref: '#/components/schemas/Money' }
+        fuel_price_source:
+          type: string
+          enum: [reference, user]
+          description: reference — цена из справочника, user — задана пользователем
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/CarHub' }
+
+    CarHub:
+      type: object
+      required: [place, straight_km, road, drive_hours, cost, per_person, parking_estimated]
       properties:
         place: { $ref: '#/components/schemas/Place' }
-        straight_km:
+        straight_km: { type: number, format: double }
+        road: { $ref: '#/components/schemas/RoadLeg' }
+        drive_hours:
           type: number
           format: double
-          description: Расстояние по прямой от исходной точки, км
-        crosses_border:
+          description: Время в пути в одну сторону, включая время на границе
+        cost: { $ref: '#/components/schemas/CarCost' }
+        per_person: { $ref: '#/components/schemas/Money' }
+        parking_estimated:
           type: boolean
-          description: Хаб в другой стране
+          description: Цена парковки неизвестна, взято значение по умолчанию
+        border: { $ref: '#/components/schemas/BorderInfo' }
+
+    RoadLeg:
+      type: object
+      required: [distance_km, duration_min, approximate]
+      properties:
+        distance_km: { type: number, format: double }
+        duration_min: { type: integer }
+        approximate:
+          type: boolean
+          description: Оценка по прямой — маршрутизатор был недоступен
+
+    CarCost:
+      type: object
+      description: Расходы на машину туда и обратно на всю группу
+      required: [fuel, parking, border, total]
+      properties:
+        fuel: { $ref: '#/components/schemas/Money' }
+        parking: { $ref: '#/components/schemas/Money' }
+        border: { $ref: '#/components/schemas/Money' }
+        total: { $ref: '#/components/schemas/Money' }
+
+    BorderInfo:
+      type: object
+      required: [insurance, crossing_hours, note]
+      properties:
+        insurance: { $ref: '#/components/schemas/Money' }
+        crossing_hours: { type: number, format: double }
+        note: { type: string }
 
     Point:
       type: object

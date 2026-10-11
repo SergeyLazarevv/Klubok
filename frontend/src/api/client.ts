@@ -4,5 +4,10 @@ import type { components, paths } from './schema'
 // Типы и пути генерируются из api/openapi.yaml: npm run gen:api
 export const api = createClient<paths>({ baseUrl: '/api/v1' })
 
-export type Place = components['schemas']['Place']
-export type Hub = components['schemas']['Hub']
+type Schemas = components['schemas']
+export type Place = Schemas['Place']
+export type CarHub = Schemas['CarHub']
+export type CarHubsResponse = Schemas['CarHubsResponse']
+export type FuelType = Schemas['FuelType']
+export type Money = Schemas['Money']
+export type Problem = Schemas['Problem']

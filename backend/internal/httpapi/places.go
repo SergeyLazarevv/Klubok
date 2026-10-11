@@ -8,11 +8,13 @@ import (
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 )
 
 type handlers struct {
-	geo *geo.Service
-	log *slog.Logger
+	geo    *geo.Service
+	search *search.Service
+	log    *slog.Logger
 }
 
 var _ apigen.StrictServerInterface = (*handlers)(nil)
@@ -46,26 +48,6 @@ func (h *handlers) GetPlace(ctx context.Context, req apigen.GetPlaceRequestObjec
 		return nil, err
 	}
 	return apigen.GetPlace200JSONResponse(toAPIPlace(p)), nil
-}
-
-func (h *handlers) ListPlaceHubs(ctx context.Context, req apigen.ListPlaceHubsRequestObject) (apigen.ListPlaceHubsResponseObject, error) {
-	radius := 100
-	if req.Params.RadiusKm != nil {
-		radius = *req.Params.RadiusKm
-	}
-	hubs, err := h.geo.AirportsWithin(ctx, req.Id, radius)
-	if errors.Is(err, geo.ErrNotFound) {
-		return apigen.ListPlaceHubs404ApplicationProblemPlusJSONResponse{ProblemApplicationProblemPlusJSONResponse: notFound("place")}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	items := make([]apigen.Hub, len(hubs))
-	for i, hb := range hubs {
-		crosses := hb.CrossesBorder
-		items[i] = apigen.Hub{Place: toAPIPlace(hb.Place), StraightKm: hb.StraightKm, CrossesBorder: &crosses}
-	}
-	return apigen.ListPlaceHubs200JSONResponse{Items: items}, nil
 }
 
 func toAPIPlace(p geo.Place) apigen.Place {

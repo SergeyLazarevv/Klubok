@@ -67,9 +67,7 @@ erDiagram
         uuid to_place_id FK
         int distance_m
         int duration_s
-        bigint toll_kop
-        boolean crosses_border
-        text source
+        text source "osrm"
         timestamptz updated_at
     }
     searches {
@@ -87,7 +85,8 @@ erDiagram
 
 | Поле | Тип | Примечание |
 |---|---|---|
-| region_code | text | Код региона (ISO 3166-2, например `RU-SAM`, `KZ-ZAP`) |
+| country_code | char(2) | Страна |
+| region_code | text | Код региона (ISO 3166-2, например `RU-SAM`); пустая строка — цена по стране |
 | fuel_type | text | `ai92`, `ai95`, `dt`, `lpg` |
 | price_kop | bigint | |
 | updated_at | timestamptz | |
@@ -101,7 +100,7 @@ erDiagram
 | source | text | Ручной ввод / источник |
 | updated_at | timestamptz | |
 
-**`border_rules`** — правила пересечения границы на машине (страна → страна): страховка (`insurance_kop` за поездку), примерное время на КПП, текст предупреждения.
+**`border_rules`** — правила пересечения границы на машине: `from_country`, `to_country`, страховка (`insurance_kop` за поездку), `crossing_hours` (ориентировочное время на КПП), `note` (текст предупреждения).
 
 ## 5.3. Цены (v2)
 

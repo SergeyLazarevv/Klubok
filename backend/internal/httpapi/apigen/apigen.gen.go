@@ -22,6 +22,63 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for CarHubsResponseFuelPriceSource.
+const (
+	Reference CarHubsResponseFuelPriceSource = "reference"
+	User      CarHubsResponseFuelPriceSource = "user"
+)
+
+// Valid indicates whether the value is a known member of the CarHubsResponseFuelPriceSource enum.
+func (e CarHubsResponseFuelPriceSource) Valid() bool {
+	switch e {
+	case Reference:
+		return true
+	case User:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FuelType.
+const (
+	Ai92 FuelType = "ai92"
+	Ai95 FuelType = "ai95"
+	Dt   FuelType = "dt"
+	Lpg  FuelType = "lpg"
+)
+
+// Valid indicates whether the value is a known member of the FuelType enum.
+func (e FuelType) Valid() bool {
+	switch e {
+	case Ai92:
+		return true
+	case Ai95:
+		return true
+	case Dt:
+		return true
+	case Lpg:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for MoneyCurrency.
+const (
+	RUB MoneyCurrency = "RUB"
+)
+
+// Valid indicates whether the value is a known member of the MoneyCurrency enum.
+func (e MoneyCurrency) Valid() bool {
+	switch e {
+	case RUB:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for PlaceKind.
 const (
 	Airport PlaceKind = "airport"
@@ -40,15 +97,76 @@ func (e PlaceKind) Valid() bool {
 	}
 }
 
-// Hub defines model for Hub.
-type Hub struct {
-	// CrossesBorder Хаб в другой стране
-	CrossesBorder *bool `json:"crosses_border,omitempty"`
-	Place         Place `json:"place"`
+// BorderInfo defines model for BorderInfo.
+type BorderInfo struct {
+	CrossingHours float64 `json:"crossing_hours"`
 
-	// StraightKm Расстояние по прямой от исходной точки, км
+	// Insurance Сумма в минимальных единицах валюты (копейках)
+	Insurance Money  `json:"insurance"`
+	Note      string `json:"note"`
+}
+
+// CarCost Расходы на машину туда и обратно на всю группу
+type CarCost struct {
+	// Border Сумма в минимальных единицах валюты (копейках)
+	Border Money `json:"border"`
+
+	// Fuel Сумма в минимальных единицах валюты (копейках)
+	Fuel Money `json:"fuel"`
+
+	// Parking Сумма в минимальных единицах валюты (копейках)
+	Parking Money `json:"parking"`
+
+	// Total Сумма в минимальных единицах валюты (копейках)
+	Total Money `json:"total"`
+}
+
+// CarHub defines model for CarHub.
+type CarHub struct {
+	Border *BorderInfo `json:"border,omitempty"`
+
+	// Cost Расходы на машину туда и обратно на всю группу
+	Cost CarCost `json:"cost"`
+
+	// DriveHours Время в пути в одну сторону, включая время на границе
+	DriveHours float64 `json:"drive_hours"`
+
+	// ParkingEstimated Цена парковки неизвестна, взято значение по умолчанию
+	ParkingEstimated bool `json:"parking_estimated"`
+
+	// PerPerson Сумма в минимальных единицах валюты (копейках)
+	PerPerson  Money   `json:"per_person"`
+	Place      Place   `json:"place"`
+	Road       RoadLeg `json:"road"`
 	StraightKm float64 `json:"straight_km"`
 }
+
+// CarHubsResponse defines model for CarHubsResponse.
+type CarHubsResponse struct {
+	// FuelPrice Сумма в минимальных единицах валюты (копейках)
+	FuelPrice Money `json:"fuel_price"`
+
+	// FuelPriceSource reference — цена из справочника, user — задана пользователем
+	FuelPriceSource CarHubsResponseFuelPriceSource `json:"fuel_price_source"`
+	Home            Place                          `json:"home"`
+	Items           []CarHub                       `json:"items"`
+}
+
+// CarHubsResponseFuelPriceSource reference — цена из справочника, user — задана пользователем
+type CarHubsResponseFuelPriceSource string
+
+// FuelType defines model for FuelType.
+type FuelType string
+
+// Money Сумма в минимальных единицах валюты (копейках)
+type Money struct {
+	// Amount Example: 327360
+	Amount   int64         `json:"amount"`
+	Currency MoneyCurrency `json:"currency"`
+}
+
+// MoneyCurrency defines model for Money.Currency.
+type MoneyCurrency string
 
 // Place defines model for Place.
 type Place struct {
@@ -107,8 +225,40 @@ type Problem struct {
 	Type   *string `json:"type,omitempty"`
 }
 
+// RoadLeg defines model for RoadLeg.
+type RoadLeg struct {
+	// Approximate Оценка по прямой — маршрутизатор был недоступен
+	Approximate bool    `json:"approximate"`
+	DistanceKm  float64 `json:"distance_km"`
+	DurationMin int     `json:"duration_min"`
+}
+
 // PlaceId defines model for PlaceId.
 type PlaceId = openapi_types.UUID
+
+// ListCarHubsParams defines parameters for ListCarHubs.
+type ListCarHubsParams struct {
+	// From Домашний город
+	From     openapi_types.UUID `form:"from" json:"from"`
+	RadiusKm *int               `form:"radius_km,omitempty" json:"radius_km,omitempty"`
+
+	// MaxDriveHours Максимум часов за рулём в одну сторону; 0 — без ограничения
+	MaxDriveHours *float64 `form:"max_drive_hours,omitempty" json:"max_drive_hours,omitempty"`
+
+	// Days Длительность поездки в сутках — для парковки
+	Days      *int `form:"days,omitempty" json:"days,omitempty"`
+	Travelers *int `form:"travelers,omitempty" json:"travelers,omitempty"`
+
+	// ConsumptionL100 Расход топлива, л/100 км
+	ConsumptionL100 *float64  `form:"consumption_l100,omitempty" json:"consumption_l100,omitempty"`
+	FuelType        *FuelType `form:"fuel_type,omitempty" json:"fuel_type,omitempty"`
+
+	// FuelPriceRub Своя цена топлива за литр; если не задана — из справочника
+	FuelPriceRub *float64 `form:"fuel_price_rub,omitempty" json:"fuel_price_rub,omitempty"`
+
+	// AllowBorder Учитывать аэропорты в другой стране
+	AllowBorder *bool `form:"allow_border,omitempty" json:"allow_border,omitempty"`
+}
 
 // SearchPlacesParams defines parameters for SearchPlaces.
 type SearchPlacesParams struct {
@@ -118,27 +268,28 @@ type SearchPlacesParams struct {
 	Limit *int       `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
-// ListPlaceHubsParams defines parameters for ListPlaceHubs.
-type ListPlaceHubsParams struct {
-	RadiusKm *int `form:"radius_km,omitempty" json:"radius_km,omitempty"`
-}
-
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
+	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
+	// (GET /car-hubs)
+	ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams)
 	// SearchPlaces Автодополнение точек по названию или IATA-коду
 	// (GET /places)
 	SearchPlaces(w http.ResponseWriter, r *http.Request, params SearchPlacesParams)
 	// GetPlace Точка по идентификатору
 	// (GET /places/{id})
 	GetPlace(w http.ResponseWriter, r *http.Request, id PlaceId)
-	// ListPlaceHubs Аэропорты в радиусе от точки
-	// (GET /places/{id}/hubs)
-	ListPlaceHubs(w http.ResponseWriter, r *http.Request, id PlaceId, params ListPlaceHubsParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
 
 type Unimplemented struct{}
+
+// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
+// (GET /car-hubs)
+func (_ Unimplemented) ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
 
 // SearchPlaces Автодополнение точек по названию или IATA-коду
 // (GET /places)
@@ -152,12 +303,6 @@ func (_ Unimplemented) GetPlace(w http.ResponseWriter, r *http.Request, id Place
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// ListPlaceHubs Аэропорты в радиусе от точки
-// (GET /places/{id}/hubs)
-func (_ Unimplemented) ListPlaceHubs(w http.ResponseWriter, r *http.Request, id PlaceId, params ListPlaceHubsParams) {
-	w.WriteHeader(http.StatusNotImplemented)
-}
-
 // ServerInterfaceWrapper converts contexts to parameters.
 type ServerInterfaceWrapper struct {
 	Handler            ServerInterface
@@ -166,6 +311,143 @@ type ServerInterfaceWrapper struct {
 }
 
 type MiddlewareFunc func(http.Handler) http.Handler
+
+// ListCarHubs operation middleware
+func (siw *ServerInterfaceWrapper) ListCarHubs(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListCarHubsParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "radius_km" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "radius_km", r.URL.Query(), &params.RadiusKm, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "radius_km"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "radius_km", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "max_drive_hours" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "max_drive_hours", r.URL.Query(), &params.MaxDriveHours, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "max_drive_hours"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "max_drive_hours", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "days" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "days", r.URL.Query(), &params.Days, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "days"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "days", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "travelers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "travelers", r.URL.Query(), &params.Travelers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "travelers"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "travelers", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "consumption_l100" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "consumption_l100", r.URL.Query(), &params.ConsumptionL100, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "consumption_l100"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "consumption_l100", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "fuel_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "fuel_type", r.URL.Query(), &params.FuelType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "fuel_type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fuel_type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "fuel_price_rub" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "fuel_price_rub", r.URL.Query(), &params.FuelPriceRub, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "fuel_price_rub"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fuel_price_rub", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "allow_border" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "allow_border", r.URL.Query(), &params.AllowBorder, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "allow_border"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "allow_border", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListCarHubs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
 
 // SearchPlaces operation middleware
 func (siw *ServerInterfaceWrapper) SearchPlaces(w http.ResponseWriter, r *http.Request) {
@@ -243,48 +525,6 @@ func (siw *ServerInterfaceWrapper) GetPlace(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPlace(w, r, id)
-	}))
-
-	for _, middleware := range siw.HandlerMiddlewares {
-		handler = middleware(handler)
-	}
-
-	handler.ServeHTTP(w, r)
-}
-
-// ListPlaceHubs operation middleware
-func (siw *ServerInterfaceWrapper) ListPlaceHubs(w http.ResponseWriter, r *http.Request) {
-
-	var err error
-	_ = err
-
-	// ------------- Path parameter "id" -------------
-	var id PlaceId
-
-	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
-	if err != nil {
-		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
-		return
-	}
-
-	// Parameter object where we will unmarshal all parameters from the context
-	var params ListPlaceHubsParams
-
-	// ------------- Optional query parameter "radius_km" -------------
-
-	err = runtime.BindQueryParameterWithOptions("form", true, false, "radius_km", r.URL.Query(), &params.RadiusKm, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
-	if err != nil {
-		var requiredError *runtime.RequiredParameterError
-		if errors.As(err, &requiredError) {
-			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "radius_km"})
-		} else {
-			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "radius_km", Err: err})
-		}
-		return
-	}
-
-	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		siw.Handler.ListPlaceHubs(w, r, id, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -414,13 +654,65 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/places/{id}", wrapper.GetPlace)
 	})
 	r.Group(func(r chi.Router) {
-		r.Get(options.BaseURL+"/places/{id}/hubs", wrapper.ListPlaceHubs)
+		r.Get(options.BaseURL+"/car-hubs", wrapper.ListCarHubs)
 	})
 
 	return r
 }
 
 type ProblemApplicationProblemPlusJSONResponse Problem
+
+type ListCarHubsRequestObject struct {
+	Params ListCarHubsParams
+}
+
+type ListCarHubsResponseObject interface {
+	VisitListCarHubsResponse(w http.ResponseWriter) error
+}
+
+type ListCarHubs200JSONResponse CarHubsResponse
+
+func (response ListCarHubs200JSONResponse) VisitListCarHubsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCarHubs404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListCarHubs404ApplicationProblemPlusJSONResponse) VisitListCarHubsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListCarHubs422ApplicationProblemPlusJSONResponse Problem
+
+func (response ListCarHubs422ApplicationProblemPlusJSONResponse) VisitListCarHubsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
 
 type SearchPlacesRequestObject struct {
 	Params SearchPlacesParams
@@ -500,72 +792,17 @@ func (response GetPlace404ApplicationProblemPlusJSONResponse) VisitGetPlaceRespo
 	return err
 }
 
-type ListPlaceHubsRequestObject struct {
-	Id     PlaceId `json:"id"`
-	Params ListPlaceHubsParams
-}
-
-type ListPlaceHubsResponseObject interface {
-	VisitListPlaceHubsResponse(w http.ResponseWriter) error
-}
-
-type ListPlaceHubs200JSONResponse struct {
-	Items []Hub `json:"items"`
-}
-
-func (response ListPlaceHubs200JSONResponse) VisitListPlaceHubsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListPlaceHubs404ApplicationProblemPlusJSONResponse struct {
-	ProblemApplicationProblemPlusJSONResponse
-}
-
-func (response ListPlaceHubs404ApplicationProblemPlusJSONResponse) VisitListPlaceHubsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type ListPlaceHubs422ApplicationProblemPlusJSONResponse Problem
-
-func (response ListPlaceHubs422ApplicationProblemPlusJSONResponse) VisitListPlaceHubsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/problem+json")
-	w.WriteHeader(422)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
+	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
+	// (GET /car-hubs)
+	ListCarHubs(ctx context.Context, request ListCarHubsRequestObject) (ListCarHubsResponseObject, error)
 	// SearchPlaces Автодополнение точек по названию или IATA-коду
 	// (GET /places)
 	SearchPlaces(ctx context.Context, request SearchPlacesRequestObject) (SearchPlacesResponseObject, error)
 	// GetPlace Точка по идентификатору
 	// (GET /places/{id})
 	GetPlace(ctx context.Context, request GetPlaceRequestObject) (GetPlaceResponseObject, error)
-	// ListPlaceHubs Аэропорты в радиусе от точки
-	// (GET /places/{id}/hubs)
-	ListPlaceHubs(ctx context.Context, request ListPlaceHubsRequestObject) (ListPlaceHubsResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -605,6 +842,32 @@ type strictHandler struct {
 	ssi         StrictServerInterface
 	middlewares []StrictMiddlewareFunc
 	options     StrictHTTPServerOptions
+}
+
+// ListCarHubs operation middleware
+func (sh *strictHandler) ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams) {
+	var request ListCarHubsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListCarHubs(ctx, request.(ListCarHubsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListCarHubs")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListCarHubsResponseObject); ok {
+		if err := validResponse.VisitListCarHubsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
 }
 
 // SearchPlaces operation middleware
@@ -659,64 +922,55 @@ func (sh *strictHandler) GetPlace(w http.ResponseWriter, r *http.Request, id Pla
 	}
 }
 
-// ListPlaceHubs operation middleware
-func (sh *strictHandler) ListPlaceHubs(w http.ResponseWriter, r *http.Request, id PlaceId, params ListPlaceHubsParams) {
-	var request ListPlaceHubsRequestObject
-
-	request.Id = id
-	request.Params = params
-
-	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
-		return sh.ssi.ListPlaceHubs(ctx, request.(ListPlaceHubsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "ListPlaceHubs")
-	}
-
-	response, err := handler(r.Context(), w, r, request)
-
-	if err != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, err)
-	} else if validResponse, ok := response.(ListPlaceHubsResponseObject); ok {
-		if err := validResponse.VisitListPlaceHubsResponse(w); err != nil {
-			sh.options.ResponseErrorHandlerFunc(w, r, err)
-		}
-	} else if response != nil {
-		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
-	}
-}
-
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
+	"ZwA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

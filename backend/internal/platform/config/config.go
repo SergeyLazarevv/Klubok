@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseURL     string
 	ShutdownTimeout time.Duration
 	LogFormat       string // text | json
+	OSRMURL         string
 }
 
 func Load() Config {
@@ -19,6 +20,8 @@ func Load() Config {
 		DatabaseURL:     env("KLUBOK_DATABASE_URL", "postgres://klubok:klubok@127.0.0.1:5432/klubok?sslmode=disable"),
 		ShutdownTimeout: 10 * time.Second,
 		LogFormat:       env("KLUBOK_LOG_FORMAT", "text"),
+		// Публичный демо-сервер OSRM — только для разработки; результаты кэшируются в БД.
+		OSRMURL: env("KLUBOK_OSRM_URL", "https://router.project-osrm.org"),
 	}
 }
 

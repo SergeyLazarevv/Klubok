@@ -14,10 +14,13 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/config"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/database"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 )
 
 const usage = `Использование: klubok <команда>
@@ -76,7 +79,14 @@ func run(ctx context.Context, cfg config.Config, log *slog.Logger, cmd string, a
 }
 
 func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pgxpool.Pool) error {
-	handler, err := httpapi.NewRouter(httpapi.Deps{Log: log, Pool: pool, Geo: geo.NewService(pool)})
+	geoSvc := geo.NewService(pool)
+	roadSvc := road.NewService(pool, road.NewOSRM(cfg.OSRMURL), log)
+	handler, err := httpapi.NewRouter(httpapi.Deps{
+		Log:    log,
+		Pool:   pool,
+		Geo:    geoSvc,
+		Search: search.NewService(geoSvc, roadSvc, carcost.NewRefs(pool)),
+	})
 	if err != nil {
 		return err
 	}

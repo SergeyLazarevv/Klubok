@@ -19,14 +19,16 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/httpx"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 )
 
 const basePath = "/api/v1"
 
 type Deps struct {
-	Log  *slog.Logger
-	Pool *pgxpool.Pool
-	Geo  *geo.Service
+	Log    *slog.Logger
+	Pool   *pgxpool.Pool
+	Geo    *geo.Service
+	Search *search.Service
 }
 
 func NewRouter(d Deps) (http.Handler, error) {
@@ -57,7 +59,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 			Options:              openapi3filter.Options{MultiError: true},
 			ErrorHandlerWithOpts: validationError,
 		}))
-		strict := apigen.NewStrictHandlerWithOptions(&handlers{geo: d.Geo, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
+		strict := apigen.NewStrictHandlerWithOptions(&handlers{geo: d.Geo, search: d.Search, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
 			RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 				httpx.WriteProblem(w, httpx.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 			},

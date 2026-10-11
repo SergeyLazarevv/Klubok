@@ -38,7 +38,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/places/{id}/hubs": {
+    "/car-hubs": {
         parameters: {
             query?: never;
             header?: never;
@@ -46,10 +46,12 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Аэропорты в радиусе от точки
-         * @description Расстояние — по прямой. Расстояние и время по дороге считает модуль road (следующая итерация).
+         * Аэропорты, до которых можно доехать на машине, и расходы на дорогу
+         * @description Для каждого аэропорта в радиусе — расстояние и время по дороге, расходы на машину туда и обратно
+         *     (топливо, парковка на время поездки, страховка при въезде в другую страну). Сортировка — по времени в пути с учётом границы.
+         *     Аэропорты, до которых ехать дольше max_drive_hours (с учётом времени на границе), не возвращаются.
          */
-        get: operations["listPlaceHubs"];
+        get: operations["listCarHubs"];
         put?: never;
         post?: never;
         delete?: never;
@@ -95,15 +97,66 @@ export interface components {
             /** @example Europe/Samara */
             timezone: string;
         };
-        Hub: {
+        /** @description Сумма в минимальных единицах валюты (копейках) */
+        Money: {
+            /**
+             * Format: int64
+             * @example 327360
+             */
+            amount: number;
+            /** @enum {string} */
+            currency: "RUB";
+        };
+        /**
+         * @default ai95
+         * @enum {string}
+         */
+        FuelType: "ai92" | "ai95" | "dt" | "lpg";
+        CarHubsResponse: {
+            home: components["schemas"]["Place"];
+            fuel_price: components["schemas"]["Money"];
+            /**
+             * @description reference — цена из справочника, user — задана пользователем
+             * @enum {string}
+             */
+            fuel_price_source: "reference" | "user";
+            items: components["schemas"]["CarHub"][];
+        };
+        CarHub: {
             place: components["schemas"]["Place"];
+            /** Format: double */
+            straight_km: number;
+            road: components["schemas"]["RoadLeg"];
             /**
              * Format: double
-             * @description Расстояние по прямой от исходной точки, км
+             * @description Время в пути в одну сторону, включая время на границе
              */
-            straight_km: number;
-            /** @description Хаб в другой стране */
-            crosses_border?: boolean;
+            drive_hours: number;
+            cost: components["schemas"]["CarCost"];
+            per_person: components["schemas"]["Money"];
+            /** @description Цена парковки неизвестна, взято значение по умолчанию */
+            parking_estimated: boolean;
+            border?: components["schemas"]["BorderInfo"];
+        };
+        RoadLeg: {
+            /** Format: double */
+            distance_km: number;
+            duration_min: number;
+            /** @description Оценка по прямой — маршрутизатор был недоступен */
+            approximate: boolean;
+        };
+        /** @description Расходы на машину туда и обратно на всю группу */
+        CarCost: {
+            fuel: components["schemas"]["Money"];
+            parking: components["schemas"]["Money"];
+            border: components["schemas"]["Money"];
+            total: components["schemas"]["Money"];
+        };
+        BorderInfo: {
+            insurance: components["schemas"]["Money"];
+            /** Format: double */
+            crossing_hours: number;
+            note: string;
         };
         Point: {
             /** Format: double */
@@ -194,28 +247,38 @@ export interface operations {
             404: components["responses"]["Problem"];
         };
     };
-    listPlaceHubs: {
+    listCarHubs: {
         parameters: {
-            query?: {
+            query: {
+                /** @description Домашний город */
+                from: string;
                 radius_km?: number;
+                /** @description Максимум часов за рулём в одну сторону; 0 — без ограничения */
+                max_drive_hours?: number;
+                /** @description Длительность поездки в сутках — для парковки */
+                days?: number;
+                travelers?: number;
+                /** @description Расход топлива, л/100 км */
+                consumption_l100?: number;
+                fuel_type?: components["schemas"]["FuelType"];
+                /** @description Своя цена топлива за литр; если не задана — из справочника */
+                fuel_price_rub?: number;
+                /** @description Учитывать аэропорты в другой стране */
+                allow_border?: boolean;
             };
             header?: never;
-            path: {
-                id: components["parameters"]["PlaceId"];
-            };
+            path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description Хабы, отсортированные по расстоянию */
+            /** @description Хабы с расходами на машину */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        items: components["schemas"]["Hub"][];
-                    };
+                    "application/json": components["schemas"]["CarHubsResponse"];
                 };
             };
             404: components["responses"]["Problem"];

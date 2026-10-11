@@ -9,6 +9,29 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type BorderRule struct {
+	FromCountry   string
+	ToCountry     string
+	InsuranceKop  int64
+	CrossingHours pgtype.Numeric
+	Note          string
+}
+
+type FuelPrice struct {
+	CountryCode string
+	RegionCode  string
+	FuelType    string
+	PriceKop    int64
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type HubCost struct {
+	PlaceID          uuid.UUID
+	ParkingPerDayKop int64
+	Source           string
+	UpdatedAt        pgtype.Timestamptz
+}
+
 type Place struct {
 	ID          uuid.UUID
 	Kind        string
@@ -22,5 +45,14 @@ type Place struct {
 	Location    string
 	Timezone    string
 	IsActive    bool
+	UpdatedAt   pgtype.Timestamptz
+}
+
+type RoadDistance struct {
+	FromPlaceID uuid.UUID
+	ToPlaceID   uuid.UUID
+	DistanceM   int32
+	DurationS   int32
+	Source      string
 	UpdatedAt   pgtype.Timestamptz
 }
