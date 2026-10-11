@@ -16,3 +16,6 @@ node_modules/
 .idea/
 .vscode/
 .DS_Store
+
+# Personal instructions and notes (not part of the project)
+/private/

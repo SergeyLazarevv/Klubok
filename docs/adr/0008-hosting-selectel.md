@@ -6,7 +6,7 @@
 Аудитория — граждане РФ; при коммерческом запуске 152-ФЗ требует хранить их персональные данные в РФ.
 
 ## Решение
-Selectel. Старт: одна виртуальная машина, docker-compose (Nginx, api, worker, PostgreSQL, Redis). Далее — управляемые PostgreSQL и Redis Selectel.
+Selectel. Старт: одна виртуальная машина, docker-compose (Caddy, api, worker, PostgreSQL, Redis). Далее — управляемые PostgreSQL и Redis Selectel.
 
 ## Последствия
 - Требование локализации данных выполнено.

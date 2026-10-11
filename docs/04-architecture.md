@@ -25,7 +25,7 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph Selectel
-        N[Nginx<br/>TLS, статика PWA] --> API[klubok api<br/>Go]
+        N[Caddy<br/>авто-HTTPS, статика PWA] --> API[klubok api<br/>Go]
         API --> PG[(PostgreSQL + PostGIS)]
         API --> RD[(Redis<br/>кэш, rate limit)]
         W[klubok worker<br/>Go] --> PG
@@ -87,7 +87,7 @@ sequenceDiagram
 
 - Vue 3 + TypeScript + Vite, Pinia, Vue Router.
 - PWA: `vite-plugin-pwa` (манифест, service worker, установка на телефон, позже push).
-- UI-кит: `[открыто]` — PrimeVue (быстрее) или Tailwind + свои компоненты (уникальный вид).
+- UI: Tailwind CSS + **shadcn-vue** (компоненты на Reka UI), иконки Lucide ([ADR-0010](adr/0010-ui-tailwind-shadcn-vue.md)).
 - Карты (v2+): MapLibre GL + тайлы OSM.
 - Клиент API генерируется из OpenAPI-спецификации.
 

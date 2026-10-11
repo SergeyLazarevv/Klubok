@@ -14,3 +14,5 @@
 | [0007](0007-auth.md) | Email + VK ID, JWT + refresh-токены | Принято |
 | [0008](0008-hosting-selectel.md) | Хостинг Selectel | Принято |
 | [0009](0009-road-routing.md) | OpenRouteService + кэш, OSRM позже | Предложено |
+| [0010](0010-ui-tailwind-shadcn-vue.md) | Tailwind + shadcn-vue для UI | Принято |
+| [0011](0011-deploy-compose-caddy.md) | Деплой: Docker Compose + Caddy на одном сервере | Предложено |

@@ -10,4 +10,4 @@ Vue 3 + TypeScript + Vite + Pinia + Vue Router, PWA через `vite-plugin-pwa`
 
 ## Последствия
 - Установка на домашний экран, офлайн-оболочка, push-уведомления (Android, iOS 16.4+ для установленных PWA).
-- UI-кит выбирается отдельно: PrimeVue или Tailwind + свои компоненты `[открыто]`.
+- UI-кит: Tailwind + shadcn-vue, см. [ADR-0010](0010-ui-tailwind-shadcn-vue.md).
