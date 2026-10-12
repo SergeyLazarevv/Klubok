@@ -3,11 +3,14 @@ package road
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road/store"
@@ -27,9 +30,18 @@ type Leg struct {
 	Approximate bool
 }
 
-// Router строит маршруты от одной точки до многих. nil в ответе — проезда нет.
+// Route — путь на машине вместе с линией для карты.
+type Route struct {
+	Leg
+	Polyline string // Encoded Polyline, точность 6 знаков
+}
+
+// Router строит маршруты. nil в ответе — проезда нет.
 type Router interface {
+	// Table — расстояния от одной точки до многих, без линий.
 	Table(ctx context.Context, from Point, to []Point) ([]*Leg, error)
+	// Route — путь между двумя точками с линией.
+	Route(ctx context.Context, from, to Point) (*Route, error)
 }
 
 const (
@@ -103,6 +115,38 @@ func (s *Service) Legs(ctx context.Context, from Point, to []Point) (map[uuid.UU
 		}
 	}
 	return result, nil
+}
+
+// Route возвращает путь с линией для карты. Сначала смотрим кэш; если маршрутизатор недоступен
+// или проезда нет — прямая между точками с оценкой по прямой.
+func (s *Service) Route(ctx context.Context, from, to Point) (Route, error) {
+	cached, err := s.q.GetRoadRoute(ctx, store.GetRoadRouteParams{FromID: from.ID, ToID: to.ID})
+	if err == nil {
+		return Route{
+			Leg:      Leg{DistanceM: int(cached.DistanceM), DurationS: int(cached.DurationS)},
+			Polyline: cached.Geometry,
+		}, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Route{}, fmt.Errorf("get road route: %w", err)
+	}
+
+	route, err := s.router.Route(ctx, from, to)
+	if err != nil || route == nil {
+		if err != nil {
+			s.log.WarnContext(ctx, "router failed, using straight line", slog.Any("err", err))
+		}
+		return Route{Leg: Estimate(from, to), Polyline: EncodePolyline([]Point{from, to})}, nil
+	}
+	err = s.q.UpsertRoadRoute(ctx, store.UpsertRoadRouteParams{
+		FromID: from.ID, ToID: to.ID,
+		DistanceM: int32(route.DistanceM), DurationS: int32(route.DurationS), Source: sourceOSRM,
+		Geometry: pgtype.Text{String: route.Polyline, Valid: true},
+	})
+	if err != nil {
+		return Route{}, fmt.Errorf("cache road route: %w", err)
+	}
+	return *route, nil
 }
 
 // Estimate — грубая оценка пути, когда маршрутизатор недоступен. В кэш не пишется.

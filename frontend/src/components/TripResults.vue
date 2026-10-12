@@ -1,15 +1,20 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { CarIcon, ExternalLinkIcon, InfoIcon, PlaneIcon, TriangleAlertIcon } from '@lucide/vue'
+import { computed, ref, watch } from 'vue'
+import { CarIcon, ExternalLinkIcon, InfoIcon, MapIcon, PlaneIcon, TriangleAlertIcon } from '@lucide/vue'
 import type { TripOption, TripsResponse } from '@/api/client'
 import { hours, inMonth, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import TripMap from '@/components/TripMap.vue'
 
 const props = defineProps<{ result: TripsResponse; travelers: number; month: string }>()
 
 const best = computed(() => props.result.options[0])
+
+// Карта одна — в выбранном варианте; новый поиск снова показывает самый дешёвый
+const mapFor = ref(0)
+watch(() => props.result, () => (mapFor.value = 0))
 const homeName = computed(() => props.result.home.name)
 
 // Заголовок: насколько выгоднее лучший вариант, чем вылет из своего города
@@ -71,12 +76,14 @@ const warningText: Record<string, string> = {
             <span
               v-if="o.savings_vs_home && o.savings_vs_home.amount !== 0"
               class="text-xs font-medium tabular-nums"
-              :class="o.savings_vs_home.amount > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'"
+              :class="o.savings_vs_home.amount > 0 ? 'text-emerald-600' : 'text-muted-foreground'"
             >
               {{ o.savings_vs_home.amount > 0 ? 'выгоднее на' : 'дороже на' }} {{ rub(Math.abs(o.savings_vs_home.amount)) }}
             </span>
           </div>
         </header>
+
+        <TripMap v-if="mapFor === i" :home="result.home" :option="o" :destination="result.destination" />
 
         <dl class="grid gap-1.5 text-sm">
           <div class="flex items-start justify-between gap-3">
@@ -104,7 +111,7 @@ const warningText: Record<string, string> = {
           </div>
         </dl>
 
-        <p v-if="o.car?.border?.note" class="flex gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+        <p v-if="o.car?.border?.note" class="flex gap-1.5 text-xs text-amber-700">
           <InfoIcon class="mt-0.5 size-3 shrink-0" /> {{ o.car.border.note }}
         </p>
         <p
@@ -117,6 +124,9 @@ const warningText: Record<string, string> = {
 
         <footer class="flex flex-wrap items-center justify-between gap-2">
           <span v-if="o.found_on" class="text-xs text-muted-foreground">Цена найдена {{ localDay(o.found_on) }}</span>
+          <Button v-if="mapFor !== i" variant="ghost" size="sm" class="ml-auto" @click="mapFor = i">
+            <MapIcon /> На карте
+          </Button>
           <Button v-if="o.booking_url" as="a" :href="o.booking_url" target="_blank" rel="noopener" variant="outline" size="sm">
             Билеты на Aviasales <ExternalLinkIcon />
           </Button>
@@ -129,7 +139,7 @@ const warningText: Record<string, string> = {
       <p v-if="result.options.some((o) => o.warnings.includes('parking_estimated'))" class="text-xs text-muted-foreground">
         * Цена парковки ориентировочная — 300 ₽ в сутки.
       </p>
-      <p v-if="result.partial" class="text-xs text-amber-700 dark:text-amber-400">
+      <p v-if="result.partial" class="text-xs text-amber-700">
         Часть аэропортов не удалось проверить — результаты могут быть неполными.
       </p>
       <p class="text-xs text-muted-foreground">

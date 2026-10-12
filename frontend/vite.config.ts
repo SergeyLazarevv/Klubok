@@ -16,8 +16,8 @@ export default defineConfig({
         short_name: 'Klubok',
         description: 'Самые дешёвые варианты поездки с учётом машины, поездов и самолётов',
         lang: 'ru',
-        theme_color: '#0f766e',
-        background_color: '#ffffff',
+        theme_color: '#b6522d',
+        background_color: '#fef9f1',
         display: 'standalone',
         start_url: '/',
         icons: [

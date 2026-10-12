@@ -20,6 +20,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/config"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/database"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/poi"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/providers/travelpayouts"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
@@ -91,7 +92,8 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pg
 		Pool: pool,
 		Geo:  geoSvc,
 		Search: search.NewService(geoSvc, roadSvc, carcost.NewRefs(pool),
-			travelpayouts.New(cfg.TravelpayoutsToken, cfg.TravelpayoutsMarker), fares.NewHistory(pool), log),
+			travelpayouts.New(cfg.TravelpayoutsToken, cfg.TravelpayoutsMarker), fares.NewHistory(pool),
+			poi.NewService(pool, poi.NewOverpass(cfg.OverpassURL), poi.NewWiki(), log), log),
 	})
 	if err != nil {
 		return err

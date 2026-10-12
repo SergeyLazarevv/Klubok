@@ -38,6 +38,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/places/{id}/pois": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Достопримечательности вокруг точки
+         * @description В радиусе 15 км. Первый запрос по точке может идти несколько секунд — данные загружаются из OpenStreetMap.
+         */
+        get: operations["listPlacePois"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pois/{type}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Место с подробностями — описание и фото
+         * @description Описание и фото берутся из Wikidata, Википедии и Wikimedia Commons при первом запросе и сохраняются.
+         *     Если Википедия не ответила — место возвращается без них (details_pending остаётся true).
+         */
+        get: operations["getPoi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/car-hubs": {
         parameters: {
             query?: never;
@@ -74,6 +115,48 @@ export interface paths {
          *     Цены — из кэша поисков Aviasales, поэтому ищем по месяцу и длительности, а не по точным датам.
          */
         get: operations["searchTrips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routes/road": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Линия маршрута на машине между двумя точками — для карты
+         * @description Геометрия кэшируется. Если маршрутизатор недоступен, возвращается прямая между точками
+         *     с approximate = true.
+         */
+        get: operations["getRoadRoute"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routes/road/pois": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Заправки, кафе и достопримечательности вдоль дороги
+         * @description Заправки и кафе — до 2,5 км от дороги, достопримечательности — до 5 км.
+         *     Первый запрос по дороге может идти несколько секунд — данные загружаются из OpenStreetMap.
+         */
+        get: operations["listRoadPois"];
         put?: never;
         post?: never;
         delete?: never;
@@ -194,6 +277,7 @@ export interface components {
         };
         TripOption: {
             hub: components["schemas"]["Place"];
+            arrival?: components["schemas"]["Place"];
             /** Format: date-time */
             depart_at: string;
             /** Format: date-time */
@@ -225,6 +309,68 @@ export interface components {
             drive_hours: number;
             cost: components["schemas"]["CarCost"];
             border?: components["schemas"]["BorderInfo"];
+        };
+        RoadRoute: {
+            road: components["schemas"]["RoadLeg"];
+            /** @description Линия маршрута в формате Encoded Polyline с точностью 6 знаков (как polyline6 в OSRM) */
+            polyline: string;
+        };
+        PoiList: {
+            items: components["schemas"]["Poi"][];
+        };
+        /** @description Место из OpenStreetMap */
+        Poi: {
+            /**
+             * @description Объект OSM
+             * @example node/123456
+             */
+            id: string;
+            /** @enum {string} */
+            category: "fuel" | "food" | "attraction";
+            /**
+             * @description Значение тега OSM — fuel, cafe, restaurant, fast_food, museum, viewpoint, castle…
+             * @example cafe
+             */
+            kind: string;
+            name?: string;
+            /** @example Лукойл */
+            brand?: string;
+            location: components["schemas"]["Point"];
+            /**
+             * @description Часы работы в формате OSM
+             * @example Mo-Su 08:00-22:00
+             */
+            opening_hours?: string;
+            website?: string;
+            /**
+             * @description Статья: язык и название
+             * @example ru:Самарская площадь
+             */
+            wikipedia?: string;
+            /** @example Q4140541 */
+            wikidata?: string;
+            /** @description Кухня, значения OSM */
+            cuisine?: string[];
+            phone?: string;
+            /**
+             * @description Плата за вход — yes, no или сумма, как указано в OSM
+             * @example 300 RUB
+             */
+            fee?: string;
+            /** @description Первые предложения статьи Википедии или описание из Wikidata */
+            description?: string;
+            photo?: components["schemas"]["Photo"];
+            /** @description Описание и фото ещё не загружались — их даст GET /pois/{type}/{id} */
+            details_pending: boolean;
+        };
+        /** @description Фото с Wikimedia Commons */
+        Photo: {
+            /** @description Уменьшенная копия */
+            url: string;
+            /** @description Страница файла — автор и лицензия */
+            page: string;
+            /** @example Иван Иванов · CC BY-SA 4.0 */
+            credit?: string;
         };
         Point: {
             /** Format: double */
@@ -326,6 +472,54 @@ export interface operations {
             404: components["responses"]["Problem"];
         };
     };
+    listPlacePois: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PlaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Места */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoiList"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    getPoi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: "node" | "way" | "relation";
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Место */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Poi"];
+                };
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
     listCarHubs: {
         parameters: {
             query: {
@@ -402,6 +596,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripsResponse"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    getRoadRoute: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Маршрут */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadRoute"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
+    listRoadPois: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Места */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoiList"];
                 };
             };
             404: components["responses"]["Problem"];

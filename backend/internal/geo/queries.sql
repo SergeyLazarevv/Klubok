@@ -67,3 +67,11 @@ WHERE true
   AND p.is_active
   AND ST_DWithin(p.location, o.location, @radius_m::float8)
 ORDER BY distance_km;
+
+-- name: ListAirportsByIATA :many
+SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name
+FROM places p
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
+WHERE p.kind = 'airport' AND p.iata = ANY(@codes::text[]) AND p.is_active;

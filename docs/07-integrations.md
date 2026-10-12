@@ -51,10 +51,22 @@
 Решение: [ADR-0009](adr/0009-road-routing.md).
 
 - **OSRM** table-сервис: `GET {KLUBOK_OSRM_URL}/table/v1/driving/{lon,lat;...}?sources=0&annotations=distance,duration`.
+- **OSRM** route-сервис — линия дороги для карты: `GET {KLUBOK_OSRM_URL}/route/v1/driving/{lon,lat};{lon,lat}?overview=simplified&geometries=polyline6`. Кэш — `road_distances.geometry`; при недоступности — прямая между точками.
 - Разработка — публичный демо-сервер (по умолчанию), продакшен — свой экземпляр.
 - Кэш — `road_distances`, бессрочно. При недоступности — оценка по прямой × 1,3 (помечается `approximate`).
 - Пересечение границы определяем по стране хаба; время на КПП и страховка — из `border_rules`.
 - Платные дороги (М-11, М-12 и т.п.): пока не учитываем, в v2 — справочник участков `[открыто]`.
+
+Тайлы карты — `tile.openstreetmap.org`, только для разработки; для продакшена нужен свой источник ([ADR-0012](adr/0012-trip-map.md)).
+
+### Места на карте
+
+Решение: [ADR-0013](adr/0013-map-pois-osm.md).
+
+- **Overpass API** (`KLUBOK_OVERPASS_URL`, по умолчанию `overpass-api.de`; можно несколько через запятую): `POST /api/interpreter`, запрос по прямоугольникам вокруг кусков маршрута, `out center tags`.
+- Кэш — `pois` + `poi_scans` (30 дней). Ошибка источника → `502`, область не помечается загруженной.
+- Продакшен — импорт выгрузки OSM вместо Overpass `[открыто: когда]`.
+- **Wikidata / Википедия / Wikimedia Commons** (MediaWiki API, без ключа, `User-Agent` с контактом по их правилам): описание и фото достопримечательностей при первом открытии карточки, результат — в `pois`.
 
 ## 7.4. Цены на топливо (MVP — упрощённо)
 

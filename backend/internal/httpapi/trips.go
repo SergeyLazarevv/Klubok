@@ -97,6 +97,10 @@ func toAPITrip(o search.TripOption) apigen.TripOption {
 	if !o.Quote.FoundOn.IsZero() {
 		t.FoundOn = &openapi_types.Date{Time: o.Quote.FoundOn}
 	}
+	if o.Arrival != nil {
+		a := toAPIPlace(*o.Arrival)
+		t.Arrival = &a
+	}
 	if o.ByCar {
 		t.Car = &apigen.TripCar{
 			Road:       toAPIRoad(o.Hub.Leg),

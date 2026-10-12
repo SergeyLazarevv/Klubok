@@ -1,9 +1,3 @@
-<script setup lang="ts">
-import { useDark } from '@vueuse/core'
-
-useDark() // .dark на <html> по системной теме
-</script>
-
 <template>
   <div class="min-h-dvh bg-background">
     <header class="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">

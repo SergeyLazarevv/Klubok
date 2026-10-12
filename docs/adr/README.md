@@ -16,3 +16,5 @@
 | [0009](0009-road-routing.md) | OSRM для маршрутов на машине, кэш в БД | Принято |
 | [0010](0010-ui-tailwind-shadcn-vue.md) | Tailwind + shadcn-vue для UI | Принято |
 | [0011](0011-deploy-compose-caddy.md) | Деплой: Docker Compose + Caddy на одном сервере | Предложено |
+| [0012](0012-trip-map.md) | Мини-карта маршрута: Leaflet + тайлы OSM | Принято |
+| [0013](0013-map-pois-osm.md) | Места на карте из OpenStreetMap: Overpass, кэш в PostGIS | Принято |

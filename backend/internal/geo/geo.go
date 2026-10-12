@@ -81,6 +81,19 @@ func (s *Service) Search(ctx context.Context, query string, kind Kind, limit int
 	return places, nil
 }
 
+// AirportsByIATA возвращает аэропорты по кодам. Неизвестных кодов в ответе нет.
+func (s *Service) AirportsByIATA(ctx context.Context, codes []string) (map[string]Place, error) {
+	rows, err := s.q.ListAirportsByIATA(ctx, codes)
+	if err != nil {
+		return nil, fmt.Errorf("list airports by iata: %w", err)
+	}
+	out := make(map[string]Place, len(rows))
+	for _, r := range rows {
+		out[r.Iata] = placeFromRow(store.SearchPlacesRow(r))
+	}
+	return out, nil
+}
+
 // AirportsWithin возвращает аэропорты в радиусе от точки по прямой, ближайшие первыми.
 func (s *Service) AirportsWithin(ctx context.Context, originID uuid.UUID, radiusKm int) ([]Hub, error) {
 	origin, err := s.Get(ctx, originID)

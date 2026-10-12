@@ -56,6 +56,63 @@ func (q *Queries) GetPlace(ctx context.Context, id uuid.UUID) (GetPlaceRow, erro
 	return i, err
 }
 
+const listAirportsByIATA = `-- name: ListAirportsByIATA :many
+SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name
+FROM places p
+LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
+WHERE p.kind = 'airport' AND p.iata = ANY($1::text[]) AND p.is_active
+`
+
+type ListAirportsByIATARow struct {
+	ID          uuid.UUID
+	Kind        string
+	Iata        string
+	CityIata    pgtype.Text
+	NameRu      string
+	NameEn      pgtype.Text
+	NameTo      pgtype.Text
+	CountryCode string
+	Lat         float64
+	Lon         float64
+	Timezone    string
+	CityName    pgtype.Text
+}
+
+func (q *Queries) ListAirportsByIATA(ctx context.Context, codes []string) ([]ListAirportsByIATARow, error) {
+	rows, err := q.db.Query(ctx, listAirportsByIATA, codes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAirportsByIATARow{}
+	for rows.Next() {
+		var i ListAirportsByIATARow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Iata,
+			&i.CityIata,
+			&i.NameRu,
+			&i.NameEn,
+			&i.NameTo,
+			&i.CountryCode,
+			&i.Lat,
+			&i.Lon,
+			&i.Timezone,
+			&i.CityName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAirportsWithin = `-- name: ListAirportsWithin :many
 SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
        ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,

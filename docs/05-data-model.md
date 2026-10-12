@@ -68,7 +68,23 @@ erDiagram
         int distance_m
         int duration_s
         text source "osrm"
+        text geometry "nullable, polyline6 для карты"
         timestamptz updated_at
+    }
+    pois {
+        text osm_id PK "node/123"
+        text category "fuel | food | attraction"
+        text kind
+        text name
+        geography location
+        text wikidata
+        text description "из Википедии, при первом открытии"
+        text photo_url "Commons, 640 px"
+        timestamptz details_at
+    }
+    poi_scans {
+        text scan_key PK "road:from:to | place:id"
+        timestamptz scanned_at
     }
     searches {
         uuid id PK

@@ -87,8 +87,9 @@ sequenceDiagram
 
 - Vue 3 + TypeScript + Vite, Pinia, Vue Router.
 - PWA: `vite-plugin-pwa` (манифест, service worker, установка на телефон, позже push).
+- Тема — только светлая, тёплая: кремовый фон, тёплые нейтральные, терракотовый акцент (`#b6522d`); токены — в `frontend/src/style.css`. Тёмной темы нет и от системной настройки она не включается.
 - UI: Tailwind CSS + **shadcn-vue** (компоненты на Reka UI), иконки Lucide ([ADR-0010](adr/0010-ui-tailwind-shadcn-vue.md)).
-- Карты (v2+): MapLibre GL + тайлы OSM.
+- Карты: мини-карта маршрута — Leaflet + растровые тайлы OSM ([ADR-0012](adr/0012-trip-map.md)); большая карта направлений (v2+) — MapLibre GL.
 - Клиент API: типы генерируются из OpenAPI (`openapi-typescript`, `npm run gen:api`), запросы — `openapi-fetch`.
 - Шрифт Inter хранится в проекте (`@fontsource-variable/inter`), без внешних CDN.
 - Гостевой профиль — Pinia + localStorage.

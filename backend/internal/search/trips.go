@@ -15,6 +15,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 )
 
 // homeAirportsRadiusKm — в каком радиусе искать аэропорты своего города, когда машины нет.
@@ -52,6 +53,7 @@ type TripsQuery struct {
 // TripOption — лучший вариант поездки через конкретный аэропорт вылета.
 type TripOption struct {
 	Hub       reachable
+	Arrival   *geo.Place // аэропорт прилёта; nil — его нет в справочнике
 	ByCar     bool
 	Quote     fares.Quote
 	TripDays  int
@@ -123,6 +125,9 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 			}
 		}
 	}
+	if err := s.resolveArrivals(ctx, best); err != nil {
+		return TripsResult{}, err
+	}
 	for _, r := range hubs {
 		opt, ok := best[r.Hub.Place.ID]
 		if !ok {
@@ -167,6 +172,41 @@ func (s *Service) option(r reachable, q TripsQuery, fuelPrice carcost.Kop, quote
 	opt.Total = opt.Tickets + opt.Car.Total
 	opt.PerPerson = opt.Total / travelers
 	return opt
+}
+
+// resolveArrivals подставляет аэропорты прилёта по кодам из котировок — для карты.
+func (s *Service) resolveArrivals(ctx context.Context, opts map[uuid.UUID]TripOption) error {
+	if len(opts) == 0 {
+		return nil
+	}
+	codes := make([]string, 0, len(opts))
+	for _, o := range opts {
+		codes = append(codes, o.Quote.Destination)
+	}
+	airports, err := s.geo.AirportsByIATA(ctx, codes)
+	if err != nil {
+		return err
+	}
+	for id, o := range opts {
+		if a, ok := airports[o.Quote.Destination]; ok {
+			o.Arrival = &a
+			opts[id] = o
+		}
+	}
+	return nil
+}
+
+// RoadRoute — путь на машине между точками справочника с линией для карты.
+func (s *Service) RoadRoute(ctx context.Context, fromID, toID uuid.UUID) (road.Route, error) {
+	from, err := s.geo.Get(ctx, fromID)
+	if err != nil {
+		return road.Route{}, err
+	}
+	to, err := s.geo.Get(ctx, toID)
+	if err != nil {
+		return road.Route{}, err
+	}
+	return s.road.Route(ctx, roadPoint(from), roadPoint(to))
 }
 
 // homeAirports — аэропорты своего города, когда машины нет.

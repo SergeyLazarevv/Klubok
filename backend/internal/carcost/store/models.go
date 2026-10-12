@@ -48,6 +48,34 @@ type Place struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+type Poi struct {
+	OsmID        string
+	Category     string
+	Kind         string
+	Name         pgtype.Text
+	Brand        pgtype.Text
+	Location     string
+	OpeningHours pgtype.Text
+	Website      pgtype.Text
+	Wikipedia    pgtype.Text
+	UpdatedAt    pgtype.Timestamptz
+	Wikidata     pgtype.Text
+	CommonsFile  pgtype.Text
+	Cuisine      pgtype.Text
+	Phone        pgtype.Text
+	Fee          pgtype.Text
+	Description  pgtype.Text
+	PhotoUrl     pgtype.Text
+	PhotoPage    pgtype.Text
+	PhotoCredit  pgtype.Text
+	DetailsAt    pgtype.Timestamptz
+}
+
+type PoiScan struct {
+	ScanKey   string
+	ScannedAt pgtype.Timestamptz
+}
+
 type PriceQuote struct {
 	ID              int64
 	Source          string
@@ -70,4 +98,5 @@ type RoadDistance struct {
 	DurationS   int32
 	Source      string
 	UpdatedAt   pgtype.Timestamptz
+	Geometry    pgtype.Text
 }
