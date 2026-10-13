@@ -41,6 +41,24 @@ func (e CarHubsResponseFuelPriceSource) Valid() bool {
 	}
 }
 
+// Defines values for DriveTripWarnings.
+const (
+	DriveTripWarningsBorderCrossingByCar DriveTripWarnings = "border_crossing_by_car"
+	DriveTripWarningsRoadApproximate     DriveTripWarnings = "road_approximate"
+)
+
+// Valid indicates whether the value is a known member of the DriveTripWarnings enum.
+func (e DriveTripWarnings) Valid() bool {
+	switch e {
+	case DriveTripWarningsBorderCrossingByCar:
+		return true
+	case DriveTripWarningsRoadApproximate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FuelType.
 const (
 	Ai92 FuelType = "ai92"
@@ -59,6 +77,75 @@ func (e FuelType) Valid() bool {
 	case Dt:
 		return true
 	case Lpg:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GuideSource.
+const (
+	Wikivoyage GuideSource = "wikivoyage"
+)
+
+// Valid indicates whether the value is a known member of the GuideSource enum.
+func (e GuideSource) Valid() bool {
+	switch e {
+	case Wikivoyage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GuideListingType.
+const (
+	Buy   GuideListingType = "buy"
+	Do    GuideListingType = "do"
+	Drink GuideListingType = "drink"
+	Eat   GuideListingType = "eat"
+	Go    GuideListingType = "go"
+	Other GuideListingType = "other"
+	See   GuideListingType = "see"
+	Sleep GuideListingType = "sleep"
+)
+
+// Valid indicates whether the value is a known member of the GuideListingType enum.
+func (e GuideListingType) Valid() bool {
+	switch e {
+	case Buy:
+		return true
+	case Do:
+		return true
+	case Drink:
+		return true
+	case Eat:
+		return true
+	case Go:
+		return true
+	case Other:
+		return true
+	case See:
+		return true
+	case Sleep:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HotelsProvider.
+const (
+	Avito    HotelsProvider = "avito"
+	Ostrovok HotelsProvider = "ostrovok"
+)
+
+// Valid indicates whether the value is a known member of the HotelsProvider enum.
+func (e HotelsProvider) Valid() bool {
+	switch e {
+	case Avito:
+		return true
+	case Ostrovok:
 		return true
 	default:
 		return false
@@ -121,22 +208,43 @@ func (e PoiCategory) Valid() bool {
 
 // Defines values for TripOptionWarnings.
 const (
-	BorderCrossingByCar TripOptionWarnings = "border_crossing_by_car"
-	ParkingEstimated    TripOptionWarnings = "parking_estimated"
-	RoadApproximate     TripOptionWarnings = "road_approximate"
-	StalePrice          TripOptionWarnings = "stale_price"
+	TripOptionWarningsBorderCrossingByCar TripOptionWarnings = "border_crossing_by_car"
+	TripOptionWarningsParkingEstimated    TripOptionWarnings = "parking_estimated"
+	TripOptionWarningsRoadApproximate     TripOptionWarnings = "road_approximate"
+	TripOptionWarningsStalePrice          TripOptionWarnings = "stale_price"
 )
 
 // Valid indicates whether the value is a known member of the TripOptionWarnings enum.
 func (e TripOptionWarnings) Valid() bool {
 	switch e {
-	case BorderCrossingByCar:
+	case TripOptionWarningsBorderCrossingByCar:
 		return true
-	case ParkingEstimated:
+	case TripOptionWarningsParkingEstimated:
 		return true
-	case RoadApproximate:
+	case TripOptionWarningsRoadApproximate:
 		return true
-	case StalePrice:
+	case TripOptionWarningsStalePrice:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TripsResponseDriveSkipped.
+const (
+	BorderNotAllowed TripsResponseDriveSkipped = "border_not_allowed"
+	NoRoad           TripsResponseDriveSkipped = "no_road"
+	TooLong          TripsResponseDriveSkipped = "too_long"
+)
+
+// Valid indicates whether the value is a known member of the TripsResponseDriveSkipped enum.
+func (e TripsResponseDriveSkipped) Valid() bool {
+	switch e {
+	case BorderNotAllowed:
+		return true
+	case NoRoad:
+		return true
+	case TooLong:
 		return true
 	default:
 		return false
@@ -222,8 +330,90 @@ type CarHubsResponse struct {
 // CarHubsResponseFuelPriceSource reference — цена из справочника, user — задана пользователем
 type CarHubsResponseFuelPriceSource string
 
+// DriveTrip Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+// не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+type DriveTrip struct {
+	Border *BorderInfo `json:"border,omitempty"`
+
+	// Cost Расходы на машину туда и обратно на всю группу
+	Cost CarCost `json:"cost"`
+
+	// DriveHours В одну сторону
+	DriveHours float64 `json:"drive_hours"`
+
+	// PerPerson Сумма в минимальных единицах валюты (копейках)
+	PerPerson Money   `json:"per_person"`
+	Road      RoadLeg `json:"road"`
+
+	// SavingsVsHome Сумма в минимальных единицах валюты (копейках)
+	SavingsVsHome *Money `json:"savings_vs_home,omitempty"`
+
+	// Total Сумма в минимальных единицах валюты (копейках)
+	Total Money `json:"total"`
+
+	// TripDays Длительность для расчёта (min_days)
+	TripDays int                 `json:"trip_days"`
+	Warnings []DriveTripWarnings `json:"warnings"`
+}
+
+// DriveTripWarnings defines model for DriveTrip.Warnings.
+type DriveTripWarnings string
+
 // FuelType defines model for FuelType.
 type FuelType string
+
+// Guide defines model for Guide.
+type Guide struct {
+	// License Example: CC BY-SA 4.0
+	License  string         `json:"license"`
+	Listings []GuideListing `json:"listings"`
+
+	// Overview Вступление и начало раздела «Понять»
+	Overview *string     `json:"overview,omitempty"`
+	Source   GuideSource `json:"source"`
+
+	// Title Example: Уральск
+	Title string `json:"title"`
+
+	// Url Статья — для подписи «по материалам Викигида»
+	Url string `json:"url"`
+}
+
+// GuideSource defines model for Guide.Source.
+type GuideSource string
+
+// GuideListing defines model for GuideListing.
+type GuideListing struct {
+	Address     *string `json:"address,omitempty"`
+	Alt         *string `json:"alt,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Hours       *string `json:"hours,omitempty"`
+	Location    *Point  `json:"location,omitempty"`
+	Name        string  `json:"name"`
+
+	// Photo Фото с Wikimedia Commons
+	Photo *Photo  `json:"photo,omitempty"`
+	Price *string `json:"price,omitempty"`
+
+	// Type see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+	Type     GuideListingType `json:"type"`
+	Url      *string          `json:"url,omitempty"`
+	Wikidata *string          `json:"wikidata,omitempty"`
+}
+
+// GuideListingType see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+type GuideListingType string
+
+// HotelsLink defines model for HotelsLink.
+type HotelsLink struct {
+	// Partner Ссылка с партнёрской меткой
+	Partner  bool           `json:"partner"`
+	Provider HotelsProvider `json:"provider"`
+	Url      string         `json:"url"`
+}
+
+// HotelsProvider defines model for HotelsProvider.
+type HotelsProvider string
 
 // Money Сумма в минимальных единицах валюты (копейках)
 type Money struct {
@@ -431,10 +621,20 @@ type TripOptionWarnings string
 type TripsResponse struct {
 	Destination Place `json:"destination"`
 
+	// Drive Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+	// не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+	Drive *DriveTrip `json:"drive,omitempty"`
+
+	// DriveSkipped Почему нет варианта на машине (если use_car)
+	DriveSkipped *TripsResponseDriveSkipped `json:"drive_skipped,omitempty"`
+
 	// FuelPrice Сумма в минимальных единицах валюты (копейках)
-	FuelPrice *Money      `json:"fuel_price,omitempty"`
-	Home      Place       `json:"home"`
-	HomeBest  *TripOption `json:"home_best,omitempty"`
+	FuelPrice *Money `json:"fuel_price,omitempty"`
+
+	// HiddenFlights Сколько перелётов скрыто — не дешевле и не заметно быстрее машины
+	HiddenFlights int         `json:"hidden_flights"`
+	Home          Place       `json:"home"`
+	HomeBest      *TripOption `json:"home_best,omitempty"`
 
 	// NoData Аэропорты, по которым у источника нет цен на этот месяц
 	NoData []Place `json:"no_data"`
@@ -445,6 +645,9 @@ type TripsResponse struct {
 	// Partial Часть запросов к источнику цен не удалась
 	Partial bool `json:"partial"`
 }
+
+// TripsResponseDriveSkipped Почему нет варианта на машине (если use_car)
+type TripsResponseDriveSkipped string
 
 // AllowBorder defines model for AllowBorder.
 type AllowBorder = bool
@@ -492,6 +695,28 @@ type ListCarHubsParams struct {
 
 	// AllowBorder Учитывать аэропорты в другой стране
 	AllowBorder *AllowBorder `form:"allow_border,omitempty" json:"allow_border,omitempty"`
+}
+
+// GoToHotelsParams defines parameters for GoToHotels.
+type GoToHotelsParams struct {
+	Place    openapi_types.UUID `form:"place" json:"place"`
+	CheckIn  openapi_types.Date `form:"check_in" json:"check_in"`
+	CheckOut openapi_types.Date `form:"check_out" json:"check_out"`
+
+	// Provider Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)
+	Provider  *HotelsProvider `form:"provider,omitempty" json:"provider,omitempty"`
+	Travelers *Travelers      `form:"travelers,omitempty" json:"travelers,omitempty"`
+}
+
+// GetHotelsLinkParams defines parameters for GetHotelsLink.
+type GetHotelsLinkParams struct {
+	Place    openapi_types.UUID `form:"place" json:"place"`
+	CheckIn  openapi_types.Date `form:"check_in" json:"check_in"`
+	CheckOut openapi_types.Date `form:"check_out" json:"check_out"`
+
+	// Provider Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)
+	Provider  *HotelsProvider `form:"provider,omitempty" json:"provider,omitempty"`
+	Travelers *Travelers      `form:"travelers,omitempty" json:"travelers,omitempty"`
 }
 
 // SearchPlacesParams defines parameters for SearchPlaces.
@@ -554,12 +779,21 @@ type ServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams)
+	// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+	// (GET /hotels/go)
+	GoToHotels(w http.ResponseWriter, r *http.Request, params GoToHotelsParams)
+	// GetHotelsLink Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+	// (GET /hotels/link)
+	GetHotelsLink(w http.ResponseWriter, r *http.Request, params GetHotelsLinkParams)
 	// SearchPlaces Автодополнение точек по названию или IATA-коду
 	// (GET /places)
 	SearchPlaces(w http.ResponseWriter, r *http.Request, params SearchPlacesParams)
 	// GetPlace Точка по идентификатору
 	// (GET /places/{id})
 	GetPlace(w http.ResponseWriter, r *http.Request, id PlaceId)
+	// GetPlaceGuide Путеводитель по городу — обзор и места, отобранные авторами Викигида
+	// (GET /places/{id}/guide)
+	GetPlaceGuide(w http.ResponseWriter, r *http.Request, id PlaceId)
 	// ListPlacePois Достопримечательности вокруг точки
 	// (GET /places/{id}/pois)
 	ListPlacePois(w http.ResponseWriter, r *http.Request, id PlaceId)
@@ -587,6 +821,18 @@ func (_ Unimplemented) ListCarHubs(w http.ResponseWriter, r *http.Request, param
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+// (GET /hotels/go)
+func (_ Unimplemented) GoToHotels(w http.ResponseWriter, r *http.Request, params GoToHotelsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetHotelsLink Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+// (GET /hotels/link)
+func (_ Unimplemented) GetHotelsLink(w http.ResponseWriter, r *http.Request, params GetHotelsLinkParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // SearchPlaces Автодополнение точек по названию или IATA-коду
 // (GET /places)
 func (_ Unimplemented) SearchPlaces(w http.ResponseWriter, r *http.Request, params SearchPlacesParams) {
@@ -596,6 +842,12 @@ func (_ Unimplemented) SearchPlaces(w http.ResponseWriter, r *http.Request, para
 // GetPlace Точка по идентификатору
 // (GET /places/{id})
 func (_ Unimplemented) GetPlace(w http.ResponseWriter, r *http.Request, id PlaceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetPlaceGuide Путеводитель по городу — обзор и места, отобранные авторами Викигида
+// (GET /places/{id}/guide)
+func (_ Unimplemented) GetPlaceGuide(w http.ResponseWriter, r *http.Request, id PlaceId) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -775,6 +1027,176 @@ func (siw *ServerInterfaceWrapper) ListCarHubs(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GoToHotels operation middleware
+func (siw *ServerInterfaceWrapper) GoToHotels(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GoToHotelsParams
+
+	// ------------- Required query parameter "place" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "place", r.URL.Query(), &params.Place, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "place"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "place", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_in" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_in", r.URL.Query(), &params.CheckIn, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_in"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_in", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_out" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_out", r.URL.Query(), &params.CheckOut, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_out"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_out", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "provider", r.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "provider"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "travelers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "travelers", r.URL.Query(), &params.Travelers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "travelers"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "travelers", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GoToHotels(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHotelsLink operation middleware
+func (siw *ServerInterfaceWrapper) GetHotelsLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetHotelsLinkParams
+
+	// ------------- Required query parameter "place" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "place", r.URL.Query(), &params.Place, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "place"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "place", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_in" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_in", r.URL.Query(), &params.CheckIn, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_in"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_in", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_out" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_out", r.URL.Query(), &params.CheckOut, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_out"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_out", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "provider", r.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "provider"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "travelers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "travelers", r.URL.Query(), &params.Travelers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "travelers"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "travelers", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHotelsLink(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SearchPlaces operation middleware
 func (siw *ServerInterfaceWrapper) SearchPlaces(w http.ResponseWriter, r *http.Request) {
 
@@ -851,6 +1273,32 @@ func (siw *ServerInterfaceWrapper) GetPlace(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPlace(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPlaceGuide operation middleware
+func (siw *ServerInterfaceWrapper) GetPlaceGuide(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id PlaceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPlaceGuide(w, r, id)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1325,7 +1773,16 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/places/{id}/pois", wrapper.ListPlacePois)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/places/{id}/guide", wrapper.GetPlaceGuide)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/pois/{type}/{id}", wrapper.GetPoi)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/hotels/link", wrapper.GetHotelsLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/hotels/go", wrapper.GoToHotels)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/car-hubs", wrapper.ListCarHubs)
@@ -1386,6 +1843,112 @@ func (response ListCarHubs404ApplicationProblemPlusJSONResponse) VisitListCarHub
 type ListCarHubs422ApplicationProblemPlusJSONResponse Problem
 
 func (response ListCarHubs422ApplicationProblemPlusJSONResponse) VisitListCarHubsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GoToHotelsRequestObject struct {
+	Params GoToHotelsParams
+}
+
+type GoToHotelsResponseObject interface {
+	VisitGoToHotelsResponse(w http.ResponseWriter) error
+}
+
+type GoToHotels302ResponseHeaders struct {
+	Location *string
+}
+
+type GoToHotels302Response struct {
+	Headers GoToHotels302ResponseHeaders
+}
+
+func (response GoToHotels302Response) VisitGoToHotelsResponse(w http.ResponseWriter) error {
+	if response.Headers.Location != nil {
+		w.Header().Set("Location", fmt.Sprint(*response.Headers.Location))
+	}
+	w.WriteHeader(302)
+	return nil
+}
+
+type GoToHotels404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GoToHotels404ApplicationProblemPlusJSONResponse) VisitGoToHotelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GoToHotels422ApplicationProblemPlusJSONResponse Problem
+
+func (response GoToHotels422ApplicationProblemPlusJSONResponse) VisitGoToHotelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHotelsLinkRequestObject struct {
+	Params GetHotelsLinkParams
+}
+
+type GetHotelsLinkResponseObject interface {
+	VisitGetHotelsLinkResponse(w http.ResponseWriter) error
+}
+
+type GetHotelsLink200JSONResponse HotelsLink
+
+func (response GetHotelsLink200JSONResponse) VisitGetHotelsLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHotelsLink404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetHotelsLink404ApplicationProblemPlusJSONResponse) VisitGetHotelsLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHotelsLink422ApplicationProblemPlusJSONResponse Problem
+
+func (response GetHotelsLink422ApplicationProblemPlusJSONResponse) VisitGetHotelsLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1471,6 +2034,58 @@ func (response GetPlace404ApplicationProblemPlusJSONResponse) VisitGetPlaceRespo
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlaceGuideRequestObject struct {
+	Id PlaceId `json:"id"`
+}
+
+type GetPlaceGuideResponseObject interface {
+	VisitGetPlaceGuideResponse(w http.ResponseWriter) error
+}
+
+type GetPlaceGuide200JSONResponse Guide
+
+func (response GetPlaceGuide200JSONResponse) VisitGetPlaceGuideResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlaceGuide404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetPlaceGuide404ApplicationProblemPlusJSONResponse) VisitGetPlaceGuideResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlaceGuide502ApplicationProblemPlusJSONResponse Problem
+
+func (response GetPlaceGuide502ApplicationProblemPlusJSONResponse) VisitGetPlaceGuideResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1755,12 +2370,21 @@ type StrictServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(ctx context.Context, request ListCarHubsRequestObject) (ListCarHubsResponseObject, error)
+	// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+	// (GET /hotels/go)
+	GoToHotels(ctx context.Context, request GoToHotelsRequestObject) (GoToHotelsResponseObject, error)
+	// GetHotelsLink Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+	// (GET /hotels/link)
+	GetHotelsLink(ctx context.Context, request GetHotelsLinkRequestObject) (GetHotelsLinkResponseObject, error)
 	// SearchPlaces Автодополнение точек по названию или IATA-коду
 	// (GET /places)
 	SearchPlaces(ctx context.Context, request SearchPlacesRequestObject) (SearchPlacesResponseObject, error)
 	// GetPlace Точка по идентификатору
 	// (GET /places/{id})
 	GetPlace(ctx context.Context, request GetPlaceRequestObject) (GetPlaceResponseObject, error)
+	// GetPlaceGuide Путеводитель по городу — обзор и места, отобранные авторами Викигида
+	// (GET /places/{id}/guide)
+	GetPlaceGuide(ctx context.Context, request GetPlaceGuideRequestObject) (GetPlaceGuideResponseObject, error)
 	// ListPlacePois Достопримечательности вокруг точки
 	// (GET /places/{id}/pois)
 	ListPlacePois(ctx context.Context, request ListPlacePoisRequestObject) (ListPlacePoisResponseObject, error)
@@ -1843,6 +2467,58 @@ func (sh *strictHandler) ListCarHubs(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// GoToHotels operation middleware
+func (sh *strictHandler) GoToHotels(w http.ResponseWriter, r *http.Request, params GoToHotelsParams) {
+	var request GoToHotelsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GoToHotels(ctx, request.(GoToHotelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GoToHotels")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GoToHotelsResponseObject); ok {
+		if err := validResponse.VisitGoToHotelsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHotelsLink operation middleware
+func (sh *strictHandler) GetHotelsLink(w http.ResponseWriter, r *http.Request, params GetHotelsLinkParams) {
+	var request GetHotelsLinkRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHotelsLink(ctx, request.(GetHotelsLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHotelsLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHotelsLinkResponseObject); ok {
+		if err := validResponse.VisitGetHotelsLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SearchPlaces operation middleware
 func (sh *strictHandler) SearchPlaces(w http.ResponseWriter, r *http.Request, params SearchPlacesParams) {
 	var request SearchPlacesRequestObject
@@ -1888,6 +2564,32 @@ func (sh *strictHandler) GetPlace(w http.ResponseWriter, r *http.Request, id Pla
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(GetPlaceResponseObject); ok {
 		if err := validResponse.VisitGetPlaceResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPlaceGuide operation middleware
+func (sh *strictHandler) GetPlaceGuide(w http.ResponseWriter, r *http.Request, id PlaceId) {
+	var request GetPlaceGuideRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPlaceGuide(ctx, request.(GetPlaceGuideRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPlaceGuide")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPlaceGuideResponseObject); ok {
+		if err := validResponse.VisitGetPlaceGuideResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -2031,87 +2733,110 @@ func (sh *strictHandler) SearchTrips(w http.ResponseWriter, r *http.Request, par
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"5t6dvT8PAA==",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

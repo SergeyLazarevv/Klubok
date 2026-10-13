@@ -18,10 +18,10 @@ var (
 )
 
 const upsertPOIs = `-- name: UpsertPOIs :batchexec
-INSERT INTO pois (osm_id, category, kind, name, brand, location, opening_hours, website, wikipedia,
+INSERT INTO pois (osm_id, category, layer, kind, name, brand, location, opening_hours, website, wikipedia,
                   wikidata, commons_file, cuisine, phone, fee, updated_at)
 VALUES (
-    $1, $2, $3, $4, $5,
+    $1, $2, $2, $3, $4, $5,
     ST_SetSRID(ST_MakePoint($6::float8, $7::float8), 4326)::geography,
     $8, $9, $10, $11, $12, $13, $14, $15, now()
 )
@@ -44,6 +44,7 @@ ON CONFLICT (osm_id) DO UPDATE SET
              IS DISTINCT FROM (EXCLUDED.wikipedia, EXCLUDED.wikidata, EXCLUDED.commons_file)
         THEN NULL ELSE pois.details_at END,
     updated_at    = now()
+WHERE pois.source = 'overpass'
 `
 
 type UpsertPOIsBatchResults struct {
@@ -70,7 +71,8 @@ type UpsertPOIsParams struct {
 	Fee          pgtype.Text
 }
 
-// Если поменялись ссылки на Википедию или фото — подробности загрузим заново.
+// Места из Overpass. Если поменялись ссылки на Википедию или фото — подробности загрузим заново.
+// Места из выгрузок OSM (source = extract) не трогаем: их обновляет osm-update.
 func (q *Queries) UpsertPOIs(ctx context.Context, arg []UpsertPOIsParams) *UpsertPOIsBatchResults {
 	batch := &pgx.Batch{}
 	for _, a := range arg {

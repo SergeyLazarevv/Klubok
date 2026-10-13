@@ -47,3 +47,11 @@ export const inMonth = (ym: string) => `в ${monthsIn[Number(ym.slice(5, 7)) - 1
 
 /** «2026-11» → «Ноя» */
 export const monthShort = (ym: string) => monthsShort[Number(ym.slice(5, 7)) - 1]
+
+const dayWeekFmt = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', weekday: 'short', timeZone: 'UTC' })
+
+/** «23 нояб., вс» — по местной дате из строки, как localDay */
+export const localDayWeek = (iso: string) => dayWeekFmt.format(new Date(iso.slice(0, 10) + 'T00:00:00Z'))
+
+/** «2026-11-23T06:40:00+04:00» → «06:40» — местное время аэропорта из строки */
+export const localTime = (iso: string) => iso.slice(11, 16)

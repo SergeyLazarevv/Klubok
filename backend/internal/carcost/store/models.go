@@ -25,11 +25,63 @@ type FuelPrice struct {
 	UpdatedAt   pgtype.Timestamptz
 }
 
+type Guide struct {
+	ID         int64
+	PlaceID    uuid.UUID
+	Source     string
+	Lang       string
+	PageTitle  pgtype.Text
+	PageUrl    pgtype.Text
+	RevisionID pgtype.Int8
+	Overview   pgtype.Text
+	License    string
+	FetchedAt  pgtype.Timestamptz
+}
+
+type GuideListing struct {
+	GuideID     int64
+	Position    int32
+	Type        string
+	Name        string
+	Alt         pgtype.Text
+	Description pgtype.Text
+	Address     pgtype.Text
+	Url         pgtype.Text
+	Hours       pgtype.Text
+	Price       pgtype.Text
+	Location    interface{}
+	Wikidata    pgtype.Text
+	ImageFile   pgtype.Text
+	PhotoUrl    pgtype.Text
+	PhotoPage   pgtype.Text
+	PhotoCredit pgtype.Text
+}
+
 type HubCost struct {
 	PlaceID          uuid.UUID
 	ParkingPerDayKop int64
 	Source           string
 	UpdatedAt        pgtype.Timestamptz
+}
+
+type OsmImport struct {
+	ID         int64
+	Region     string
+	Sequence   int32
+	Mode       string
+	Features   int32
+	Created    int32
+	Updated    int32
+	Deleted    int32
+	DurationMs int32
+	FinishedAt pgtype.Timestamptz
+}
+
+type OsmRegion struct {
+	Region     string
+	Area       string
+	Sequence   int32
+	ImportedAt pgtype.Timestamptz
 }
 
 type Place struct {
@@ -69,6 +121,11 @@ type Poi struct {
 	PhotoPage    pgtype.Text
 	PhotoCredit  pgtype.Text
 	DetailsAt    pgtype.Timestamptz
+	Layer        string
+	Tags         []byte
+	Source       string
+	OsmRegion    pgtype.Text
+	OsmHash      pgtype.Text
 }
 
 type PoiScan struct {

@@ -12,6 +12,50 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const getCityByIATA = `-- name: GetCityByIATA :one
+SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       c.name_ru AS city_name
+FROM places p
+LEFT JOIN places c ON c.id = p.id -- та же точка: так city_name того же типа, что в остальных запросах
+WHERE p.kind = 'city' AND p.iata = $1 AND p.is_active
+`
+
+type GetCityByIATARow struct {
+	ID          uuid.UUID
+	Kind        string
+	Iata        string
+	CityIata    pgtype.Text
+	NameRu      string
+	NameEn      pgtype.Text
+	NameTo      pgtype.Text
+	CountryCode string
+	Lat         float64
+	Lon         float64
+	Timezone    string
+	CityName    pgtype.Text
+}
+
+func (q *Queries) GetCityByIATA(ctx context.Context, iata string) (GetCityByIATARow, error) {
+	row := q.db.QueryRow(ctx, getCityByIATA, iata)
+	var i GetCityByIATARow
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Iata,
+		&i.CityIata,
+		&i.NameRu,
+		&i.NameEn,
+		&i.NameTo,
+		&i.CountryCode,
+		&i.Lat,
+		&i.Lon,
+		&i.Timezone,
+		&i.CityName,
+	)
+	return i, err
+}
+
 const getPlace = `-- name: GetPlace :one
 SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
        ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,

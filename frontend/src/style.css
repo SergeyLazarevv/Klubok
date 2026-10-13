@@ -42,6 +42,12 @@
   --color-secondary: var(--secondary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary: var(--primary);
+  --color-cta: var(--cta);
+  --color-cta-hover: var(--cta-hover);
+  --color-cta-foreground: var(--cta-foreground);
+  --color-success: var(--success);
+  --color-flight: var(--flight);
+  --color-road: var(--road);
   --color-popover-foreground: var(--popover-foreground);
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
@@ -55,39 +61,47 @@
 }
 
 :root {
-  /* Светлая тёплая палитра: кремовый фон, тёплые нейтральные, терракотовый акцент */
-  --radius: 0.75rem;
-  --background: oklch(0.985 0.012 80);
-  --foreground: oklch(0.27 0.025 50);
-  --card: oklch(0.997 0.005 80);
-  --card-foreground: oklch(0.27 0.025 50);
-  --popover: oklch(0.997 0.005 80);
-  --popover-foreground: oklch(0.27 0.025 50);
-  --primary: oklch(0.56 0.14 40);
-  --primary-foreground: oklch(0.99 0.01 80);
-  --secondary: oklch(0.955 0.02 75);
-  --secondary-foreground: oklch(0.32 0.03 50);
-  --muted: oklch(0.955 0.02 75);
-  --muted-foreground: oklch(0.52 0.03 55);
-  --accent: oklch(0.94 0.03 70);
-  --accent-foreground: oklch(0.32 0.03 50);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.9 0.022 75);
-  --input: oklch(0.88 0.025 75);
-  --ring: oklch(0.7 0.1 45);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.975 0.015 78);
-  --sidebar-foreground: oklch(0.27 0.025 50);
-  --sidebar-primary: oklch(0.56 0.14 40);
-  --sidebar-primary-foreground: oklch(0.99 0.01 80);
-  --sidebar-accent: oklch(0.94 0.03 70);
-  --sidebar-accent-foreground: oklch(0.32 0.03 50);
-  --sidebar-border: oklch(0.9 0.022 75);
-  --sidebar-ring: oklch(0.7 0.1 45);
+  /* Светлая нейтральная палитра в духе современных сервисов (Material 3): белый фон, серо-голубые
+     поверхности, синий акцент, крупные скругления. Оранжевый — только дорога на машине (линии, иконки).
+     Контраст: синий на белом 6.4:1, вторичный текст 9.4:1. */
+  --radius: 1rem;
+  --background: #ffffff;
+  --foreground: #1f1f1f;
+  --card: #ffffff;
+  --card-foreground: #1f1f1f;
+  --popover: #ffffff;
+  --popover-foreground: #1f1f1f;
+  --primary: #0b57d0;
+  --primary-foreground: #ffffff;
+  --cta: #0b57d0;
+  --cta-hover: #0842a0;
+  --cta-foreground: #ffffff;
+  --flight: #0b57d0;
+  --road: #e37400;
+  --success: #146c2e;
+  --secondary: #f0f4f9;
+  --secondary-foreground: #1f1f1f;
+  --muted: #f0f4f9;
+  --muted-foreground: #444746;
+  --accent: #d3e3fd;
+  --accent-foreground: #041e49;
+  --destructive: #b3261e;
+  --border: #e1e3e1;
+  --input: #c4c7c5;
+  --ring: #a8c7fa;
+  --chart-1: #0b57d0;
+  --chart-2: #e37400;
+  --chart-3: #146c2e;
+  --chart-4: #7c3aed;
+  --chart-5: #e11d48;
+  --sidebar: #f8fafd;
+  --sidebar-foreground: #1f1f1f;
+  --sidebar-primary: #0b57d0;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #d3e3fd;
+  --sidebar-accent-foreground: #041e49;
+  --sidebar-border: #e1e3e1;
+  --sidebar-ring: #a8c7fa;
 }
 
 @layer base {

@@ -1,26 +1,28 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { CarIcon, ExternalLinkIcon, InfoIcon, MapIcon, PlaneIcon, TriangleAlertIcon } from '@lucide/vue'
-import type { TripOption, TripsResponse } from '@/api/client'
-import { hours, inMonth, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import TripMap from '@/components/TripMap.vue'
+import { computed } from 'vue'
+import type { Place, TripsResponse } from '@/api/client'
+import { hours, inMonth, plural, rub } from '@/lib/format'
+import { highlights } from '@/lib/trip'
+import DriveOptionCard from '@/components/DriveOptionCard.vue'
+import TripOptionCard from '@/components/TripOptionCard.vue'
 
 const props = defineProps<{ result: TripsResponse; travelers: number; month: string }>()
 
-const best = computed(() => props.result.options[0])
-
-// Карта одна — в выбранном варианте; новый поиск снова показывает самый дешёвый
-const mapFor = ref(0)
-watch(() => props.result, () => (mapFor.value = 0))
+// Сначала — самый дешёвый, самый быстрый, из своего города, на машине; ниже — все остальные варианты
+const view = computed(() => highlights(props.result))
+const picks = computed(() => view.value.picks)
 const homeName = computed(() => props.result.home.name)
 
-// Заголовок: насколько выгоднее лучший вариант, чем вылет из своего города
+// Заголовок: что выгоднее всего — машина, соседний аэропорт или вылет из своего города
 const headline = computed(() => {
-  const b = best.value
-  if (!b) return null
+  const cheapest = picks.value.find((p) => p.tags.includes('cheapest'))?.choice
+  if (!cheapest) return null
+  if (cheapest.kind === 'drive') {
+    const d = cheapest.drive
+    if (!props.result.options.length) return `Билетов нет — доехать на машине: ${rub(d.total)}, ${hours(d.drive_hours)} в одну сторону`
+    return `Дешевле всего на машине — ${rub(d.total)}, ${hours(d.drive_hours)} в одну сторону`
+  }
+  const b = cheapest.option
   const save = b.savings_vs_home?.amount ?? 0
   if (props.result.home_best && save > 0) {
     return `Через ${b.hub.city_name ?? b.hub.name} дешевле на ${rub(save)}, чем из города ${homeName.value}`
@@ -28,123 +30,83 @@ const headline = computed(() => {
   if (props.result.home_best) return `Выгоднее всего лететь из своего города — ${homeName.value}`
   return `Из города ${homeName.value} цен нет — лучший вариант через ${b.hub.city_name ?? b.hub.name}`
 })
-
-const hubName = (o: TripOption) => o.hub.city_name ?? o.hub.name
-const warningText: Record<string, string> = {
-  stale_price: 'цене больше трёх дней — проверьте на сайте',
-  road_approximate: 'дорога посчитана приблизительно',
-}
+const cityOf = (p: Place) => p.city_name ?? p.name
 </script>
 
 <template>
-  <Card>
-    <CardHeader>
-      <CardTitle class="text-xl first-letter:uppercase">
+  <div class="flex flex-col gap-4">
+    <header class="flex flex-col gap-1">
+      <h2 class="text-2xl font-semibold tracking-tight first-letter:uppercase sm:text-3xl">
         {{ result.destination.name_to ?? result.destination.name }} {{ inMonth(month) }}
-      </CardTitle>
-      <CardDescription v-if="headline" class="text-base font-medium text-foreground">{{ headline }}</CardDescription>
-    </CardHeader>
-    <CardContent class="flex flex-col gap-4 px-3 sm:px-6">
-      <p v-if="!result.options.length" class="text-sm text-muted-foreground">
-        На этот месяц цен нет ни из одного доступного аэропорта. Попробуйте другой месяц или длительность.
-      </p>
+      </h2>
+      <p v-if="headline" class="text-muted-foreground sm:text-lg">{{ headline }}</p>
+    </header>
 
-      <article
-        v-for="(o, i) in result.options"
-        :key="o.hub.id"
-        class="flex flex-col gap-3 rounded-xl border p-3 sm:p-4"
-        :class="i === 0 ? 'border-primary/50 bg-primary/5' : ''"
-      >
-        <header class="flex items-start justify-between gap-3">
-          <div class="flex min-w-0 flex-col gap-1">
-            <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <span class="text-lg leading-tight font-semibold">{{ hubName(o) }}</span>
-              <span class="font-mono text-xs text-muted-foreground">{{ o.hub.iata }}</span>
-              <Badge v-if="i === 0">Дешевле всего</Badge>
-              <Badge v-if="o.car?.border" variant="outline" class="gap-1">
-                <TriangleAlertIcon class="size-3" /> граница
-              </Badge>
-            </div>
-            <div class="text-sm text-muted-foreground">
-              {{ localDay(o.depart_at) }} → {{ localDay(o.return_at) }}
-              <span class="whitespace-nowrap">· {{ o.trip_days }} {{ plural(o.trip_days, 'день', 'дня', 'дней') }}</span>
-            </div>
-          </div>
-          <div class="flex shrink-0 flex-col items-end">
-            <span class="text-xl font-bold whitespace-nowrap tabular-nums">{{ rub(o.total) }}</span>
-            <span v-if="travelers > 1" class="text-xs whitespace-nowrap text-muted-foreground tabular-nums">{{ rub(o.per_person) }} с чел.</span>
-            <span
-              v-if="o.savings_vs_home && o.savings_vs_home.amount !== 0"
-              class="text-xs font-medium tabular-nums"
-              :class="o.savings_vs_home.amount > 0 ? 'text-emerald-600' : 'text-muted-foreground'"
-            >
-              {{ o.savings_vs_home.amount > 0 ? 'выгоднее на' : 'дороже на' }} {{ rub(Math.abs(o.savings_vs_home.amount)) }}
-            </span>
-          </div>
-        </header>
+    <p v-if="!picks.length" class="rounded-3xl bg-muted p-5 text-sm text-muted-foreground">
+      На этот месяц цен нет ни из одного доступного аэропорта. Попробуйте другой месяц или длительность.
+    </p>
 
-        <TripMap v-if="mapFor === i" :home="result.home" :option="o" :destination="result.destination" />
+    <template v-for="p in picks" :key="p.choice.key">
+      <DriveOptionCard
+        v-if="p.choice.kind === 'drive'"
+        :drive="p.choice.drive"
+        :tags="p.tags"
+        :tradeoff="p.tradeoff"
+        :home="result.home"
+        :destination="result.destination"
+        :travelers="travelers"
+        :month="month"
+      />
+      <TripOptionCard
+        v-else
+        :option="p.choice.option"
+        :tags="p.tags"
+        :tradeoff="p.tradeoff"
+        :home="result.home"
+        :destination="result.destination"
+        :travelers="travelers"
+        :month="month"
+      />
+    </template>
 
-        <dl class="grid gap-1.5 text-sm">
-          <div class="flex items-start justify-between gap-3">
-            <dt class="flex flex-col text-muted-foreground">
-              <span class="flex items-center gap-2"><PlaneIcon class="size-4" /> Билеты туда и обратно</span>
-              <span class="pl-6 text-xs">
-                туда {{ transfersLabel(o.transfers) }}, обратно {{ transfersLabel(o.return_transfers) }} · {{ o.airline }}
-              </span>
-            </dt>
-            <dd class="flex shrink-0 flex-col items-end tabular-nums">
-              <span>{{ rub(o.tickets) }}</span>
-              <span v-if="travelers > 1" class="text-xs text-muted-foreground">{{ travelers }} × {{ rub(o.ticket_per_person) }}</span>
-            </dd>
-          </div>
-          <div v-if="o.car" class="flex items-start justify-between gap-3">
-            <dt class="flex flex-col text-muted-foreground">
-              <span class="flex items-center gap-2"><CarIcon class="size-4" /> Машина туда и обратно</span>
-              <span class="pl-6 text-xs">
-                {{ km(o.car.road.distance_km) }}, {{ hours(o.car.drive_hours) }} в одну сторону ·
-                бензин {{ rub(o.car.cost.fuel) }} · парковка {{ rub(o.car.cost.parking) }}{{ o.warnings.includes('parking_estimated') ? '*' : '' }}
-                <template v-if="o.car.cost.border.amount"> · страховка {{ rub(o.car.cost.border) }}</template>
-              </span>
-            </dt>
-            <dd class="shrink-0 tabular-nums">{{ rub(o.car.cost.total) }}</dd>
-          </div>
-        </dl>
+    <template v-if="view.rest.length">
+      <h3 class="mt-2 text-sm font-medium text-muted-foreground">Остальные варианты</h3>
+      <template v-for="c in view.rest" :key="c.key">
+        <DriveOptionCard
+          v-if="c.kind === 'drive'"
+          :drive="c.drive"
+          :home="result.home"
+          :destination="result.destination"
+          :travelers="travelers"
+          :month="month"
+        />
+        <TripOptionCard
+          v-else
+          :option="c.option"
+          :home="result.home"
+          :destination="result.destination"
+          :travelers="travelers"
+          :month="month"
+        />
+      </template>
+    </template>
 
-        <p v-if="o.car?.border?.note" class="flex gap-1.5 text-xs text-amber-700">
-          <InfoIcon class="mt-0.5 size-3 shrink-0" /> {{ o.car.border.note }}
-        </p>
-        <p
-          v-for="w in o.warnings.filter((w) => warningText[w])"
-          :key="w"
-          class="flex gap-1.5 text-xs text-muted-foreground"
-        >
-          <InfoIcon class="mt-0.5 size-3 shrink-0" /> {{ warningText[w] }}
-        </p>
+    <p v-if="result.hidden_flights" class="text-sm text-muted-foreground">
+      {{ result.hidden_flights }} {{ plural(result.hidden_flights, 'перелёт скрыт', 'перелёта скрыто', 'перелётов скрыто') }}:
+      они не дешевле машины и не заметно быстрее.
+    </p>
+    <p v-if="result.drive_skipped === 'too_long'" class="text-sm text-muted-foreground">
+      На машине целиком не предлагаем: дорога дольше вашего лимита за рулём. Его можно изменить в настройках машины.
+    </p>
+    <p v-else-if="result.drive_skipped === 'border_not_allowed'" class="text-sm text-muted-foreground">
+      На машине целиком не предлагаем: нужно пересечь границу. Включите «Готов ехать за границу» в настройках машины.
+    </p>
 
-        <footer class="flex flex-wrap items-center justify-between gap-2">
-          <span v-if="o.found_on" class="text-xs text-muted-foreground">Цена найдена {{ localDay(o.found_on) }}</span>
-          <Button v-if="mapFor !== i" variant="ghost" size="sm" class="ml-auto" @click="mapFor = i">
-            <MapIcon /> На карте
-          </Button>
-          <Button v-if="o.booking_url" as="a" :href="o.booking_url" target="_blank" rel="noopener" variant="outline" size="sm">
-            Билеты на Aviasales <ExternalLinkIcon />
-          </Button>
-        </footer>
-      </article>
-
-      <p v-if="result.no_data.length" class="text-xs text-muted-foreground">
-        Нет цен на этот месяц: {{ result.no_data.map((p) => p.city_name ?? p.name).join(', ') }}.
-      </p>
-      <p v-if="result.options.some((o) => o.warnings.includes('parking_estimated'))" class="text-xs text-muted-foreground">
-        * Цена парковки ориентировочная — 300 ₽ в сутки.
-      </p>
-      <p v-if="result.partial" class="text-xs text-amber-700">
-        Часть аэропортов не удалось проверить — результаты могут быть неполными.
-      </p>
-      <p class="text-xs text-muted-foreground">
-        Цены — из недавних поисков на Aviasales и могут измениться. Точная цена — на сайте продавца.
-      </p>
-    </CardContent>
-  </Card>
+    <div class="flex flex-col gap-1 text-xs text-muted-foreground">
+      <p v-if="result.no_data.length && (result.options.length || !result.drive)">Нет цен на этот месяц: {{ result.no_data.map(cityOf).join(', ') }}.</p>
+      <p v-if="result.options.some((o) => o.warnings.includes('parking_estimated'))">Цена парковки ориентировочная — 300 ₽ в сутки.</p>
+      <p v-if="result.partial" class="text-[#8c4a00]">Часть аэропортов не удалось проверить — результаты могут быть неполными.</p>
+      <p>Цены — из недавних поисков на Aviasales и могут измениться. Точная цена — на сайте продавца.</p>
+    </div>
+  </div>
 </template>

@@ -19,3 +19,6 @@ node_modules/
 
 # Personal instructions and notes (not part of the project)
 /private/
+
+# Выгрузки OpenStreetMap и логи крона (docs/ops/osm-import.md)
+/data/

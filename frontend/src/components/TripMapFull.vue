@@ -4,7 +4,7 @@ import type L from 'leaflet'
 import { useResizeObserver } from '@vueuse/core'
 import { LoaderCircleIcon } from '@lucide/vue'
 import { api, type Poi } from '@/api/client'
-import { byCar, createMap, drawRoad, drawTrip, type Trip } from '@/lib/tripMap'
+import { byCar, createMap, drawRoad, drawTrip, roadEnd, type Trip } from '@/lib/tripMap'
 import { categories, poiCluster, poiMarker, type PoiCategory } from '@/lib/poiLayer'
 
 const props = defineProps<Trip>()
@@ -23,7 +23,7 @@ useResizeObserver(el, () => map?.invalidateSize())
 async function loadPois(): Promise<Poi[]> {
   const requests = [api.GET('/places/{id}/pois', { params: { path: { id: props.destination.id } } })]
   if (byCar(props)) {
-    requests.push(api.GET('/routes/road/pois', { params: { query: { from: props.home.id, to: props.option.hub.id } } }))
+    requests.push(api.GET('/routes/road/pois', { params: { query: { from: props.home.id, to: roadEnd(props).id } } }))
   }
   const results = await Promise.all(requests)
   failed.value = results.some((r) => r.error)

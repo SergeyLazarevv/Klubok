@@ -13,7 +13,7 @@ export const categories: { id: PoiCategory; label: string; icon: Component }[] =
   { id: 'attraction', label: 'Места', icon: LandmarkIcon },
 ]
 
-const kindLabels: Record<string, string> = {
+export const kindLabels: Record<string, string> = {
   fuel: 'АЗС',
   cafe: 'Кафе',
   restaurant: 'Ресторан',
@@ -31,6 +31,23 @@ const kindLabels: Record<string, string> = {
   archaeological_site: 'Археологический памятник',
   manor: 'Усадьба',
   monastery: 'Монастырь',
+  beach: 'Пляж',
+  waterfall: 'Водопад',
+  peak: 'Вершина',
+  cave_entrance: 'Пещера',
+  spring: 'Родник',
+  park: 'Парк',
+  nature_reserve: 'Заповедник',
+  beach_resort: 'Пляжный курорт',
+  picnic_site: 'Место для пикника',
+  water: 'Водоём',
+  ridge: 'Хребет',
+  glacier: 'Ледник',
+  saddle: 'Перевал',
+  memorial: 'Мемориал',
+  artwork: 'Арт-объект',
+  church: 'Храм',
+  stadium: 'Стадион',
 }
 
 const iconHtml = new Map<PoiCategory, string>()

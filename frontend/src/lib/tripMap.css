@@ -1,19 +1,19 @@
 .trip-map-road {
-  stroke: var(--primary);
+  stroke: var(--road);
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .trip-map-flight {
-  stroke: oklch(0.588 0.158 241.966); /* sky-600 */
+  stroke: var(--flight);
   stroke-linecap: round;
 }
 .trip-map-home,
 .trip-map-hub {
-  stroke: var(--primary);
+  stroke: var(--road);
   fill: var(--card);
 }
 .trip-map-arrival {
-  stroke: oklch(0.588 0.158 241.966); /* sky-600 */
+  stroke: var(--flight);
   fill: var(--card);
 }
 .trip-map-label {
@@ -25,21 +25,21 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: 999px;
-  box-shadow: 0 1px 2px oklch(0.4 0.05 50 / 12%);
+  box-shadow: 0 1px 2px rgb(20 32 46 / 12%);
 }
 .trip-map-label::before {
   display: none;
 }
-/* Подложка OSM пёстрая: приглушаем и слегка согреваем под палитру приложения */
+/* Подложка OSM пёстрая: слегка приглушаем, чтобы маршрут и места читались поверх неё */
 .trip-map .leaflet-tile-pane {
-  filter: saturate(0.7) sepia(0.15) brightness(1.04);
+  filter: saturate(0.75) brightness(1.03);
 }
 .trip-map.leaflet-container {
   background: var(--muted);
   font: inherit;
 }
 
-/* Места на карте: свой цвет у каждой категории, отличный от дороги (терракота) и перелёта (голубой).
+/* Места на карте: свой цвет у каждой категории, отличный от дороги (оранжевая) и перелёта (синий).
    Значения заданы явно: Tailwind выводит переменные палитры только для используемых классов. */
 .poi-fuel,
 .poi-chip-fuel {
@@ -63,7 +63,7 @@
   background: var(--poi);
   border: 2px solid var(--card);
   border-radius: 999px;
-  box-shadow: 0 1px 3px oklch(0.3 0.05 50 / 30%);
+  box-shadow: 0 1px 3px rgb(20 32 46 / 30%);
 }
 .poi-cluster span {
   font-size: 12px;
@@ -81,7 +81,7 @@
   color: var(--foreground);
   background: var(--card);
   border-radius: var(--radius);
-  box-shadow: 0 4px 16px oklch(0.3 0.05 50 / 18%);
+  box-shadow: 0 4px 16px rgb(20 32 46 / 18%);
 }
 .poi-popup .leaflet-popup-tip {
   background: var(--card);

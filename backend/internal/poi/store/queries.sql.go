@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const boxesCovered = `-- name: BoxesCovered :one
+SELECT coalesce(bool_and(EXISTS (
+    SELECT 1 FROM osm_regions r WHERE ST_Covers(r.area::geometry, ST_GeomFromText(b, 4326))
+)), false)::bool
+FROM unnest($1::text[]) AS b
+`
+
+// Все ли прямоугольники целиком внутри загруженных выгрузок OSM: тогда Overpass не нужен.
+func (q *Queries) BoxesCovered(ctx context.Context, boxesWkt []string) (bool, error) {
+	row := q.db.QueryRow(ctx, boxesCovered, boxesWkt)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getPOI = `-- name: GetPOI :one
 SELECT osm_id, category, kind, name, brand,
        ST_Y(location::geometry)::float8 AS lat, ST_X(location::geometry)::float8 AS lon,
@@ -88,7 +103,8 @@ SELECT osm_id, category, kind, name, brand,
        opening_hours, website, wikipedia, wikidata, commons_file, cuisine, phone, fee,
        description, photo_url, photo_page, photo_credit, details_at
 FROM pois
-WHERE ST_DWithin(location, ST_GeogFromText($1::text),
+WHERE category IN ('fuel', 'food', 'attraction')
+  AND ST_DWithin(location, ST_GeogFromText($1::text),
                  CASE WHEN category = 'attraction' THEN $2::float8 ELSE $3::float8 END)
 ORDER BY osm_id
 `
@@ -219,6 +235,89 @@ func (q *Queries) ListPOIsAround(ctx context.Context, arg ListPOIsAroundParams) 
 	items := []ListPOIsAroundRow{}
 	for rows.Next() {
 		var i ListPOIsAroundRow
+		if err := rows.Scan(
+			&i.OsmID,
+			&i.Category,
+			&i.Kind,
+			&i.Name,
+			&i.Brand,
+			&i.Lat,
+			&i.Lon,
+			&i.OpeningHours,
+			&i.Website,
+			&i.Wikipedia,
+			&i.Wikidata,
+			&i.CommonsFile,
+			&i.Cuisine,
+			&i.Phone,
+			&i.Fee,
+			&i.Description,
+			&i.PhotoUrl,
+			&i.PhotoPage,
+			&i.PhotoCredit,
+			&i.DetailsAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPOIsToEnrich = `-- name: ListPOIsToEnrich :many
+SELECT osm_id, category, kind, name, brand,
+       ST_Y(location::geometry)::float8 AS lat, ST_X(location::geometry)::float8 AS lon,
+       opening_hours, website, wikipedia, wikidata, commons_file, cuisine, phone, fee,
+       description, photo_url, photo_page, photo_credit, details_at
+FROM pois
+WHERE (wikipedia IS NOT NULL OR wikidata IS NOT NULL OR commons_file IS NOT NULL)
+  AND (details_at IS NULL OR details_at < now() - make_interval(days => $1::int))
+ORDER BY details_at NULLS FIRST, (layer IN ('attraction', 'nature')) DESC, osm_id
+LIMIT $2
+`
+
+type ListPOIsToEnrichParams struct {
+	MaxAgeDays int32
+	Lim        int32
+}
+
+type ListPOIsToEnrichRow struct {
+	OsmID        string
+	Category     string
+	Kind         string
+	Name         pgtype.Text
+	Brand        pgtype.Text
+	Lat          float64
+	Lon          float64
+	OpeningHours pgtype.Text
+	Website      pgtype.Text
+	Wikipedia    pgtype.Text
+	Wikidata     pgtype.Text
+	CommonsFile  pgtype.Text
+	Cuisine      pgtype.Text
+	Phone        pgtype.Text
+	Fee          pgtype.Text
+	Description  pgtype.Text
+	PhotoUrl     pgtype.Text
+	PhotoPage    pgtype.Text
+	PhotoCredit  pgtype.Text
+	DetailsAt    pgtype.Timestamptz
+}
+
+// Места со ссылками на Википедию, Wikidata или фото, у которых описания ещё нет или оно старое.
+// сначала то, ради чего открывают карточки: достопримечательности и природа
+func (q *Queries) ListPOIsToEnrich(ctx context.Context, arg ListPOIsToEnrichParams) ([]ListPOIsToEnrichRow, error) {
+	rows, err := q.db.Query(ctx, listPOIsToEnrich, arg.MaxAgeDays, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPOIsToEnrichRow{}
+	for rows.Next() {
+		var i ListPOIsToEnrichRow
 		if err := rows.Scan(
 			&i.OsmID,
 			&i.Category,

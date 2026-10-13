@@ -58,6 +58,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/places/{id}/guide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Путеводитель по городу — обзор и места, отобранные авторами Викигида
+         * @description Для аэропорта — его город. Статья загружается при первом запросе и проверяется раз в 30 дней
+         *     (ревизия не менялась — не разбирается заново). Источник и лицензию нужно показывать рядом с данными.
+         */
+        get: operations["getPlaceGuide"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/pois/{type}/{id}": {
         parameters: {
             query?: never;
@@ -71,6 +92,48 @@ export interface paths {
          *     Если Википедия не ответила — место возвращается без них (details_pending остаётся true).
          */
         get: operations["getPoi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hotels/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+         * @description Для аэропорта берётся его город. Если в Travelpayouts подключена программа Островка (TRAVELPAYOUTS_TRS),
+         *     ссылка партнёрская. Город не нашёлся на Островке — ссылка на страницу страны.
+         *     Авито — раздел «Квартиры посуточно» в городе; для городов не в России — 404.
+         */
+        get: operations["getHotelsLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hotels/go": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+         * @description Для кнопки «Найти отель» — ссылку не нужно получать заранее, а Островок проверяет адрес города медленно.
+         */
+        get: operations["goToHotels"];
         put?: never;
         post?: never;
         delete?: never;
@@ -274,6 +337,34 @@ export interface components {
             no_data: components["schemas"]["Place"][];
             /** @description Часть запросов к источнику цен не удалась */
             partial: boolean;
+            drive?: components["schemas"]["DriveTrip"];
+            /**
+             * @description Почему нет варианта на машине (если use_car)
+             * @enum {string}
+             */
+            drive_skipped?: "too_long" | "border_not_allowed" | "no_road";
+            /** @description Сколько перелётов скрыто — не дешевле и не заметно быстрее машины */
+            hidden_flights: number;
+        };
+        /**
+         * @description Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+         *     не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+         */
+        DriveTrip: {
+            road: components["schemas"]["RoadLeg"];
+            /**
+             * Format: double
+             * @description В одну сторону
+             */
+            drive_hours: number;
+            cost: components["schemas"]["CarCost"];
+            total: components["schemas"]["Money"];
+            per_person: components["schemas"]["Money"];
+            /** @description Длительность для расчёта (min_days) */
+            trip_days: number;
+            border?: components["schemas"]["BorderInfo"];
+            savings_vs_home?: components["schemas"]["Money"];
+            warnings: ("border_crossing_by_car" | "road_approximate")[];
         };
         TripOption: {
             hub: components["schemas"]["Place"];
@@ -309,6 +400,17 @@ export interface components {
             drive_hours: number;
             cost: components["schemas"]["CarCost"];
             border?: components["schemas"]["BorderInfo"];
+        };
+        /**
+         * @default ostrovok
+         * @enum {string}
+         */
+        HotelsProvider: "ostrovok" | "avito";
+        HotelsLink: {
+            url: string;
+            provider: components["schemas"]["HotelsProvider"];
+            /** @description Ссылка с партнёрской меткой */
+            partner: boolean;
         };
         RoadRoute: {
             road: components["schemas"]["RoadLeg"];
@@ -362,6 +464,36 @@ export interface components {
             photo?: components["schemas"]["Photo"];
             /** @description Описание и фото ещё не загружались — их даст GET /pois/{type}/{id} */
             details_pending: boolean;
+        };
+        Guide: {
+            /** @enum {string} */
+            source: "wikivoyage";
+            /** @example Уральск */
+            title: string;
+            /** @description Статья — для подписи «по материалам Викигида» */
+            url: string;
+            /** @description Вступление и начало раздела «Понять» */
+            overview?: string;
+            /** @example CC BY-SA 4.0 */
+            license: string;
+            listings: components["schemas"]["GuideListing"][];
+        };
+        GuideListing: {
+            /**
+             * @description see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+             * @enum {string}
+             */
+            type: "see" | "do" | "eat" | "drink" | "sleep" | "buy" | "go" | "other";
+            name: string;
+            alt?: string;
+            description?: string;
+            address?: string;
+            url?: string;
+            hours?: string;
+            price?: string;
+            location?: components["schemas"]["Point"];
+            wikidata?: string;
+            photo?: components["schemas"]["Photo"];
         };
         /** @description Фото с Wikimedia Commons */
         Photo: {
@@ -496,6 +628,30 @@ export interface operations {
             502: components["responses"]["Problem"];
         };
     };
+    getPlaceGuide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PlaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Путеводитель */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Guide"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
     getPoi: {
         parameters: {
             query?: never;
@@ -518,6 +674,63 @@ export interface operations {
                 };
             };
             404: components["responses"]["Problem"];
+        };
+    };
+    getHotelsLink: {
+        parameters: {
+            query: {
+                place: string;
+                check_in: string;
+                check_out: string;
+                /** @description Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
+                provider?: components["schemas"]["HotelsProvider"];
+                travelers?: components["parameters"]["Travelers"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ссылка */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HotelsLink"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
+    goToHotels: {
+        parameters: {
+            query: {
+                place: string;
+                check_in: string;
+                check_out: string;
+                /** @description Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
+                provider?: components["schemas"]["HotelsProvider"];
+                travelers?: components["parameters"]["Travelers"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Перенаправление на Островок или Авито */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
     listCarHubs: {

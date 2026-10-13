@@ -73,8 +73,13 @@ erDiagram
     }
     pois {
         text osm_id PK "node/123"
-        text category "fuel | food | attraction"
+        text category "fuel | food | attraction | other"
+        text layer "слой карты: fuel, food, nature…"
         text kind
+        jsonb tags "теги OSM для слоя"
+        text source "overpass | extract"
+        text osm_region "выгрузка Geofabrik"
+        text osm_hash "хеш значимых полей"
         text name
         geography location
         text wikidata
@@ -82,9 +87,39 @@ erDiagram
         text photo_url "Commons, 640 px"
         timestamptz details_at
     }
+    guides {
+        bigint id PK
+        uuid place_id FK
+        text source "wikivoyage"
+        bigint revision_id "ревизия статьи"
+        text overview
+        timestamptz fetched_at
+    }
+    guide_listings {
+        bigint guide_id FK
+        int position
+        text type "see|do|eat|..."
+        text name
+        geography location
+        text photo_url
+    }
     poi_scans {
         text scan_key PK "road:from:to | place:id"
         timestamptz scanned_at
+    }
+    osm_regions {
+        text region PK "asia/kazakhstan"
+        geography area "граница выгрузки"
+        int sequence "последний дневной диф"
+        timestamptz imported_at
+    }
+    osm_imports {
+        bigint id PK
+        text region
+        text mode "full | diffs | unchanged"
+        int created
+        int updated
+        int deleted
     }
     searches {
         uuid id PK

@@ -5,7 +5,7 @@ export
 COMPOSE := docker compose -f deploy/compose.dev.yml
 BACKEND := backend
 
-.PHONY: up down gen build test migrate import-places api web
+.PHONY: up down gen build test migrate import-places osm-update poi-enrich api web
 
 up:            ## Поднять PostgreSQL, Redis, Mailpit
 	$(COMPOSE) up -d
@@ -27,6 +27,12 @@ migrate: build
 
 import-places: build
 	$(BACKEND)/bin/klubok import-places
+
+osm-update: build   ## Места на карте из выгрузок OSM: make osm-update ARGS="--regions asia/armenia"
+	$(BACKEND)/bin/klubok osm-update $(ARGS)
+
+poi-enrich: build   ## Описания и фото мест из Википедии: make poi-enrich ARGS="--limit 500"
+	$(BACKEND)/bin/klubok poi-enrich $(ARGS)
 
 api: build     ## Запустить API на 127.0.0.1:8080
 	$(BACKEND)/bin/klubok api

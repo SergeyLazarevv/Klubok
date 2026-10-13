@@ -82,6 +82,25 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '502': { $ref: '#/components/responses/Problem' }
 
+  /places/{id}/guide:
+    get:
+      tags: [map]
+      operationId: getPlaceGuide
+      summary: Путеводитель по городу — обзор и места, отобранные авторами Викигида
+      description: |
+        Для аэропорта — его город. Статья загружается при первом запросе и проверяется раз в 30 дней
+        (ревизия не менялась — не разбирается заново). Источник и лицензию нужно показывать рядом с данными.
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '200':
+          description: Путеводитель
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Guide' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
   /pois/{type}/{id}:
     get:
       tags: [map]
@@ -106,6 +125,75 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Poi' }
         '404': { $ref: '#/components/responses/Problem' }
+
+  /hotels/link:
+    get:
+      tags: [search]
+      operationId: getHotelsLink
+      summary: Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+      description: |
+        Для аэропорта берётся его город. Если в Travelpayouts подключена программа Островка (TRAVELPAYOUTS_TRS),
+        ссылка партнёрская. Город не нашёлся на Островке — ссылка на страницу страны.
+        Авито — раздел «Квартиры посуточно» в городе; для городов не в России — 404.
+      parameters:
+        - name: place
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: check_in
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: check_out
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: provider
+          in: query
+          description: 'Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
+          schema: { $ref: '#/components/schemas/HotelsProvider' }
+        - $ref: '#/components/parameters/Travelers'
+      responses:
+        '200':
+          description: Ссылка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelsLink' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /hotels/go:
+    get:
+      tags: [search]
+      operationId: goToHotels
+      summary: Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+      description: 'Для кнопки «Найти отель» — ссылку не нужно получать заранее, а Островок проверяет адрес города медленно.'
+      parameters:
+        - name: place
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: check_in
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: check_out
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: provider
+          in: query
+          description: 'Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
+          schema: { $ref: '#/components/schemas/HotelsProvider' }
+        - $ref: '#/components/parameters/Travelers'
+      responses:
+        '302':
+          description: Перенаправление на Островок или Авито
+          headers:
+            Location:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
 
   /car-hubs:
     get:
@@ -399,7 +487,7 @@ components:
 
     TripsResponse:
       type: object
-      required: [home, destination, options, no_data, partial]
+      required: [home, destination, options, no_data, partial, hidden_flights]
       properties:
         home: { $ref: '#/components/schemas/Place' }
         destination: { $ref: '#/components/schemas/Place' }
@@ -417,6 +505,36 @@ components:
         partial:
           type: boolean
           description: Часть запросов к источнику цен не удалась
+        drive: { $ref: '#/components/schemas/DriveTrip' }
+        drive_skipped:
+          type: string
+          enum: [too_long, border_not_allowed, no_road]
+          description: Почему нет варианта на машине (если use_car)
+        hidden_flights:
+          type: integer
+          description: Сколько перелётов скрыто — не дешевле и не заметно быстрее машины
+
+    DriveTrip:
+      type: object
+      description: |
+        Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+        не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+      required: [road, drive_hours, cost, total, per_person, trip_days, warnings]
+      properties:
+        road: { $ref: '#/components/schemas/RoadLeg' }
+        drive_hours: { type: number, format: double, description: В одну сторону, с учётом границы }
+        cost: { $ref: '#/components/schemas/CarCost' }
+        total: { $ref: '#/components/schemas/Money' }
+        per_person: { $ref: '#/components/schemas/Money' }
+        trip_days: { type: integer, description: Длительность для расчёта (min_days) }
+        border: { $ref: '#/components/schemas/BorderInfo' }
+        savings_vs_home:
+          $ref: '#/components/schemas/Money'
+        warnings:
+          type: array
+          items:
+            type: string
+            enum: [border_crossing_by_car, road_approximate]
 
     TripOption:
       type: object
@@ -462,6 +580,19 @@ components:
         drive_hours: { type: number, format: double }
         cost: { $ref: '#/components/schemas/CarCost' }
         border: { $ref: '#/components/schemas/BorderInfo' }
+
+    HotelsProvider:
+      type: string
+      enum: [ostrovok, avito]
+      default: ostrovok
+
+    HotelsLink:
+      type: object
+      required: [url, provider, partner]
+      properties:
+        url: { type: string }
+        provider: { $ref: '#/components/schemas/HotelsProvider' }
+        partner: { type: boolean, description: Ссылка с партнёрской меткой }
 
     RoadRoute:
       type: object
@@ -514,6 +645,38 @@ components:
         details_pending:
           type: boolean
           description: Описание и фото ещё не загружались — их даст GET /pois/{type}/{id}
+
+    Guide:
+      type: object
+      required: [source, title, url, license, listings]
+      properties:
+        source: { type: string, enum: [wikivoyage] }
+        title: { type: string, example: Уральск }
+        url: { type: string, description: Статья — для подписи «по материалам Викигида» }
+        overview: { type: string, description: Вступление и начало раздела «Понять» }
+        license: { type: string, example: CC BY-SA 4.0 }
+        listings:
+          type: array
+          items: { $ref: '#/components/schemas/GuideListing' }
+
+    GuideListing:
+      type: object
+      required: [type, name]
+      properties:
+        type:
+          type: string
+          enum: [see, do, eat, drink, sleep, buy, go, other]
+          description: see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+        name: { type: string }
+        alt: { type: string }
+        description: { type: string }
+        address: { type: string }
+        url: { type: string }
+        hours: { type: string }
+        price: { type: string }
+        location: { $ref: '#/components/schemas/Point' }
+        wikidata: { type: string }
+        photo: { $ref: '#/components/schemas/Photo' }
 
     Photo:
       type: object

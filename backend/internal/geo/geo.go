@@ -81,6 +81,21 @@ func (s *Service) Search(ctx context.Context, query string, kind Kind, limit int
 	return places, nil
 }
 
+// City — город точки: для аэропорта — его город, для города — он сам.
+func (s *Service) City(ctx context.Context, p Place) (Place, error) {
+	if p.Kind != KindAirport || p.CityIATA == "" {
+		return p, nil
+	}
+	r, err := s.q.GetCityByIATA(ctx, p.CityIATA)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return p, nil // города нет в справочнике — обойдёмся аэропортом
+	}
+	if err != nil {
+		return Place{}, fmt.Errorf("get city by iata: %w", err)
+	}
+	return placeFromRow(store.SearchPlacesRow(r)), nil
+}
+
 // AirportsByIATA возвращает аэропорты по кодам. Неизвестных кодов в ответе нет.
 func (s *Service) AirportsByIATA(ctx context.Context, codes []string) (map[string]Place, error) {
 	rows, err := s.q.ListAirportsByIATA(ctx, codes)

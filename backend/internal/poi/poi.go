@@ -196,6 +196,14 @@ func (s *Service) ensureScanned(ctx context.Context, key string, boxes []BBox, c
 	case err != nil && !errors.Is(err, pgx.ErrNoRows):
 		return fmt.Errorf("get poi scan: %w", err)
 	}
+	// Область внутри загруженных выгрузок OSM — места уже в базе (osm-update), Overpass не нужен
+	covered, err := s.q.BoxesCovered(ctx, boxesWKT(boxes))
+	if err != nil {
+		return fmt.Errorf("check osm coverage: %w", err)
+	}
+	if covered {
+		return nil
+	}
 
 	pois, err := s.src.Fetch(ctx, boxes, categories)
 	if err != nil {
@@ -235,6 +243,15 @@ func (s *Service) save(ctx context.Context, pois []POI) error {
 		return fmt.Errorf("save pois: %w", firstErr)
 	}
 	return nil
+}
+
+func boxesWKT(boxes []BBox) []string {
+	out := make([]string, len(boxes))
+	for i, b := range boxes {
+		out[i] = fmt.Sprintf("POLYGON((%[1]s %[2]s,%[3]s %[2]s,%[3]s %[4]s,%[1]s %[4]s,%[1]s %[2]s))",
+			coord(b.West), coord(b.South), coord(b.East), coord(b.North))
+	}
+	return out
 }
 
 // corridorBoxes режет линию на куски примерно по chunkKm и строит вокруг каждого прямоугольник с отступом padKm.

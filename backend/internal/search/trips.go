@@ -73,6 +73,10 @@ type TripsResult struct {
 	HomeBest    *TripOption
 	NoData      []geo.Place // хабы, по которым у источника нет цен
 	Partial     bool        // часть запросов к источнику не удалась
+
+	Drive         *DriveOption // поездка целиком на машине; nil — без машины или не подходит (DriveSkip)
+	DriveSkip     DriveSkip
+	HiddenFlights int // перелёты, которые не дешевле и не заметно быстрее машины
 }
 
 // Trips ищет самые дешёвые поездки с учётом дороги до соседних аэропортов.
@@ -106,9 +110,20 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 	}
 	hubs = filter(hubs, func(r reachable) bool { return cityCode(r.Hub.Place) != destCity })
 
+	if q.UseCar {
+		if res.Drive, res.DriveSkip, err = s.drive(ctx, home, dest, q, res.FuelPrice); err != nil {
+			return TripsResult{}, err
+		}
+	}
+
 	quotes, partial, err := s.fetchQuotes(ctx, hubs, destCity, q.Month)
 	if err != nil {
-		return TripsResult{}, err
+		if res.Drive == nil {
+			return TripsResult{}, err
+		}
+		// Цены на билеты недоступны, но доехать можно — показываем машину
+		s.log.WarnContext(ctx, "fares unavailable, drive only", slog.Any("err", err))
+		quotes, partial = nil, true
 	}
 	res.Partial = partial
 
@@ -139,6 +154,18 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 			o := opt
 			res.HomeBest = &o
 		}
+	}
+	// Можно доехать на машине — перелёт предлагаем, только если он дешевле или заметно быстрее
+	if hideUnworthyFlights && res.Drive != nil {
+		kept := res.Options[:0]
+		for _, o := range res.Options {
+			if worthFlying(o, res.Drive) {
+				kept = append(kept, o)
+			} else {
+				res.HiddenFlights++
+			}
+		}
+		res.Options = kept
 	}
 	sort.SliceStable(res.Options, func(i, j int) bool { return res.Options[i].Total < res.Options[j].Total })
 	if res.HomeBest != nil {

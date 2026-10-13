@@ -53,11 +53,20 @@ func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsReques
 	}
 
 	resp := apigen.SearchTrips200JSONResponse{
-		Home:        toAPIPlace(res.Home),
-		Destination: toAPIPlace(res.Destination),
-		Options:     make([]apigen.TripOption, len(res.Options)),
-		NoData:      make([]apigen.Place, len(res.NoData)),
-		Partial:     res.Partial,
+		Home:          toAPIPlace(res.Home),
+		Destination:   toAPIPlace(res.Destination),
+		Options:       make([]apigen.TripOption, len(res.Options)),
+		NoData:        make([]apigen.Place, len(res.NoData)),
+		Partial:       res.Partial,
+		HiddenFlights: res.HiddenFlights,
+	}
+	if res.Drive != nil {
+		d := toAPIDrive(*res.Drive, res.HomeBest)
+		resp.Drive = &d
+	}
+	if res.DriveSkip != "" {
+		skip := apigen.TripsResponseDriveSkipped(res.DriveSkip)
+		resp.DriveSkipped = &skip
 	}
 	if res.FuelPrice > 0 {
 		fp := rub(res.FuelPrice)
@@ -115,6 +124,28 @@ func toAPITrip(o search.TripOption) apigen.TripOption {
 	}
 	for i, w := range o.Warnings {
 		t.Warnings[i] = apigen.TripOptionWarnings(w)
+	}
+	return t
+}
+
+func toAPIDrive(d search.DriveOption, homeBest *search.TripOption) apigen.DriveTrip {
+	t := apigen.DriveTrip{
+		Road:       toAPIRoad(d.Leg),
+		DriveHours: d.DriveHours,
+		Cost:       toAPICarCost(d.Cost),
+		Total:      rub(d.Total),
+		PerPerson:  rub(d.PerPerson),
+		TripDays:   d.TripDays,
+		Border:     toAPIBorder(d.Border),
+		Warnings:   make([]apigen.DriveTripWarnings, len(d.Warnings)),
+	}
+	for i, w := range d.Warnings {
+		t.Warnings[i] = apigen.DriveTripWarnings(w)
+	}
+	// Сравнение с лучшим перелётом из своего города — как у вариантов с самолётом
+	if homeBest != nil {
+		s := rub(homeBest.Total - d.Total)
+		t.SavingsVsHome = &s
 	}
 	return t
 }
