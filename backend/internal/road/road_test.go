@@ -2,6 +2,7 @@ package road
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -38,5 +39,63 @@ func TestOSRMTable(t *testing.T) {
 	}
 	if legs[1] != nil {
 		t.Errorf("unreachable point must be nil, got %+v", legs[1])
+	}
+}
+
+func TestEncodePolyline(t *testing.T) {
+	// пример из описания формата
+	points := []Point{{Lat: 38.5, Lon: -120.2}, {Lat: 40.7, Lon: -120.95}, {Lat: 43.252, Lon: -126.453}}
+	if got, want := encodePolyline(points, 1e5), "_p~iF~ps|U_ulLnnqC_mqNvxq`@"; got != want {
+		t.Errorf("encodePolyline = %q, want %q", got, want)
+	}
+}
+
+func TestOSRMRoute(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("geometries") != "polyline6" {
+			t.Errorf("geometries = %q", r.URL.Query().Get("geometries"))
+		}
+		_, _ = w.Write([]byte(`{"code":"Ok","routes":[{"distance":314000,"duration":14400,"geometry":"abc"}]}`))
+	}))
+	defer srv.Close()
+
+	route, err := NewOSRM(srv.URL).Route(context.Background(), Point{}, Point{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if route == nil || route.DistanceM != 314000 || route.DurationS != 14400 || route.Polyline != "abc" {
+		t.Errorf("route = %+v", route)
+	}
+}
+
+func TestOSRMNoRoute(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"code":"NoRoute","message":"Impossible route between points"}`))
+	}))
+	defer srv.Close()
+
+	route, err := NewOSRM(srv.URL).Route(context.Background(), Point{}, Point{})
+	if err != nil || route != nil {
+		t.Errorf("route = %+v, err = %v; want nil, nil", route, err)
+	}
+}
+
+func TestDecodePolyline(t *testing.T) {
+	points, err := decodePolyline("_p~iF~ps|U_ulLnnqC_mqNvxq`@", 1e5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Point{{Lat: 38.5, Lon: -120.2}, {Lat: 40.7, Lon: -120.95}, {Lat: 43.252, Lon: -126.453}}
+	if len(points) != len(want) {
+		t.Fatalf("points = %+v", points)
+	}
+	for i := range want {
+		if math.Abs(points[i].Lat-want[i].Lat) > 1e-9 || math.Abs(points[i].Lon-want[i].Lon) > 1e-9 {
+			t.Errorf("points[%d] = %+v, want %+v", i, points[i], want[i])
+		}
+	}
+	if _, err := DecodePolyline("_p~iF~ps|"); err == nil {
+		t.Error("truncated polyline must fail")
 	}
 }

@@ -13,6 +13,8 @@ tags:
     description: Справочник городов и транспортных узлов
   - name: search
     description: Подбор вариантов поездки
+  - name: map
+    description: Места на карте из OpenStreetMap
 
 paths:
   /places:
@@ -62,6 +64,136 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Place' }
         '404': { $ref: '#/components/responses/Problem' }
+
+  /places/{id}/pois:
+    get:
+      tags: [map]
+      operationId: listPlacePois
+      summary: Достопримечательности вокруг точки
+      description: В радиусе 15 км. Первый запрос по точке может идти несколько секунд — данные загружаются из OpenStreetMap.
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '200':
+          description: Места
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PoiList' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
+  /places/{id}/guide:
+    get:
+      tags: [map]
+      operationId: getPlaceGuide
+      summary: Путеводитель по городу — обзор и места, отобранные авторами Викигида
+      description: |
+        Для аэропорта — его город. Статья загружается при первом запросе и проверяется раз в 30 дней
+        (ревизия не менялась — не разбирается заново). Источник и лицензию нужно показывать рядом с данными.
+      parameters:
+        - $ref: '#/components/parameters/PlaceId'
+      responses:
+        '200':
+          description: Путеводитель
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Guide' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
+  /pois/{type}/{id}:
+    get:
+      tags: [map]
+      operationId: getPoi
+      summary: Место с подробностями — описание и фото
+      description: |
+        Описание и фото берутся из Wikidata, Википедии и Wikimedia Commons при первом запросе и сохраняются.
+        Если Википедия не ответила — место возвращается без них (details_pending остаётся true).
+      parameters:
+        - name: type
+          in: path
+          required: true
+          schema: { type: string, enum: [node, way, relation] }
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      responses:
+        '200':
+          description: Место
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Poi' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /hotels/link:
+    get:
+      tags: [search]
+      operationId: getHotelsLink
+      summary: Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+      description: |
+        Для аэропорта берётся его город. Если в Travelpayouts подключена программа Островка (TRAVELPAYOUTS_TRS),
+        ссылка партнёрская. Город не нашёлся на Островке — ссылка на страницу страны.
+        Авито — раздел «Квартиры посуточно» в городе; для городов не в России — 404.
+      parameters:
+        - name: place
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: check_in
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: check_out
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: provider
+          in: query
+          description: 'Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
+          schema: { $ref: '#/components/schemas/HotelsProvider' }
+        - $ref: '#/components/parameters/Travelers'
+      responses:
+        '200':
+          description: Ссылка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotelsLink' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /hotels/go:
+    get:
+      tags: [search]
+      operationId: goToHotels
+      summary: Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+      description: 'Для кнопки «Найти отель» — ссылку не нужно получать заранее, а Островок проверяет адрес города медленно.'
+      parameters:
+        - name: place
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: check_in
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: check_out
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: provider
+          in: query
+          description: 'Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
+          schema: { $ref: '#/components/schemas/HotelsProvider' }
+        - $ref: '#/components/parameters/Travelers'
+      responses:
+        '302':
+          description: Перенаправление на Островок или Авито
+          headers:
+            Location:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
 
   /car-hubs:
     get:
@@ -146,6 +278,59 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TripsResponse' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
+  /routes/road:
+    get:
+      tags: [search]
+      operationId: getRoadRoute
+      summary: Линия маршрута на машине между двумя точками — для карты
+      description: |
+        Геометрия кэшируется. Если маршрутизатор недоступен, возвращается прямая между точками
+        с approximate = true.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Маршрут
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoadRoute' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /routes/road/pois:
+    get:
+      tags: [map]
+      operationId: listRoadPois
+      summary: Заправки, кафе и достопримечательности вдоль дороги
+      description: |
+        Заправки и кафе — до 2,5 км от дороги, достопримечательности — до 5 км.
+        Первый запрос по дороге может идти несколько секунд — данные загружаются из OpenStreetMap.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Места
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PoiList' }
         '404': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
         '502': { $ref: '#/components/responses/Problem' }
@@ -302,7 +487,7 @@ components:
 
     TripsResponse:
       type: object
-      required: [home, destination, options, no_data, partial]
+      required: [home, destination, options, no_data, partial, hidden_flights]
       properties:
         home: { $ref: '#/components/schemas/Place' }
         destination: { $ref: '#/components/schemas/Place' }
@@ -320,6 +505,36 @@ components:
         partial:
           type: boolean
           description: Часть запросов к источнику цен не удалась
+        drive: { $ref: '#/components/schemas/DriveTrip' }
+        drive_skipped:
+          type: string
+          enum: [too_long, border_not_allowed, no_road]
+          description: Почему нет варианта на машине (если use_car)
+        hidden_flights:
+          type: integer
+          description: Сколько перелётов скрыто — не дешевле и не заметно быстрее машины
+
+    DriveTrip:
+      type: object
+      description: |
+        Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+        не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+      required: [road, drive_hours, cost, total, per_person, trip_days, warnings]
+      properties:
+        road: { $ref: '#/components/schemas/RoadLeg' }
+        drive_hours: { type: number, format: double, description: В одну сторону, с учётом границы }
+        cost: { $ref: '#/components/schemas/CarCost' }
+        total: { $ref: '#/components/schemas/Money' }
+        per_person: { $ref: '#/components/schemas/Money' }
+        trip_days: { type: integer, description: Длительность для расчёта (min_days) }
+        border: { $ref: '#/components/schemas/BorderInfo' }
+        savings_vs_home:
+          $ref: '#/components/schemas/Money'
+        warnings:
+          type: array
+          items:
+            type: string
+            enum: [border_crossing_by_car, road_approximate]
 
     TripOption:
       type: object
@@ -327,6 +542,8 @@ components:
                  duration_to_min, duration_back_min, ticket_per_person, tickets, total, per_person, warnings]
       properties:
         hub: { $ref: '#/components/schemas/Place' }
+        arrival:  # аэропорт прилёта; нет — его нет в справочнике
+          $ref: '#/components/schemas/Place'
         depart_at: { type: string, format: date-time }
         return_at: { type: string, format: date-time }
         trip_days: { type: integer }
@@ -363,6 +580,112 @@ components:
         drive_hours: { type: number, format: double }
         cost: { $ref: '#/components/schemas/CarCost' }
         border: { $ref: '#/components/schemas/BorderInfo' }
+
+    HotelsProvider:
+      type: string
+      enum: [ostrovok, avito]
+      default: ostrovok
+
+    HotelsLink:
+      type: object
+      required: [url, provider, partner]
+      properties:
+        url: { type: string }
+        provider: { $ref: '#/components/schemas/HotelsProvider' }
+        partner: { type: boolean, description: Ссылка с партнёрской меткой }
+
+    RoadRoute:
+      type: object
+      required: [road, polyline]
+      properties:
+        road: { $ref: '#/components/schemas/RoadLeg' }
+        polyline:
+          type: string
+          description: Линия маршрута в формате Encoded Polyline с точностью 6 знаков (как polyline6 в OSRM)
+
+    PoiList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/Poi' }
+
+    Poi:
+      type: object
+      description: Место из OpenStreetMap
+      required: [id, category, kind, location, details_pending]
+      properties:
+        id: { type: string, description: Объект OSM, example: node/123456 }
+        category:
+          type: string
+          enum: [fuel, food, attraction]
+        kind:
+          type: string
+          description: Значение тега OSM — fuel, cafe, restaurant, fast_food, museum, viewpoint, castle…
+          example: cafe
+        name: { type: string }
+        brand: { type: string, example: Лукойл }
+        location: { $ref: '#/components/schemas/Point' }
+        opening_hours: { type: string, description: Часы работы в формате OSM, example: 'Mo-Su 08:00-22:00' }
+        website: { type: string }
+        wikipedia: { type: string, description: 'Статья: язык и название', example: 'ru:Самарская площадь' }
+        wikidata: { type: string, example: Q4140541 }
+        cuisine:
+          type: array
+          description: Кухня, значения OSM
+          items: { type: string, example: pizza }
+        phone: { type: string }
+        fee:
+          type: string
+          description: Плата за вход — yes, no или сумма, как указано в OSM
+          example: 300 RUB
+        description: { type: string, description: Первые предложения статьи Википедии или описание из Wikidata }
+        photo: { $ref: '#/components/schemas/Photo' }
+        details_pending:
+          type: boolean
+          description: Описание и фото ещё не загружались — их даст GET /pois/{type}/{id}
+
+    Guide:
+      type: object
+      required: [source, title, url, license, listings]
+      properties:
+        source: { type: string, enum: [wikivoyage] }
+        title: { type: string, example: Уральск }
+        url: { type: string, description: Статья — для подписи «по материалам Викигида» }
+        overview: { type: string, description: Вступление и начало раздела «Понять» }
+        license: { type: string, example: CC BY-SA 4.0 }
+        listings:
+          type: array
+          items: { $ref: '#/components/schemas/GuideListing' }
+
+    GuideListing:
+      type: object
+      required: [type, name]
+      properties:
+        type:
+          type: string
+          enum: [see, do, eat, drink, sleep, buy, go, other]
+          description: see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+        name: { type: string }
+        alt: { type: string }
+        description: { type: string }
+        address: { type: string }
+        url: { type: string }
+        hours: { type: string }
+        price: { type: string }
+        location: { $ref: '#/components/schemas/Point' }
+        wikidata: { type: string }
+        photo: { $ref: '#/components/schemas/Photo' }
+
+    Photo:
+      type: object
+      description: Фото с Wikimedia Commons
+      required: [url, page]
+      properties:
+        url: { type: string, description: Уменьшенная копия, 640 px по ширине }
+        page: { type: string, description: Страница файла — автор и лицензия }
+        credit: { type: string, example: 'Иван Иванов · CC BY-SA 4.0' }
 
     Point:
       type: object

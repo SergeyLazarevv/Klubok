@@ -9,7 +9,32 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
+
+const getRoadRoute = `-- name: GetRoadRoute :one
+SELECT distance_m, duration_s, geometry::text AS geometry
+FROM road_distances
+WHERE from_place_id = $1 AND to_place_id = $2 AND geometry IS NOT NULL
+`
+
+type GetRoadRouteParams struct {
+	FromID uuid.UUID
+	ToID   uuid.UUID
+}
+
+type GetRoadRouteRow struct {
+	DistanceM int32
+	DurationS int32
+	Geometry  string
+}
+
+func (q *Queries) GetRoadRoute(ctx context.Context, arg GetRoadRouteParams) (GetRoadRouteRow, error) {
+	row := q.db.QueryRow(ctx, getRoadRoute, arg.FromID, arg.ToID)
+	var i GetRoadRouteRow
+	err := row.Scan(&i.DistanceM, &i.DurationS, &i.Geometry)
+	return i, err
+}
 
 const listRoadDistances = `-- name: ListRoadDistances :many
 SELECT to_place_id, distance_m, duration_s, source
@@ -79,6 +104,38 @@ func (q *Queries) UpsertRoadDistance(ctx context.Context, arg UpsertRoadDistance
 		arg.DistanceM,
 		arg.DurationS,
 		arg.Source,
+	)
+	return err
+}
+
+const upsertRoadRoute = `-- name: UpsertRoadRoute :exec
+INSERT INTO road_distances (from_place_id, to_place_id, distance_m, duration_s, source, geometry, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, now())
+ON CONFLICT (from_place_id, to_place_id) DO UPDATE SET
+    distance_m = EXCLUDED.distance_m,
+    duration_s = EXCLUDED.duration_s,
+    source     = EXCLUDED.source,
+    geometry   = EXCLUDED.geometry,
+    updated_at = now()
+`
+
+type UpsertRoadRouteParams struct {
+	FromID    uuid.UUID
+	ToID      uuid.UUID
+	DistanceM int32
+	DurationS int32
+	Source    string
+	Geometry  pgtype.Text
+}
+
+func (q *Queries) UpsertRoadRoute(ctx context.Context, arg UpsertRoadRouteParams) error {
+	_, err := q.db.Exec(ctx, upsertRoadRoute,
+		arg.FromID,
+		arg.ToID,
+		arg.DistanceM,
+		arg.DurationS,
+		arg.Source,
+		arg.Geometry,
 	)
 	return err
 }

@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 )
@@ -14,6 +16,8 @@ import (
 type handlers struct {
 	geo    *geo.Service
 	search *search.Service
+	hotels *hotels.Ostrovok
+	guides *guides.Service
 	log    *slog.Logger
 }
 

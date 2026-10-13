@@ -38,6 +38,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/places/{id}/pois": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Достопримечательности вокруг точки
+         * @description В радиусе 15 км. Первый запрос по точке может идти несколько секунд — данные загружаются из OpenStreetMap.
+         */
+        get: operations["listPlacePois"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/places/{id}/guide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Путеводитель по городу — обзор и места, отобранные авторами Викигида
+         * @description Для аэропорта — его город. Статья загружается при первом запросе и проверяется раз в 30 дней
+         *     (ревизия не менялась — не разбирается заново). Источник и лицензию нужно показывать рядом с данными.
+         */
+        get: operations["getPlaceGuide"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/pois/{type}/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Место с подробностями — описание и фото
+         * @description Описание и фото берутся из Wikidata, Википедии и Wikimedia Commons при первом запросе и сохраняются.
+         *     Если Википедия не ответила — место возвращается без них (details_pending остаётся true).
+         */
+        get: operations["getPoi"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hotels/link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+         * @description Для аэропорта берётся его город. Если в Travelpayouts подключена программа Островка (TRAVELPAYOUTS_TRS),
+         *     ссылка партнёрская. Город не нашёлся на Островке — ссылка на страницу страны.
+         *     Авито — раздел «Квартиры посуточно» в городе; для городов не в России — 404.
+         */
+        get: operations["getHotelsLink"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/hotels/go": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+         * @description Для кнопки «Найти отель» — ссылку не нужно получать заранее, а Островок проверяет адрес города медленно.
+         */
+        get: operations["goToHotels"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/car-hubs": {
         parameters: {
             query?: never;
@@ -74,6 +178,48 @@ export interface paths {
          *     Цены — из кэша поисков Aviasales, поэтому ищем по месяцу и длительности, а не по точным датам.
          */
         get: operations["searchTrips"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routes/road": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Линия маршрута на машине между двумя точками — для карты
+         * @description Геометрия кэшируется. Если маршрутизатор недоступен, возвращается прямая между точками
+         *     с approximate = true.
+         */
+        get: operations["getRoadRoute"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routes/road/pois": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Заправки, кафе и достопримечательности вдоль дороги
+         * @description Заправки и кафе — до 2,5 км от дороги, достопримечательности — до 5 км.
+         *     Первый запрос по дороге может идти несколько секунд — данные загружаются из OpenStreetMap.
+         */
+        get: operations["listRoadPois"];
         put?: never;
         post?: never;
         delete?: never;
@@ -191,9 +337,38 @@ export interface components {
             no_data: components["schemas"]["Place"][];
             /** @description Часть запросов к источнику цен не удалась */
             partial: boolean;
+            drive?: components["schemas"]["DriveTrip"];
+            /**
+             * @description Почему нет варианта на машине (если use_car)
+             * @enum {string}
+             */
+            drive_skipped?: "too_long" | "border_not_allowed" | "no_road";
+            /** @description Сколько перелётов скрыто — не дешевле и не заметно быстрее машины */
+            hidden_flights: number;
+        };
+        /**
+         * @description Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+         *     не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+         */
+        DriveTrip: {
+            road: components["schemas"]["RoadLeg"];
+            /**
+             * Format: double
+             * @description В одну сторону
+             */
+            drive_hours: number;
+            cost: components["schemas"]["CarCost"];
+            total: components["schemas"]["Money"];
+            per_person: components["schemas"]["Money"];
+            /** @description Длительность для расчёта (min_days) */
+            trip_days: number;
+            border?: components["schemas"]["BorderInfo"];
+            savings_vs_home?: components["schemas"]["Money"];
+            warnings: ("border_crossing_by_car" | "road_approximate")[];
         };
         TripOption: {
             hub: components["schemas"]["Place"];
+            arrival?: components["schemas"]["Place"];
             /** Format: date-time */
             depart_at: string;
             /** Format: date-time */
@@ -225,6 +400,109 @@ export interface components {
             drive_hours: number;
             cost: components["schemas"]["CarCost"];
             border?: components["schemas"]["BorderInfo"];
+        };
+        /**
+         * @default ostrovok
+         * @enum {string}
+         */
+        HotelsProvider: "ostrovok" | "avito";
+        HotelsLink: {
+            url: string;
+            provider: components["schemas"]["HotelsProvider"];
+            /** @description Ссылка с партнёрской меткой */
+            partner: boolean;
+        };
+        RoadRoute: {
+            road: components["schemas"]["RoadLeg"];
+            /** @description Линия маршрута в формате Encoded Polyline с точностью 6 знаков (как polyline6 в OSRM) */
+            polyline: string;
+        };
+        PoiList: {
+            items: components["schemas"]["Poi"][];
+        };
+        /** @description Место из OpenStreetMap */
+        Poi: {
+            /**
+             * @description Объект OSM
+             * @example node/123456
+             */
+            id: string;
+            /** @enum {string} */
+            category: "fuel" | "food" | "attraction";
+            /**
+             * @description Значение тега OSM — fuel, cafe, restaurant, fast_food, museum, viewpoint, castle…
+             * @example cafe
+             */
+            kind: string;
+            name?: string;
+            /** @example Лукойл */
+            brand?: string;
+            location: components["schemas"]["Point"];
+            /**
+             * @description Часы работы в формате OSM
+             * @example Mo-Su 08:00-22:00
+             */
+            opening_hours?: string;
+            website?: string;
+            /**
+             * @description Статья: язык и название
+             * @example ru:Самарская площадь
+             */
+            wikipedia?: string;
+            /** @example Q4140541 */
+            wikidata?: string;
+            /** @description Кухня, значения OSM */
+            cuisine?: string[];
+            phone?: string;
+            /**
+             * @description Плата за вход — yes, no или сумма, как указано в OSM
+             * @example 300 RUB
+             */
+            fee?: string;
+            /** @description Первые предложения статьи Википедии или описание из Wikidata */
+            description?: string;
+            photo?: components["schemas"]["Photo"];
+            /** @description Описание и фото ещё не загружались — их даст GET /pois/{type}/{id} */
+            details_pending: boolean;
+        };
+        Guide: {
+            /** @enum {string} */
+            source: "wikivoyage";
+            /** @example Уральск */
+            title: string;
+            /** @description Статья — для подписи «по материалам Викигида» */
+            url: string;
+            /** @description Вступление и начало раздела «Понять» */
+            overview?: string;
+            /** @example CC BY-SA 4.0 */
+            license: string;
+            listings: components["schemas"]["GuideListing"][];
+        };
+        GuideListing: {
+            /**
+             * @description see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+             * @enum {string}
+             */
+            type: "see" | "do" | "eat" | "drink" | "sleep" | "buy" | "go" | "other";
+            name: string;
+            alt?: string;
+            description?: string;
+            address?: string;
+            url?: string;
+            hours?: string;
+            price?: string;
+            location?: components["schemas"]["Point"];
+            wikidata?: string;
+            photo?: components["schemas"]["Photo"];
+        };
+        /** @description Фото с Wikimedia Commons */
+        Photo: {
+            /** @description Уменьшенная копия */
+            url: string;
+            /** @description Страница файла — автор и лицензия */
+            page: string;
+            /** @example Иван Иванов · CC BY-SA 4.0 */
+            credit?: string;
         };
         Point: {
             /** Format: double */
@@ -326,6 +604,135 @@ export interface operations {
             404: components["responses"]["Problem"];
         };
     };
+    listPlacePois: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PlaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Места */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoiList"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    getPlaceGuide: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["PlaceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Путеводитель */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Guide"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    getPoi: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                type: "node" | "way" | "relation";
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Место */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Poi"];
+                };
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    getHotelsLink: {
+        parameters: {
+            query: {
+                place: string;
+                check_in: string;
+                check_out: string;
+                /** @description Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
+                provider?: components["schemas"]["HotelsProvider"];
+                travelers?: components["parameters"]["Travelers"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ссылка */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HotelsLink"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
+    goToHotels: {
+        parameters: {
+            query: {
+                place: string;
+                check_in: string;
+                check_out: string;
+                /** @description Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
+                provider?: components["schemas"]["HotelsProvider"];
+                travelers?: components["parameters"]["Travelers"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Перенаправление на Островок или Авито */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
     listCarHubs: {
         parameters: {
             query: {
@@ -402,6 +809,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripsResponse"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    getRoadRoute: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Маршрут */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadRoute"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
+    listRoadPois: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Места */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PoiList"];
                 };
             };
             404: components["responses"]["Problem"];

@@ -11,6 +11,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/poi"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 )
 
@@ -20,11 +21,12 @@ type Service struct {
 	costs   *carcost.Refs
 	fares   fares.Provider
 	history *fares.History
+	pois    *poi.Service
 	log     *slog.Logger
 }
 
-func NewService(g *geo.Service, r *road.Service, c *carcost.Refs, f fares.Provider, h *fares.History, log *slog.Logger) *Service {
-	return &Service{geo: g, road: r, costs: c, fares: f, history: h, log: log}
+func NewService(g *geo.Service, r *road.Service, c *carcost.Refs, f fares.Provider, h *fares.History, p *poi.Service, log *slog.Logger) *Service {
+	return &Service{geo: g, road: r, costs: c, fares: f, history: h, pois: p, log: log}
 }
 
 // CarParams — на каких условиях пользователь готов ехать на своей машине.
@@ -130,10 +132,10 @@ func (s *Service) reachableByCar(ctx context.Context, home geo.Place, car CarPar
 	points := make([]road.Point, len(hubs))
 	ids := make([]uuid.UUID, len(hubs))
 	for i, h := range hubs {
-		points[i] = road.Point{ID: h.Place.ID, Lat: h.Place.Lat, Lon: h.Place.Lon}
+		points[i] = roadPoint(h.Place)
 		ids[i] = h.Place.ID
 	}
-	legs, err := s.road.Legs(ctx, road.Point{ID: home.ID, Lat: home.Lat, Lon: home.Lon}, points)
+	legs, err := s.road.Legs(ctx, roadPoint(home), points)
 	if err != nil {
 		return nil, err
 	}
@@ -183,4 +185,8 @@ func filter[T any](in []T, keep func(T) bool) []T {
 		}
 	}
 	return out
+}
+
+func roadPoint(p geo.Place) road.Point {
+	return road.Point{ID: p.ID, Lat: p.Lat, Lon: p.Lon}
 }

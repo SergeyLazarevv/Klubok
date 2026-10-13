@@ -12,9 +12,10 @@ import {
   ComboboxList,
 } from '@/components/ui/combobox'
 
-const props = withDefaults(defineProps<{ placeholder?: string; kind?: 'city' | 'airport' }>(), {
-  placeholder: 'Город или код аэропорта',
-})
+const props = withDefaults(
+  defineProps<{ placeholder?: string; kind?: 'city' | 'airport'; bare?: boolean; inputId?: string }>(),
+  { placeholder: 'Город или код аэропорта' },
+)
 const model = defineModel<Place | null>({ default: null })
 
 const term = ref('')
@@ -44,8 +45,18 @@ watch(term, (q) => q !== label(model.value) && load(q))
 
 <template>
   <Combobox v-model="model" by="id" ignore-filter :reset-search-term-on-blur="false">
-    <ComboboxAnchor class="w-full">
-      <ComboboxInput v-model="term" :display-value="label" :placeholder="placeholder" class="h-10 text-base" />
+    <!-- bare — без рамки и иконки, для ячейки формы поиска -->
+    <ComboboxAnchor
+      class="w-full"
+      :class="bare && '[&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:border-0 [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group-addon]]:hidden'"
+    >
+      <ComboboxInput
+        :id="inputId"
+        v-model="term"
+        :display-value="label"
+        :placeholder="placeholder"
+        :class="bare ? 'h-7 min-w-0 truncate p-0! text-base font-semibold placeholder:font-normal' : 'h-10 text-base'"
+      />
     </ComboboxAnchor>
     <ComboboxList>
       <ComboboxEmpty class="p-3 text-sm text-muted-foreground">

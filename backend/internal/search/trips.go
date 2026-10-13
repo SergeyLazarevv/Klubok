@@ -15,6 +15,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 )
 
 // homeAirportsRadiusKm — в каком радиусе искать аэропорты своего города, когда машины нет.
@@ -52,6 +53,7 @@ type TripsQuery struct {
 // TripOption — лучший вариант поездки через конкретный аэропорт вылета.
 type TripOption struct {
 	Hub       reachable
+	Arrival   *geo.Place // аэропорт прилёта; nil — его нет в справочнике
 	ByCar     bool
 	Quote     fares.Quote
 	TripDays  int
@@ -71,6 +73,10 @@ type TripsResult struct {
 	HomeBest    *TripOption
 	NoData      []geo.Place // хабы, по которым у источника нет цен
 	Partial     bool        // часть запросов к источнику не удалась
+
+	Drive         *DriveOption // поездка целиком на машине; nil — без машины или не подходит (DriveSkip)
+	DriveSkip     DriveSkip
+	HiddenFlights int // перелёты, которые не дешевле и не заметно быстрее машины
 }
 
 // Trips ищет самые дешёвые поездки с учётом дороги до соседних аэропортов.
@@ -104,9 +110,20 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 	}
 	hubs = filter(hubs, func(r reachable) bool { return cityCode(r.Hub.Place) != destCity })
 
+	if q.UseCar {
+		if res.Drive, res.DriveSkip, err = s.drive(ctx, home, dest, q, res.FuelPrice); err != nil {
+			return TripsResult{}, err
+		}
+	}
+
 	quotes, partial, err := s.fetchQuotes(ctx, hubs, destCity, q.Month)
 	if err != nil {
-		return TripsResult{}, err
+		if res.Drive == nil {
+			return TripsResult{}, err
+		}
+		// Цены на билеты недоступны, но доехать можно — показываем машину
+		s.log.WarnContext(ctx, "fares unavailable, drive only", slog.Any("err", err))
+		quotes, partial = nil, true
 	}
 	res.Partial = partial
 
@@ -123,6 +140,9 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 			}
 		}
 	}
+	if err := s.resolveArrivals(ctx, best); err != nil {
+		return TripsResult{}, err
+	}
 	for _, r := range hubs {
 		opt, ok := best[r.Hub.Place.ID]
 		if !ok {
@@ -134,6 +154,18 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 			o := opt
 			res.HomeBest = &o
 		}
+	}
+	// Можно доехать на машине — перелёт предлагаем, только если он дешевле или заметно быстрее
+	if hideUnworthyFlights && res.Drive != nil {
+		kept := res.Options[:0]
+		for _, o := range res.Options {
+			if worthFlying(o, res.Drive) {
+				kept = append(kept, o)
+			} else {
+				res.HiddenFlights++
+			}
+		}
+		res.Options = kept
 	}
 	sort.SliceStable(res.Options, func(i, j int) bool { return res.Options[i].Total < res.Options[j].Total })
 	if res.HomeBest != nil {
@@ -167,6 +199,41 @@ func (s *Service) option(r reachable, q TripsQuery, fuelPrice carcost.Kop, quote
 	opt.Total = opt.Tickets + opt.Car.Total
 	opt.PerPerson = opt.Total / travelers
 	return opt
+}
+
+// resolveArrivals подставляет аэропорты прилёта по кодам из котировок — для карты.
+func (s *Service) resolveArrivals(ctx context.Context, opts map[uuid.UUID]TripOption) error {
+	if len(opts) == 0 {
+		return nil
+	}
+	codes := make([]string, 0, len(opts))
+	for _, o := range opts {
+		codes = append(codes, o.Quote.Destination)
+	}
+	airports, err := s.geo.AirportsByIATA(ctx, codes)
+	if err != nil {
+		return err
+	}
+	for id, o := range opts {
+		if a, ok := airports[o.Quote.Destination]; ok {
+			o.Arrival = &a
+			opts[id] = o
+		}
+	}
+	return nil
+}
+
+// RoadRoute — путь на машине между точками справочника с линией для карты.
+func (s *Service) RoadRoute(ctx context.Context, fromID, toID uuid.UUID) (road.Route, error) {
+	from, err := s.geo.Get(ctx, fromID)
+	if err != nil {
+		return road.Route{}, err
+	}
+	to, err := s.geo.Get(ctx, toID)
+	if err != nil {
+		return road.Route{}, err
+	}
+	return s.road.Route(ctx, roadPoint(from), roadPoint(to))
 }
 
 // homeAirports — аэропорты своего города, когда машины нет.

@@ -41,6 +41,24 @@ func (e CarHubsResponseFuelPriceSource) Valid() bool {
 	}
 }
 
+// Defines values for DriveTripWarnings.
+const (
+	DriveTripWarningsBorderCrossingByCar DriveTripWarnings = "border_crossing_by_car"
+	DriveTripWarningsRoadApproximate     DriveTripWarnings = "road_approximate"
+)
+
+// Valid indicates whether the value is a known member of the DriveTripWarnings enum.
+func (e DriveTripWarnings) Valid() bool {
+	switch e {
+	case DriveTripWarningsBorderCrossingByCar:
+		return true
+	case DriveTripWarningsRoadApproximate:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FuelType.
 const (
 	Ai92 FuelType = "ai92"
@@ -59,6 +77,75 @@ func (e FuelType) Valid() bool {
 	case Dt:
 		return true
 	case Lpg:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GuideSource.
+const (
+	Wikivoyage GuideSource = "wikivoyage"
+)
+
+// Valid indicates whether the value is a known member of the GuideSource enum.
+func (e GuideSource) Valid() bool {
+	switch e {
+	case Wikivoyage:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GuideListingType.
+const (
+	Buy   GuideListingType = "buy"
+	Do    GuideListingType = "do"
+	Drink GuideListingType = "drink"
+	Eat   GuideListingType = "eat"
+	Go    GuideListingType = "go"
+	Other GuideListingType = "other"
+	See   GuideListingType = "see"
+	Sleep GuideListingType = "sleep"
+)
+
+// Valid indicates whether the value is a known member of the GuideListingType enum.
+func (e GuideListingType) Valid() bool {
+	switch e {
+	case Buy:
+		return true
+	case Do:
+		return true
+	case Drink:
+		return true
+	case Eat:
+		return true
+	case Go:
+		return true
+	case Other:
+		return true
+	case See:
+		return true
+	case Sleep:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for HotelsProvider.
+const (
+	Avito    HotelsProvider = "avito"
+	Ostrovok HotelsProvider = "ostrovok"
+)
+
+// Valid indicates whether the value is a known member of the HotelsProvider enum.
+func (e HotelsProvider) Valid() bool {
+	switch e {
+	case Avito:
+		return true
+	case Ostrovok:
 		return true
 	default:
 		return false
@@ -98,24 +185,87 @@ func (e PlaceKind) Valid() bool {
 	}
 }
 
+// Defines values for PoiCategory.
+const (
+	Attraction PoiCategory = "attraction"
+	Food       PoiCategory = "food"
+	Fuel       PoiCategory = "fuel"
+)
+
+// Valid indicates whether the value is a known member of the PoiCategory enum.
+func (e PoiCategory) Valid() bool {
+	switch e {
+	case Attraction:
+		return true
+	case Food:
+		return true
+	case Fuel:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TripOptionWarnings.
 const (
-	BorderCrossingByCar TripOptionWarnings = "border_crossing_by_car"
-	ParkingEstimated    TripOptionWarnings = "parking_estimated"
-	RoadApproximate     TripOptionWarnings = "road_approximate"
-	StalePrice          TripOptionWarnings = "stale_price"
+	TripOptionWarningsBorderCrossingByCar TripOptionWarnings = "border_crossing_by_car"
+	TripOptionWarningsParkingEstimated    TripOptionWarnings = "parking_estimated"
+	TripOptionWarningsRoadApproximate     TripOptionWarnings = "road_approximate"
+	TripOptionWarningsStalePrice          TripOptionWarnings = "stale_price"
 )
 
 // Valid indicates whether the value is a known member of the TripOptionWarnings enum.
 func (e TripOptionWarnings) Valid() bool {
 	switch e {
-	case BorderCrossingByCar:
+	case TripOptionWarningsBorderCrossingByCar:
 		return true
-	case ParkingEstimated:
+	case TripOptionWarningsParkingEstimated:
 		return true
-	case RoadApproximate:
+	case TripOptionWarningsRoadApproximate:
 		return true
-	case StalePrice:
+	case TripOptionWarningsStalePrice:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for TripsResponseDriveSkipped.
+const (
+	BorderNotAllowed TripsResponseDriveSkipped = "border_not_allowed"
+	NoRoad           TripsResponseDriveSkipped = "no_road"
+	TooLong          TripsResponseDriveSkipped = "too_long"
+)
+
+// Valid indicates whether the value is a known member of the TripsResponseDriveSkipped enum.
+func (e TripsResponseDriveSkipped) Valid() bool {
+	switch e {
+	case BorderNotAllowed:
+		return true
+	case NoRoad:
+		return true
+	case TooLong:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GetPoiParamsType.
+const (
+	Node     GetPoiParamsType = "node"
+	Relation GetPoiParamsType = "relation"
+	Way      GetPoiParamsType = "way"
+)
+
+// Valid indicates whether the value is a known member of the GetPoiParamsType enum.
+func (e GetPoiParamsType) Valid() bool {
+	switch e {
+	case Node:
+		return true
+	case Relation:
+		return true
+	case Way:
 		return true
 	default:
 		return false
@@ -180,8 +330,90 @@ type CarHubsResponse struct {
 // CarHubsResponseFuelPriceSource reference — цена из справочника, user — задана пользователем
 type CarHubsResponseFuelPriceSource string
 
+// DriveTrip Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+// не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+type DriveTrip struct {
+	Border *BorderInfo `json:"border,omitempty"`
+
+	// Cost Расходы на машину туда и обратно на всю группу
+	Cost CarCost `json:"cost"`
+
+	// DriveHours В одну сторону
+	DriveHours float64 `json:"drive_hours"`
+
+	// PerPerson Сумма в минимальных единицах валюты (копейках)
+	PerPerson Money   `json:"per_person"`
+	Road      RoadLeg `json:"road"`
+
+	// SavingsVsHome Сумма в минимальных единицах валюты (копейках)
+	SavingsVsHome *Money `json:"savings_vs_home,omitempty"`
+
+	// Total Сумма в минимальных единицах валюты (копейках)
+	Total Money `json:"total"`
+
+	// TripDays Длительность для расчёта (min_days)
+	TripDays int                 `json:"trip_days"`
+	Warnings []DriveTripWarnings `json:"warnings"`
+}
+
+// DriveTripWarnings defines model for DriveTrip.Warnings.
+type DriveTripWarnings string
+
 // FuelType defines model for FuelType.
 type FuelType string
+
+// Guide defines model for Guide.
+type Guide struct {
+	// License Example: CC BY-SA 4.0
+	License  string         `json:"license"`
+	Listings []GuideListing `json:"listings"`
+
+	// Overview Вступление и начало раздела «Понять»
+	Overview *string     `json:"overview,omitempty"`
+	Source   GuideSource `json:"source"`
+
+	// Title Example: Уральск
+	Title string `json:"title"`
+
+	// Url Статья — для подписи «по материалам Викигида»
+	Url string `json:"url"`
+}
+
+// GuideSource defines model for Guide.Source.
+type GuideSource string
+
+// GuideListing defines model for GuideListing.
+type GuideListing struct {
+	Address     *string `json:"address,omitempty"`
+	Alt         *string `json:"alt,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Hours       *string `json:"hours,omitempty"`
+	Location    *Point  `json:"location,omitempty"`
+	Name        string  `json:"name"`
+
+	// Photo Фото с Wikimedia Commons
+	Photo *Photo  `json:"photo,omitempty"`
+	Price *string `json:"price,omitempty"`
+
+	// Type see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+	Type     GuideListingType `json:"type"`
+	Url      *string          `json:"url,omitempty"`
+	Wikidata *string          `json:"wikidata,omitempty"`
+}
+
+// GuideListingType see — посмотреть, do — заняться, eat — еда, drink — бары, sleep — жильё, buy — покупки, go — транспорт
+type GuideListingType string
+
+// HotelsLink defines model for HotelsLink.
+type HotelsLink struct {
+	// Partner Ссылка с партнёрской меткой
+	Partner  bool           `json:"partner"`
+	Provider HotelsProvider `json:"provider"`
+	Url      string         `json:"url"`
+}
+
+// HotelsProvider defines model for HotelsProvider.
+type HotelsProvider string
 
 // Money Сумма в минимальных единицах валюты (копейках)
 type Money struct {
@@ -192,6 +424,18 @@ type Money struct {
 
 // MoneyCurrency defines model for Money.Currency.
 type MoneyCurrency string
+
+// Photo Фото с Wikimedia Commons
+type Photo struct {
+	// Credit Example: Иван Иванов · CC BY-SA 4.0
+	Credit *string `json:"credit,omitempty"`
+
+	// Page Страница файла — автор и лицензия
+	Page string `json:"page"`
+
+	// Url Уменьшенная копия
+	Url string `json:"url"`
+}
 
 // Place defines model for Place.
 type Place struct {
@@ -232,6 +476,65 @@ type Place struct {
 // PlaceKind defines model for PlaceKind.
 type PlaceKind string
 
+// Poi Место из OpenStreetMap
+type Poi struct {
+	// Brand Example: Лукойл
+	Brand    *string     `json:"brand,omitempty"`
+	Category PoiCategory `json:"category"`
+
+	// Cuisine Кухня, значения OSM
+	Cuisine *[]string `json:"cuisine,omitempty"`
+
+	// Description Первые предложения статьи Википедии или описание из Wikidata
+	Description *string `json:"description,omitempty"`
+
+	// DetailsPending Описание и фото ещё не загружались — их даст GET /pois/{type}/{id}
+	DetailsPending bool `json:"details_pending"`
+
+	// Fee Плата за вход — yes, no или сумма, как указано в OSM
+	//
+	// Example: 300 RUB
+	Fee *string `json:"fee,omitempty"`
+
+	// Id Объект OSM
+	//
+	// Example: node/123456
+	Id string `json:"id"`
+
+	// Kind Значение тега OSM — fuel, cafe, restaurant, fast_food, museum, viewpoint, castle…
+	//
+	// Example: cafe
+	Kind     string  `json:"kind"`
+	Location Point   `json:"location"`
+	Name     *string `json:"name,omitempty"`
+
+	// OpeningHours Часы работы в формате OSM
+	//
+	// Example: Mo-Su 08:00-22:00
+	OpeningHours *string `json:"opening_hours,omitempty"`
+	Phone        *string `json:"phone,omitempty"`
+
+	// Photo Фото с Wikimedia Commons
+	Photo   *Photo  `json:"photo,omitempty"`
+	Website *string `json:"website,omitempty"`
+
+	// Wikidata Example: Q4140541
+	Wikidata *string `json:"wikidata,omitempty"`
+
+	// Wikipedia Статья: язык и название
+	//
+	// Example: ru:Самарская площадь
+	Wikipedia *string `json:"wikipedia,omitempty"`
+}
+
+// PoiCategory defines model for Poi.Category.
+type PoiCategory string
+
+// PoiList defines model for PoiList.
+type PoiList struct {
+	Items []Poi `json:"items"`
+}
+
 // Point defines model for Point.
 type Point struct {
 	Lat float64 `json:"lat"`
@@ -258,6 +561,13 @@ type RoadLeg struct {
 	DurationMin int     `json:"duration_min"`
 }
 
+// RoadRoute defines model for RoadRoute.
+type RoadRoute struct {
+	// Polyline Линия маршрута в формате Encoded Polyline с точностью 6 знаков (как polyline6 в OSRM)
+	Polyline string  `json:"polyline"`
+	Road     RoadLeg `json:"road"`
+}
+
 // TripCar defines model for TripCar.
 type TripCar struct {
 	Border *BorderInfo `json:"border,omitempty"`
@@ -272,6 +582,7 @@ type TripCar struct {
 type TripOption struct {
 	// Airline Example: FS
 	Airline         string    `json:"airline"`
+	Arrival         *Place    `json:"arrival,omitempty"`
 	BookingUrl      *string   `json:"booking_url,omitempty"`
 	Car             *TripCar  `json:"car,omitempty"`
 	DepartAt        time.Time `json:"depart_at"`
@@ -310,10 +621,20 @@ type TripOptionWarnings string
 type TripsResponse struct {
 	Destination Place `json:"destination"`
 
+	// Drive Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+	// не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+	Drive *DriveTrip `json:"drive,omitempty"`
+
+	// DriveSkipped Почему нет варианта на машине (если use_car)
+	DriveSkipped *TripsResponseDriveSkipped `json:"drive_skipped,omitempty"`
+
 	// FuelPrice Сумма в минимальных единицах валюты (копейках)
-	FuelPrice *Money      `json:"fuel_price,omitempty"`
-	Home      Place       `json:"home"`
-	HomeBest  *TripOption `json:"home_best,omitempty"`
+	FuelPrice *Money `json:"fuel_price,omitempty"`
+
+	// HiddenFlights Сколько перелётов скрыто — не дешевле и не заметно быстрее машины
+	HiddenFlights int         `json:"hidden_flights"`
+	Home          Place       `json:"home"`
+	HomeBest      *TripOption `json:"home_best,omitempty"`
 
 	// NoData Аэропорты, по которым у источника нет цен на этот месяц
 	NoData []Place `json:"no_data"`
@@ -324,6 +645,9 @@ type TripsResponse struct {
 	// Partial Часть запросов к источнику цен не удалась
 	Partial bool `json:"partial"`
 }
+
+// TripsResponseDriveSkipped Почему нет варианта на машине (если use_car)
+type TripsResponseDriveSkipped string
 
 // AllowBorder defines model for AllowBorder.
 type AllowBorder = bool
@@ -373,12 +697,49 @@ type ListCarHubsParams struct {
 	AllowBorder *AllowBorder `form:"allow_border,omitempty" json:"allow_border,omitempty"`
 }
 
+// GoToHotelsParams defines parameters for GoToHotels.
+type GoToHotelsParams struct {
+	Place    openapi_types.UUID `form:"place" json:"place"`
+	CheckIn  openapi_types.Date `form:"check_in" json:"check_in"`
+	CheckOut openapi_types.Date `form:"check_out" json:"check_out"`
+
+	// Provider Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)
+	Provider  *HotelsProvider `form:"provider,omitempty" json:"provider,omitempty"`
+	Travelers *Travelers      `form:"travelers,omitempty" json:"travelers,omitempty"`
+}
+
+// GetHotelsLinkParams defines parameters for GetHotelsLink.
+type GetHotelsLinkParams struct {
+	Place    openapi_types.UUID `form:"place" json:"place"`
+	CheckIn  openapi_types.Date `form:"check_in" json:"check_in"`
+	CheckOut openapi_types.Date `form:"check_out" json:"check_out"`
+
+	// Provider Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)
+	Provider  *HotelsProvider `form:"provider,omitempty" json:"provider,omitempty"`
+	Travelers *Travelers      `form:"travelers,omitempty" json:"travelers,omitempty"`
+}
+
 // SearchPlacesParams defines parameters for SearchPlaces.
 type SearchPlacesParams struct {
 	// Q Начало названия (ru/en) или IATA-код
 	Q     string     `form:"q" json:"q"`
 	Kind  *PlaceKind `form:"kind,omitempty" json:"kind,omitempty"`
 	Limit *int       `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetPoiParamsType defines parameters for GetPoi.
+type GetPoiParamsType string
+
+// GetRoadRouteParams defines parameters for GetRoadRoute.
+type GetRoadRouteParams struct {
+	From openapi_types.UUID `form:"from" json:"from"`
+	To   openapi_types.UUID `form:"to" json:"to"`
+}
+
+// ListRoadPoisParams defines parameters for ListRoadPois.
+type ListRoadPoisParams struct {
+	From openapi_types.UUID `form:"from" json:"from"`
+	To   openapi_types.UUID `form:"to" json:"to"`
 }
 
 // SearchTripsParams defines parameters for SearchTrips.
@@ -418,12 +779,33 @@ type ServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams)
+	// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+	// (GET /hotels/go)
+	GoToHotels(w http.ResponseWriter, r *http.Request, params GoToHotelsParams)
+	// GetHotelsLink Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+	// (GET /hotels/link)
+	GetHotelsLink(w http.ResponseWriter, r *http.Request, params GetHotelsLinkParams)
 	// SearchPlaces Автодополнение точек по названию или IATA-коду
 	// (GET /places)
 	SearchPlaces(w http.ResponseWriter, r *http.Request, params SearchPlacesParams)
 	// GetPlace Точка по идентификатору
 	// (GET /places/{id})
 	GetPlace(w http.ResponseWriter, r *http.Request, id PlaceId)
+	// GetPlaceGuide Путеводитель по городу — обзор и места, отобранные авторами Викигида
+	// (GET /places/{id}/guide)
+	GetPlaceGuide(w http.ResponseWriter, r *http.Request, id PlaceId)
+	// ListPlacePois Достопримечательности вокруг точки
+	// (GET /places/{id}/pois)
+	ListPlacePois(w http.ResponseWriter, r *http.Request, id PlaceId)
+	// GetPoi Место с подробностями — описание и фото
+	// (GET /pois/{type}/{id})
+	GetPoi(w http.ResponseWriter, r *http.Request, pType GetPoiParamsType, id int64)
+	// GetRoadRoute Линия маршрута на машине между двумя точками — для карты
+	// (GET /routes/road)
+	GetRoadRoute(w http.ResponseWriter, r *http.Request, params GetRoadRouteParams)
+	// ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
+	// (GET /routes/road/pois)
+	ListRoadPois(w http.ResponseWriter, r *http.Request, params ListRoadPoisParams)
 	// SearchTrips Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
 	// (GET /trips)
 	SearchTrips(w http.ResponseWriter, r *http.Request, params SearchTripsParams)
@@ -439,6 +821,18 @@ func (_ Unimplemented) ListCarHubs(w http.ResponseWriter, r *http.Request, param
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+// (GET /hotels/go)
+func (_ Unimplemented) GoToHotels(w http.ResponseWriter, r *http.Request, params GoToHotelsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetHotelsLink Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+// (GET /hotels/link)
+func (_ Unimplemented) GetHotelsLink(w http.ResponseWriter, r *http.Request, params GetHotelsLinkParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // SearchPlaces Автодополнение точек по названию или IATA-коду
 // (GET /places)
 func (_ Unimplemented) SearchPlaces(w http.ResponseWriter, r *http.Request, params SearchPlacesParams) {
@@ -448,6 +842,36 @@ func (_ Unimplemented) SearchPlaces(w http.ResponseWriter, r *http.Request, para
 // GetPlace Точка по идентификатору
 // (GET /places/{id})
 func (_ Unimplemented) GetPlace(w http.ResponseWriter, r *http.Request, id PlaceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetPlaceGuide Путеводитель по городу — обзор и места, отобранные авторами Викигида
+// (GET /places/{id}/guide)
+func (_ Unimplemented) GetPlaceGuide(w http.ResponseWriter, r *http.Request, id PlaceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListPlacePois Достопримечательности вокруг точки
+// (GET /places/{id}/pois)
+func (_ Unimplemented) ListPlacePois(w http.ResponseWriter, r *http.Request, id PlaceId) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetPoi Место с подробностями — описание и фото
+// (GET /pois/{type}/{id})
+func (_ Unimplemented) GetPoi(w http.ResponseWriter, r *http.Request, pType GetPoiParamsType, id int64) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetRoadRoute Линия маршрута на машине между двумя точками — для карты
+// (GET /routes/road)
+func (_ Unimplemented) GetRoadRoute(w http.ResponseWriter, r *http.Request, params GetRoadRouteParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
+// (GET /routes/road/pois)
+func (_ Unimplemented) ListRoadPois(w http.ResponseWriter, r *http.Request, params ListRoadPoisParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -603,6 +1027,176 @@ func (siw *ServerInterfaceWrapper) ListCarHubs(w http.ResponseWriter, r *http.Re
 	handler.ServeHTTP(w, r)
 }
 
+// GoToHotels operation middleware
+func (siw *ServerInterfaceWrapper) GoToHotels(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GoToHotelsParams
+
+	// ------------- Required query parameter "place" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "place", r.URL.Query(), &params.Place, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "place"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "place", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_in" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_in", r.URL.Query(), &params.CheckIn, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_in"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_in", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_out" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_out", r.URL.Query(), &params.CheckOut, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_out"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_out", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "provider", r.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "provider"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "travelers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "travelers", r.URL.Query(), &params.Travelers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "travelers"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "travelers", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GoToHotels(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetHotelsLink operation middleware
+func (siw *ServerInterfaceWrapper) GetHotelsLink(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetHotelsLinkParams
+
+	// ------------- Required query parameter "place" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "place", r.URL.Query(), &params.Place, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "place"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "place", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_in" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_in", r.URL.Query(), &params.CheckIn, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_in"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_in", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "check_out" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "check_out", r.URL.Query(), &params.CheckOut, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "check_out"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "check_out", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "provider" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "provider", r.URL.Query(), &params.Provider, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "provider"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "provider", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "travelers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "travelers", r.URL.Query(), &params.Travelers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "travelers"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "travelers", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetHotelsLink(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SearchPlaces operation middleware
 func (siw *ServerInterfaceWrapper) SearchPlaces(w http.ResponseWriter, r *http.Request) {
 
@@ -679,6 +1273,185 @@ func (siw *ServerInterfaceWrapper) GetPlace(w http.ResponseWriter, r *http.Reque
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.GetPlace(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPlaceGuide operation middleware
+func (siw *ServerInterfaceWrapper) GetPlaceGuide(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id PlaceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPlaceGuide(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListPlacePois operation middleware
+func (siw *ServerInterfaceWrapper) ListPlacePois(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id PlaceId
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListPlacePois(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetPoi operation middleware
+func (siw *ServerInterfaceWrapper) GetPoi(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "type" -------------
+	var pType GetPoiParamsType
+
+	err = runtime.BindStyledParameterWithOptions("simple", "type", chi.URLParam(r, "type"), &pType, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "type", Err: err})
+		return
+	}
+
+	// ------------- Path parameter "id" -------------
+	var id int64
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "integer", Format: "int64", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetPoi(w, r, pType, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetRoadRoute operation middleware
+func (siw *ServerInterfaceWrapper) GetRoadRoute(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetRoadRouteParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetRoadRoute(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListRoadPois operation middleware
+func (siw *ServerInterfaceWrapper) ListRoadPois(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListRoadPoisParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to", r.URL.Query(), &params.To, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListRoadPois(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -997,10 +1770,31 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/places/{id}", wrapper.GetPlace)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/places/{id}/pois", wrapper.ListPlacePois)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/places/{id}/guide", wrapper.GetPlaceGuide)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/pois/{type}/{id}", wrapper.GetPoi)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/hotels/link", wrapper.GetHotelsLink)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/hotels/go", wrapper.GoToHotels)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/car-hubs", wrapper.ListCarHubs)
 	})
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/trips", wrapper.SearchTrips)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/routes/road", wrapper.GetRoadRoute)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/routes/road/pois", wrapper.ListRoadPois)
 	})
 
 	return r
@@ -1049,6 +1843,112 @@ func (response ListCarHubs404ApplicationProblemPlusJSONResponse) VisitListCarHub
 type ListCarHubs422ApplicationProblemPlusJSONResponse Problem
 
 func (response ListCarHubs422ApplicationProblemPlusJSONResponse) VisitListCarHubsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GoToHotelsRequestObject struct {
+	Params GoToHotelsParams
+}
+
+type GoToHotelsResponseObject interface {
+	VisitGoToHotelsResponse(w http.ResponseWriter) error
+}
+
+type GoToHotels302ResponseHeaders struct {
+	Location *string
+}
+
+type GoToHotels302Response struct {
+	Headers GoToHotels302ResponseHeaders
+}
+
+func (response GoToHotels302Response) VisitGoToHotelsResponse(w http.ResponseWriter) error {
+	if response.Headers.Location != nil {
+		w.Header().Set("Location", fmt.Sprint(*response.Headers.Location))
+	}
+	w.WriteHeader(302)
+	return nil
+}
+
+type GoToHotels404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GoToHotels404ApplicationProblemPlusJSONResponse) VisitGoToHotelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GoToHotels422ApplicationProblemPlusJSONResponse Problem
+
+func (response GoToHotels422ApplicationProblemPlusJSONResponse) VisitGoToHotelsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHotelsLinkRequestObject struct {
+	Params GetHotelsLinkParams
+}
+
+type GetHotelsLinkResponseObject interface {
+	VisitGetHotelsLinkResponse(w http.ResponseWriter) error
+}
+
+type GetHotelsLink200JSONResponse HotelsLink
+
+func (response GetHotelsLink200JSONResponse) VisitGetHotelsLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHotelsLink404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetHotelsLink404ApplicationProblemPlusJSONResponse) VisitGetHotelsLinkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetHotelsLink422ApplicationProblemPlusJSONResponse Problem
+
+func (response GetHotelsLink422ApplicationProblemPlusJSONResponse) VisitGetHotelsLinkResponse(w http.ResponseWriter) error {
 
 	var buf bytes.Buffer
 	if err := json.NewEncoder(&buf).Encode(response); err != nil {
@@ -1138,6 +2038,267 @@ func (response GetPlace404ApplicationProblemPlusJSONResponse) VisitGetPlaceRespo
 	return err
 }
 
+type GetPlaceGuideRequestObject struct {
+	Id PlaceId `json:"id"`
+}
+
+type GetPlaceGuideResponseObject interface {
+	VisitGetPlaceGuideResponse(w http.ResponseWriter) error
+}
+
+type GetPlaceGuide200JSONResponse Guide
+
+func (response GetPlaceGuide200JSONResponse) VisitGetPlaceGuideResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlaceGuide404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetPlaceGuide404ApplicationProblemPlusJSONResponse) VisitGetPlaceGuideResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPlaceGuide502ApplicationProblemPlusJSONResponse Problem
+
+func (response GetPlaceGuide502ApplicationProblemPlusJSONResponse) VisitGetPlaceGuideResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlacePoisRequestObject struct {
+	Id PlaceId `json:"id"`
+}
+
+type ListPlacePoisResponseObject interface {
+	VisitListPlacePoisResponse(w http.ResponseWriter) error
+}
+
+type ListPlacePois200JSONResponse PoiList
+
+func (response ListPlacePois200JSONResponse) VisitListPlacePoisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlacePois404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListPlacePois404ApplicationProblemPlusJSONResponse) VisitListPlacePoisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListPlacePois502ApplicationProblemPlusJSONResponse Problem
+
+func (response ListPlacePois502ApplicationProblemPlusJSONResponse) VisitListPlacePoisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPoiRequestObject struct {
+	Type GetPoiParamsType `json:"type"`
+	Id   int64            `json:"id"`
+}
+
+type GetPoiResponseObject interface {
+	VisitGetPoiResponse(w http.ResponseWriter) error
+}
+
+type GetPoi200JSONResponse Poi
+
+func (response GetPoi200JSONResponse) VisitGetPoiResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetPoi404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetPoi404ApplicationProblemPlusJSONResponse) VisitGetPoiResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRoadRouteRequestObject struct {
+	Params GetRoadRouteParams
+}
+
+type GetRoadRouteResponseObject interface {
+	VisitGetRoadRouteResponse(w http.ResponseWriter) error
+}
+
+type GetRoadRoute200JSONResponse RoadRoute
+
+func (response GetRoadRoute200JSONResponse) VisitGetRoadRouteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRoadRoute404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetRoadRoute404ApplicationProblemPlusJSONResponse) VisitGetRoadRouteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetRoadRoute422ApplicationProblemPlusJSONResponse Problem
+
+func (response GetRoadRoute422ApplicationProblemPlusJSONResponse) VisitGetRoadRouteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRoadPoisRequestObject struct {
+	Params ListRoadPoisParams
+}
+
+type ListRoadPoisResponseObject interface {
+	VisitListRoadPoisResponse(w http.ResponseWriter) error
+}
+
+type ListRoadPois200JSONResponse PoiList
+
+func (response ListRoadPois200JSONResponse) VisitListRoadPoisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRoadPois404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListRoadPois404ApplicationProblemPlusJSONResponse) VisitListRoadPoisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRoadPois422ApplicationProblemPlusJSONResponse Problem
+
+func (response ListRoadPois422ApplicationProblemPlusJSONResponse) VisitListRoadPoisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListRoadPois502ApplicationProblemPlusJSONResponse Problem
+
+func (response ListRoadPois502ApplicationProblemPlusJSONResponse) VisitListRoadPoisResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SearchTripsRequestObject struct {
 	Params SearchTripsParams
 }
@@ -1209,12 +2370,33 @@ type StrictServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(ctx context.Context, request ListCarHubsRequestObject) (ListCarHubsResponseObject, error)
+	// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
+	// (GET /hotels/go)
+	GoToHotels(ctx context.Context, request GoToHotelsRequestObject) (GoToHotelsResponseObject, error)
+	// GetHotelsLink Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+	// (GET /hotels/link)
+	GetHotelsLink(ctx context.Context, request GetHotelsLinkRequestObject) (GetHotelsLinkResponseObject, error)
 	// SearchPlaces Автодополнение точек по названию или IATA-коду
 	// (GET /places)
 	SearchPlaces(ctx context.Context, request SearchPlacesRequestObject) (SearchPlacesResponseObject, error)
 	// GetPlace Точка по идентификатору
 	// (GET /places/{id})
 	GetPlace(ctx context.Context, request GetPlaceRequestObject) (GetPlaceResponseObject, error)
+	// GetPlaceGuide Путеводитель по городу — обзор и места, отобранные авторами Викигида
+	// (GET /places/{id}/guide)
+	GetPlaceGuide(ctx context.Context, request GetPlaceGuideRequestObject) (GetPlaceGuideResponseObject, error)
+	// ListPlacePois Достопримечательности вокруг точки
+	// (GET /places/{id}/pois)
+	ListPlacePois(ctx context.Context, request ListPlacePoisRequestObject) (ListPlacePoisResponseObject, error)
+	// GetPoi Место с подробностями — описание и фото
+	// (GET /pois/{type}/{id})
+	GetPoi(ctx context.Context, request GetPoiRequestObject) (GetPoiResponseObject, error)
+	// GetRoadRoute Линия маршрута на машине между двумя точками — для карты
+	// (GET /routes/road)
+	GetRoadRoute(ctx context.Context, request GetRoadRouteRequestObject) (GetRoadRouteResponseObject, error)
+	// ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
+	// (GET /routes/road/pois)
+	ListRoadPois(ctx context.Context, request ListRoadPoisRequestObject) (ListRoadPoisResponseObject, error)
 	// SearchTrips Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
 	// (GET /trips)
 	SearchTrips(ctx context.Context, request SearchTripsRequestObject) (SearchTripsResponseObject, error)
@@ -1285,6 +2467,58 @@ func (sh *strictHandler) ListCarHubs(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// GoToHotels operation middleware
+func (sh *strictHandler) GoToHotels(w http.ResponseWriter, r *http.Request, params GoToHotelsParams) {
+	var request GoToHotelsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GoToHotels(ctx, request.(GoToHotelsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GoToHotels")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GoToHotelsResponseObject); ok {
+		if err := validResponse.VisitGoToHotelsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetHotelsLink operation middleware
+func (sh *strictHandler) GetHotelsLink(w http.ResponseWriter, r *http.Request, params GetHotelsLinkParams) {
+	var request GetHotelsLinkRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetHotelsLink(ctx, request.(GetHotelsLinkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetHotelsLink")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetHotelsLinkResponseObject); ok {
+		if err := validResponse.VisitGetHotelsLinkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SearchPlaces operation middleware
 func (sh *strictHandler) SearchPlaces(w http.ResponseWriter, r *http.Request, params SearchPlacesParams) {
 	var request SearchPlacesRequestObject
@@ -1337,6 +2571,137 @@ func (sh *strictHandler) GetPlace(w http.ResponseWriter, r *http.Request, id Pla
 	}
 }
 
+// GetPlaceGuide operation middleware
+func (sh *strictHandler) GetPlaceGuide(w http.ResponseWriter, r *http.Request, id PlaceId) {
+	var request GetPlaceGuideRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPlaceGuide(ctx, request.(GetPlaceGuideRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPlaceGuide")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPlaceGuideResponseObject); ok {
+		if err := validResponse.VisitGetPlaceGuideResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListPlacePois operation middleware
+func (sh *strictHandler) ListPlacePois(w http.ResponseWriter, r *http.Request, id PlaceId) {
+	var request ListPlacePoisRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListPlacePois(ctx, request.(ListPlacePoisRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListPlacePois")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListPlacePoisResponseObject); ok {
+		if err := validResponse.VisitListPlacePoisResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetPoi operation middleware
+func (sh *strictHandler) GetPoi(w http.ResponseWriter, r *http.Request, pType GetPoiParamsType, id int64) {
+	var request GetPoiRequestObject
+
+	request.Type = pType
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetPoi(ctx, request.(GetPoiRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetPoi")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetPoiResponseObject); ok {
+		if err := validResponse.VisitGetPoiResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetRoadRoute operation middleware
+func (sh *strictHandler) GetRoadRoute(w http.ResponseWriter, r *http.Request, params GetRoadRouteParams) {
+	var request GetRoadRouteRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetRoadRoute(ctx, request.(GetRoadRouteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetRoadRoute")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetRoadRouteResponseObject); ok {
+		if err := validResponse.VisitGetRoadRouteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListRoadPois operation middleware
+func (sh *strictHandler) ListRoadPois(w http.ResponseWriter, r *http.Request, params ListRoadPoisParams) {
+	var request ListRoadPoisRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListRoadPois(ctx, request.(ListRoadPoisRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListRoadPois")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListRoadPoisResponseObject); ok {
+		if err := validResponse.VisitListRoadPoisResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SearchTrips operation middleware
 func (sh *strictHandler) SearchTrips(w http.ResponseWriter, r *http.Request, params SearchTripsParams) {
 	var request SearchTripsRequestObject
@@ -1368,65 +2733,110 @@ func (sh *strictHandler) SearchTrips(w http.ResponseWriter, r *http.Request, par
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
