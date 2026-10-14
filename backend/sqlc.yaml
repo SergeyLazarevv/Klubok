@@ -84,3 +84,35 @@ sql:
             go_type: github.com/google/uuid.UUID
           - db_type: geography
             go_type: string
+  - engine: postgresql
+    schema: migrations
+    queries: internal/session/queries.sql
+    gen:
+      go:
+        package: store
+        out: internal/session/store
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: geography
+            go_type: string
+          - db_type: jsonb
+            go_type: encoding/json.RawMessage
+  - engine: postgresql
+    schema: migrations
+    queries: internal/favorites/queries.sql
+    gen:
+      go:
+        package: store
+        out: internal/favorites/store
+        sql_package: pgx/v5
+        emit_empty_slices: true
+        overrides:
+          - db_type: uuid
+            go_type: github.com/google/uuid.UUID
+          - db_type: geography
+            go_type: string
+          - db_type: jsonb
+            go_type: encoding/json.RawMessage

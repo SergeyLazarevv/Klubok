@@ -18,6 +18,7 @@ import (
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
@@ -29,6 +30,8 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/providers/travelpayouts"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 )
 
 const usage = `Использование: klubok <команда>
@@ -115,6 +118,12 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pg
 			poi.NewService(pool, poi.NewOverpass(cfg.OverpassURL), poi.NewWiki(), log), log),
 		Hotels: hotels.NewOstrovok(ostrovokLinker, log),
 		Guides: guides.NewService(pool, guides.NewWikivoyage(), log),
+
+		Transfers: transfer.NewService(road.NewOSRM(cfg.OSRMURL), road.NewOSRM(cfg.OSRMFootURL), log),
+		Geocoder:  transfer.NewPhoton(cfg.PhotonURL),
+
+		Sessions:  session.NewManager(pool, log),
+		Favorites: favorites.NewService(pool),
 	})
 	if err != nil {
 		return err

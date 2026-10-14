@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import type { Place } from '@/api/client'
+import type { Place, TripSearchParams } from '@/api/client'
 
 /** Ближайшие месяцы вылета в формате YYYY-MM; текущий — только если до конца больше недели. */
 export function upcomingMonths(count = 6, now = new Date()): string[] {
@@ -20,5 +20,7 @@ export const useSearchStore = defineStore('search', () => {
   const month = ref(upcomingMonths()[0]!)
   const minDays = ref(5)
   const maxDays = ref(10)
-  return { destination, month, minDays, maxDays }
+  // Параметры последнего выполненного поиска — с ними вариант сохраняется в избранное
+  const lastQuery = ref<TripSearchParams | null>(null)
+  return { destination, month, minDays, maxDays, lastQuery }
 })

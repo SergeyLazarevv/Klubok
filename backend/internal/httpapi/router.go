@@ -16,12 +16,15 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	oapimw "github.com/oapi-codegen/nethttp-middleware"
 
+	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/httpx"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 )
 
 const basePath = "/api/v1"
@@ -33,6 +36,12 @@ type Deps struct {
 	Search *search.Service
 	Hotels *hotels.Ostrovok
 	Guides *guides.Service
+
+	Transfers *transfer.Service
+	Geocoder  *transfer.Photon
+
+	Sessions  *session.Manager
+	Favorites *favorites.Service
 }
 
 func NewRouter(d Deps) (http.Handler, error) {
@@ -44,6 +53,10 @@ func NewRouter(d Deps) (http.Handler, error) {
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, httpx.Logger(d.Log), middleware.Recoverer)
+	// Анонимная сессия: создаётся, когда пользователь впервые что-то сохраняет (добавляет в избранное)
+	r.Use(d.Sessions.Middleware(func(r *http.Request) bool {
+		return r.Method == http.MethodPost && r.URL.Path == basePath+"/favorites"
+	}))
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +76,8 @@ func NewRouter(d Deps) (http.Handler, error) {
 			Options:              openapi3filter.Options{MultiError: true},
 			ErrorHandlerWithOpts: validationError,
 		}))
-		strict := apigen.NewStrictHandlerWithOptions(&handlers{geo: d.Geo, search: d.Search, hotels: d.Hotels, guides: d.Guides, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
+		strict := apigen.NewStrictHandlerWithOptions(&handlers{geo: d.Geo, search: d.Search, hotels: d.Hotels, guides: d.Guides,
+			transfers: d.Transfers, geocoder: d.Geocoder, favorites: d.Favorites, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
 			RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 				httpx.WriteProblem(w, httpx.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 			},

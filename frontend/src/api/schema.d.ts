@@ -228,6 +228,114 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/geocode": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Поиск адреса (например, квартиры) рядом с городом
+         * @description Адреса из OpenStreetMap (Photon). Поиск привязан к городу: результаты дальше ~60 км от него отбрасываются.
+         *     Точность адресов в OSM разная по странам — показываем несколько вариантов, пользователь выбирает и при
+         *     необходимости поправляет точку на карте.
+         */
+        get: operations["geocode"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/transfers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Как добраться внутри города — например, из аэропорта до квартиры
+         * @description Несколько вариантов: такси, общественный транспорт, пешком (если близко). Расстояние и время такси —
+         *     по дороге (OSRM). Цена такси и маршруты общественного транспорта появляются, когда настроены
+         *     ключи Яндекс Такси и 2ГИС; без них — ссылки, открывающие маршрут в Яндекс Картах, 2ГИС и Яндекс Go.
+         */
+        get: operations["listTransfers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/favorites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Избранные маршруты текущего пользователя
+         * @description Пока нет авторизации, владелец — анонимная сессия (cookie klubok_sid, выдаётся сервером).
+         *     Цены в списке — на момент сохранения; актуальные — GET /favorites/{id}/current.
+         */
+        get: operations["listFavorites"];
+        put?: never;
+        /**
+         * Добавить маршрут в избранное
+         * @description Тот же вариант с теми же параметрами уже есть — возвращается существующая запись (200).
+         */
+        post: operations["addFavorite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/favorites/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Убрать из избранного */
+        delete: operations["deleteFavorite"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/favorites/{id}/current": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Актуальная цена избранного маршрута
+         * @description Повторяет сохранённый поиск с сохранёнными параметрами и ищет тот же вариант (аэропорт и даты
+         *     или «на машине»). status: found — тот же вариант; replaced — его нет, показан лучший с теми же
+         *     параметрами; past — месяц поездки прошёл; empty — вариантов нет; unavailable — источник цен недоступен.
+         */
+        get: operations["getFavoriteCurrent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -503,6 +611,119 @@ export interface components {
             page: string;
             /** @example Иван Иванов · CC BY-SA 4.0 */
             credit?: string;
+        };
+        Address: {
+            /** @example Абай даңғылы 10, Алматы */
+            label: string;
+            location: components["schemas"]["Point"];
+            /**
+             * @description house — дом, street — только улица (точку стоит поправить)
+             * @example house
+             */
+            kind?: string;
+            /**
+             * Format: double
+             * @description Расстояние от центра города
+             */
+            distance_km?: number;
+        };
+        TransferOption: {
+            /** @enum {string} */
+            mode: "taxi" | "public_transport" | "walk";
+            /** @example Такси */
+            title: string;
+            /** @description Время в пути; нет — неизвестно без внешнего сервиса */
+            duration_min?: number;
+            /** Format: double */
+            distance_km?: number;
+            price?: components["schemas"]["Money"];
+            /** @description Пояснение к цене, если её нет или она ориентировочная */
+            price_note?: string;
+            /** @description Время или расстояние посчитаны приблизительно */
+            approximate?: boolean;
+            /** @description Где открыть или заказать маршрут */
+            links: {
+                /** @example Яндекс Карты */
+                title: string;
+                url: string;
+            }[];
+        };
+        /** @description Параметры поиска поездки — те же, что у запроса GET /trips */
+        TripSearchParams: {
+            /** Format: uuid */
+            from: string;
+            /** Format: uuid */
+            to: string;
+            month: string;
+            min_days?: number;
+            max_days?: number;
+            travelers?: number;
+            use_car?: boolean;
+            radius_km?: number;
+            /** Format: double */
+            max_drive_hours?: number;
+            /** Format: double */
+            consumption_l100?: number;
+            fuel_type?: components["schemas"]["FuelType"];
+            /** Format: double */
+            fuel_price_rub?: number;
+            allow_border?: boolean;
+        };
+        /** @description Какой вариант выбран в результатах */
+        FavoritePick: {
+            /** @enum {string} */
+            kind: "flight" | "drive";
+            /**
+             * @description Аэропорт вылета (для flight)
+             * @example URA
+             */
+            hub_iata?: string;
+            /** Format: date */
+            depart_date?: string;
+            /** Format: date */
+            return_date?: string;
+        };
+        /** @description Вариант на момент сохранения — для «было → стало» и показа без пересчёта */
+        FavoriteSnapshot: {
+            total: components["schemas"]["Money"];
+            per_person: components["schemas"]["Money"];
+            hub_name?: string;
+            /** Format: date-time */
+            depart_at?: string;
+            /** Format: date-time */
+            return_at?: string;
+            trip_days?: number;
+            transfers?: number;
+            /** Format: double */
+            drive_hours?: number;
+            /** Format: date */
+            found_on?: string;
+        };
+        FavoriteCreate: {
+            /** @example Самара → Алматы, ноябрь */
+            title: string;
+            params: components["schemas"]["TripSearchParams"];
+            pick: components["schemas"]["FavoritePick"];
+            snapshot: components["schemas"]["FavoriteSnapshot"];
+        };
+        Favorite: {
+            /** Format: uuid */
+            id: string;
+            title: string;
+            params: components["schemas"]["TripSearchParams"];
+            pick: components["schemas"]["FavoritePick"];
+            snapshot: components["schemas"]["FavoriteSnapshot"];
+            /** Format: date-time */
+            created_at: string;
+        };
+        FavoriteCurrent: {
+            /** @enum {string} */
+            status: "found" | "replaced" | "past" | "empty" | "unavailable";
+            result?: components["schemas"]["TripsResponse"];
+            option?: components["schemas"]["TripOption"];
+            drive?: components["schemas"]["DriveTrip"];
+            total?: components["schemas"]["Money"];
+            diff?: components["schemas"]["Money"];
         };
         Point: {
             /** Format: double */
@@ -865,6 +1086,166 @@ export interface operations {
             404: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
+        };
+    };
+    geocode: {
+        parameters: {
+            query: {
+                q: string;
+                /** @description Город, рядом с которым искать */
+                near: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Найденные адреса, лучшие первыми */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Address"][];
+                    };
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    listTransfers: {
+        parameters: {
+            query: {
+                from_lat: number;
+                from_lon: number;
+                to_lat: number;
+                to_lon: number;
+                /** @description Страна (ISO 3166-1) — для ссылок на 2ГИС нужного домена */
+                country?: string;
+                travelers?: components["parameters"]["Travelers"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Варианты, быстрые первыми */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["TransferOption"][];
+                    };
+                };
+            };
+            422: components["responses"]["Problem"];
+        };
+    };
+    listFavorites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Избранное, новые первыми */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["Favorite"][];
+                    };
+                };
+            };
+        };
+    };
+    addFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FavoriteCreate"];
+            };
+        };
+        responses: {
+            /** @description Уже было в избранном */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Favorite"];
+                };
+            };
+            /** @description Добавлено */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Favorite"];
+                };
+            };
+            422: components["responses"]["Problem"];
+        };
+    };
+    deleteFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Удалено */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    getFavoriteCurrent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Пересчитанный вариант */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteCurrent"];
+                };
+            };
+            404: components["responses"]["Problem"];
         };
     };
 }

@@ -6,6 +6,7 @@ import { api, type TripsResponse } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
 import { upcomingMonths, useSearchStore } from '@/stores/search'
 import CarSettings from '@/components/CarSettings.vue'
+import SearchLoader from '@/components/SearchLoader.vue'
 import SearchForm from '@/components/SearchForm.vue'
 import TripResults from '@/components/TripResults.vue'
 
@@ -29,25 +30,22 @@ async function runSearch() {
   router.replace({
     query: { from: homePlace.value.id, to: search.destination.id, month, min: search.minDays, max: search.maxDays },
   })
-  const { data, error: problem } = await api.GET('/trips', {
-    params: {
-      query: {
-        from: homePlace.value.id,
-        to: search.destination.id,
-        month,
-        min_days: search.minDays,
-        max_days: search.maxDays,
-        travelers: travelers.value,
-        use_car: profile.hasCar,
-        radius_km: profile.radiusKm,
-        max_drive_hours: profile.maxDriveHours,
-        consumption_l100: profile.consumptionL100,
-        fuel_type: profile.fuelType,
-        fuel_price_rub: profile.fuelPriceRub ?? undefined,
-        allow_border: profile.allowBorder,
-      },
-    },
-  })
+  const query = {
+    from: homePlace.value.id,
+    to: search.destination.id,
+    month,
+    min_days: search.minDays,
+    max_days: search.maxDays,
+    travelers: travelers.value,
+    use_car: profile.hasCar,
+    radius_km: profile.radiusKm,
+    max_drive_hours: profile.maxDriveHours,
+    consumption_l100: profile.consumptionL100,
+    fuel_type: profile.fuelType,
+    fuel_price_rub: profile.fuelPriceRub ?? undefined,
+    allow_border: profile.allowBorder,
+  }
+  const { data, error: problem } = await api.GET('/trips', { params: { query } })
   loading.value = false
   if (problem) {
     error.value = problem.errors?.[0]?.message ?? problem.detail ?? 'Не удалось выполнить поиск'
@@ -56,6 +54,7 @@ async function runSearch() {
   }
   result.value = data
   searchedMonth.value = month
+  search.lastQuery = query
   if (data?.fuel_price && profile.fuelPriceRub == null) referenceFuelPrice.value = data.fuel_price.amount
 }
 
@@ -79,6 +78,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <SearchLoader v-if="loading" />
   <section class="bg-linear-to-b from-[#eef3fb] to-background">
   <div class="mx-auto flex max-w-6xl flex-col gap-5 px-4 pt-6 pb-2 sm:pt-12">
     <header class="flex flex-col gap-1.5">

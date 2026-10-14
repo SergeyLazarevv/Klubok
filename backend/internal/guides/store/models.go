@@ -17,6 +17,21 @@ type BorderRule struct {
 	Note          string
 }
 
+type Favorite struct {
+	ID          uuid.UUID
+	SessionID   uuid.UUID
+	UserID      pgtype.UUID
+	Kind        string
+	Title       string
+	Params      []byte
+	Pick        []byte
+	Snapshot    []byte
+	Fingerprint string
+	Note        pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+}
+
 type FuelPrice struct {
 	CountryCode string
 	RegionCode  string
@@ -156,4 +171,11 @@ type RoadDistance struct {
 	Source      string
 	UpdatedAt   pgtype.Timestamptz
 	Geometry    pgtype.Text
+}
+
+type Session struct {
+	ID         uuid.UUID
+	UserID     pgtype.UUID
+	CreatedAt  pgtype.Timestamptz
+	LastSeenAt pgtype.Timestamptz
 }

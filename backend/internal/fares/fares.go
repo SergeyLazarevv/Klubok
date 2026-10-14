@@ -4,6 +4,9 @@ package fares
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -86,4 +89,26 @@ func (h *History) Save(ctx context.Context, quotes []Quote) error {
 		return fmt.Errorf("save quotes: %w", firstErr)
 	}
 	return nil
+}
+
+// aviasalesSearch — путь выдачи Aviasales: KUF2311ALA2811 + пассажиры (взрослые[дети[младенцы]]).
+// Без даты возвращения — перелёт в одну сторону: KUF2311ALA1.
+var aviasalesSearch = regexp.MustCompile(`^(/search/[A-Z]{3}\d{4}[A-Z]{3}(?:\d{4})?)\d{1,3}$`)
+
+// BookingURLFor — ссылка на покупку с нужным числом взрослых. Источник отдаёт ссылку на одного пассажира,
+// а котировки кэшируются для всех поисков, поэтому число людей подставляется при сборке варианта.
+func (q Quote) BookingURLFor(adults int) string {
+	if q.BookingURL == "" || adults < 1 {
+		return q.BookingURL
+	}
+	u, err := url.Parse(q.BookingURL)
+	if err != nil {
+		return q.BookingURL
+	}
+	m := aviasalesSearch.FindStringSubmatch(u.Path)
+	if m == nil {
+		return q.BookingURL // не выдача Aviasales — не трогаем
+	}
+	u.Path = m[1] + strconv.Itoa(min(adults, 9))
+	return u.String()
 }

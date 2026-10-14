@@ -59,6 +59,51 @@ func (e DriveTripWarnings) Valid() bool {
 	}
 }
 
+// Defines values for FavoriteCurrentStatus.
+const (
+	Empty       FavoriteCurrentStatus = "empty"
+	Found       FavoriteCurrentStatus = "found"
+	Past        FavoriteCurrentStatus = "past"
+	Replaced    FavoriteCurrentStatus = "replaced"
+	Unavailable FavoriteCurrentStatus = "unavailable"
+)
+
+// Valid indicates whether the value is a known member of the FavoriteCurrentStatus enum.
+func (e FavoriteCurrentStatus) Valid() bool {
+	switch e {
+	case Empty:
+		return true
+	case Found:
+		return true
+	case Past:
+		return true
+	case Replaced:
+		return true
+	case Unavailable:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FavoritePickKind.
+const (
+	Drive  FavoritePickKind = "drive"
+	Flight FavoritePickKind = "flight"
+)
+
+// Valid indicates whether the value is a known member of the FavoritePickKind enum.
+func (e FavoritePickKind) Valid() bool {
+	switch e {
+	case Drive:
+		return true
+	case Flight:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FuelType.
 const (
 	Ai92 FuelType = "ai92"
@@ -206,6 +251,27 @@ func (e PoiCategory) Valid() bool {
 	}
 }
 
+// Defines values for TransferOptionMode.
+const (
+	PublicTransport TransferOptionMode = "public_transport"
+	Taxi            TransferOptionMode = "taxi"
+	Walk            TransferOptionMode = "walk"
+)
+
+// Valid indicates whether the value is a known member of the TransferOptionMode enum.
+func (e TransferOptionMode) Valid() bool {
+	switch e {
+	case PublicTransport:
+		return true
+	case Taxi:
+		return true
+	case Walk:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TripOptionWarnings.
 const (
 	TripOptionWarningsBorderCrossingByCar TripOptionWarnings = "border_crossing_by_car"
@@ -270,6 +336,21 @@ func (e GetPoiParamsType) Valid() bool {
 	default:
 		return false
 	}
+}
+
+// Address defines model for Address.
+type Address struct {
+	// DistanceKm Расстояние от центра города
+	DistanceKm *float64 `json:"distance_km,omitempty"`
+
+	// Kind house — дом, street — только улица (точку стоит поправить)
+	//
+	// Example: house
+	Kind *string `json:"kind,omitempty"`
+
+	// Label Example: Абай даңғылы 10, Алматы
+	Label    string `json:"label"`
+	Location Point  `json:"location"`
 }
 
 // BorderInfo defines model for BorderInfo.
@@ -358,6 +439,88 @@ type DriveTrip struct {
 
 // DriveTripWarnings defines model for DriveTrip.Warnings.
 type DriveTripWarnings string
+
+// Favorite defines model for Favorite.
+type Favorite struct {
+	CreatedAt time.Time          `json:"created_at"`
+	Id        openapi_types.UUID `json:"id"`
+
+	// Params Параметры поиска поездки — те же, что у запроса GET /trips
+	Params TripSearchParams `json:"params"`
+
+	// Pick Какой вариант выбран в результатах
+	Pick FavoritePick `json:"pick"`
+
+	// Snapshot Вариант на момент сохранения — для «было → стало» и показа без пересчёта
+	Snapshot FavoriteSnapshot `json:"snapshot"`
+	Title    string           `json:"title"`
+}
+
+// FavoriteCreate defines model for FavoriteCreate.
+type FavoriteCreate struct {
+	// Params Параметры поиска поездки — те же, что у запроса GET /trips
+	Params TripSearchParams `json:"params"`
+
+	// Pick Какой вариант выбран в результатах
+	Pick FavoritePick `json:"pick"`
+
+	// Snapshot Вариант на момент сохранения — для «было → стало» и показа без пересчёта
+	Snapshot FavoriteSnapshot `json:"snapshot"`
+
+	// Title Example: Самара → Алматы, ноябрь
+	Title string `json:"title"`
+}
+
+// FavoriteCurrent defines model for FavoriteCurrent.
+type FavoriteCurrent struct {
+	// Diff Сумма в минимальных единицах валюты (копейках)
+	Diff *Money `json:"diff,omitempty"`
+
+	// Drive Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+	// не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+	Drive  *DriveTrip            `json:"drive,omitempty"`
+	Option *TripOption           `json:"option,omitempty"`
+	Result *TripsResponse        `json:"result,omitempty"`
+	Status FavoriteCurrentStatus `json:"status"`
+
+	// Total Сумма в минимальных единицах валюты (копейках)
+	Total *Money `json:"total,omitempty"`
+}
+
+// FavoriteCurrentStatus defines model for FavoriteCurrent.Status.
+type FavoriteCurrentStatus string
+
+// FavoritePick Какой вариант выбран в результатах
+type FavoritePick struct {
+	DepartDate *openapi_types.Date `json:"depart_date,omitempty"`
+
+	// HubIata Аэропорт вылета (для flight)
+	//
+	// Example: URA
+	HubIata    *string             `json:"hub_iata,omitempty"`
+	Kind       FavoritePickKind    `json:"kind"`
+	ReturnDate *openapi_types.Date `json:"return_date,omitempty"`
+}
+
+// FavoritePickKind defines model for FavoritePick.Kind.
+type FavoritePickKind string
+
+// FavoriteSnapshot Вариант на момент сохранения — для «было → стало» и показа без пересчёта
+type FavoriteSnapshot struct {
+	DepartAt   *time.Time          `json:"depart_at,omitempty"`
+	DriveHours *float64            `json:"drive_hours,omitempty"`
+	FoundOn    *openapi_types.Date `json:"found_on,omitempty"`
+	HubName    *string             `json:"hub_name,omitempty"`
+
+	// PerPerson Сумма в минимальных единицах валюты (копейках)
+	PerPerson Money      `json:"per_person"`
+	ReturnAt  *time.Time `json:"return_at,omitempty"`
+
+	// Total Сумма в минимальных единицах валюты (копейках)
+	Total     Money `json:"total"`
+	Transfers *int  `json:"transfers,omitempty"`
+	TripDays  *int  `json:"trip_days,omitempty"`
+}
 
 // FuelType defines model for FuelType.
 type FuelType string
@@ -568,6 +731,36 @@ type RoadRoute struct {
 	Road     RoadLeg `json:"road"`
 }
 
+// TransferOption defines model for TransferOption.
+type TransferOption struct {
+	// Approximate Время или расстояние посчитаны приблизительно
+	Approximate *bool    `json:"approximate,omitempty"`
+	DistanceKm  *float64 `json:"distance_km,omitempty"`
+
+	// DurationMin Время в пути; нет — неизвестно без внешнего сервиса
+	DurationMin *int `json:"duration_min,omitempty"`
+
+	// Links Где открыть или заказать маршрут
+	Links []struct {
+		// Title Example: Яндекс Карты
+		Title string `json:"title"`
+		Url   string `json:"url"`
+	} `json:"links"`
+	Mode TransferOptionMode `json:"mode"`
+
+	// Price Сумма в минимальных единицах валюты (копейках)
+	Price *Money `json:"price,omitempty"`
+
+	// PriceNote Пояснение к цене, если её нет или она ориентировочная
+	PriceNote *string `json:"price_note,omitempty"`
+
+	// Title Example: Такси
+	Title string `json:"title"`
+}
+
+// TransferOptionMode defines model for TransferOption.Mode.
+type TransferOptionMode string
+
 // TripCar defines model for TripCar.
 type TripCar struct {
 	Border *BorderInfo `json:"border,omitempty"`
@@ -616,6 +809,23 @@ type TripOption struct {
 
 // TripOptionWarnings defines model for TripOption.Warnings.
 type TripOptionWarnings string
+
+// TripSearchParams Параметры поиска поездки — те же, что у запроса GET /trips
+type TripSearchParams struct {
+	AllowBorder     *bool              `json:"allow_border,omitempty"`
+	ConsumptionL100 *float64           `json:"consumption_l100,omitempty"`
+	From            openapi_types.UUID `json:"from"`
+	FuelPriceRub    *float64           `json:"fuel_price_rub,omitempty"`
+	FuelType        *FuelType          `json:"fuel_type,omitempty"`
+	MaxDays         *int               `json:"max_days,omitempty"`
+	MaxDriveHours   *float64           `json:"max_drive_hours,omitempty"`
+	MinDays         *int               `json:"min_days,omitempty"`
+	Month           string             `json:"month"`
+	RadiusKm        *int               `json:"radius_km,omitempty"`
+	To              openapi_types.UUID `json:"to"`
+	Travelers       *int               `json:"travelers,omitempty"`
+	UseCar          *bool              `json:"use_car,omitempty"`
+}
 
 // TripsResponse defines model for TripsResponse.
 type TripsResponse struct {
@@ -697,6 +907,14 @@ type ListCarHubsParams struct {
 	AllowBorder *AllowBorder `form:"allow_border,omitempty" json:"allow_border,omitempty"`
 }
 
+// GeocodeParams defines parameters for Geocode.
+type GeocodeParams struct {
+	Q string `form:"q" json:"q"`
+
+	// Near Город, рядом с которым искать
+	Near openapi_types.UUID `form:"near" json:"near"`
+}
+
 // GoToHotelsParams defines parameters for GoToHotels.
 type GoToHotelsParams struct {
 	Place    openapi_types.UUID `form:"place" json:"place"`
@@ -742,6 +960,18 @@ type ListRoadPoisParams struct {
 	To   openapi_types.UUID `form:"to" json:"to"`
 }
 
+// ListTransfersParams defines parameters for ListTransfers.
+type ListTransfersParams struct {
+	FromLat float64 `form:"from_lat" json:"from_lat"`
+	FromLon float64 `form:"from_lon" json:"from_lon"`
+	ToLat   float64 `form:"to_lat" json:"to_lat"`
+	ToLon   float64 `form:"to_lon" json:"to_lon"`
+
+	// Country Страна (ISO 3166-1) — для ссылок на 2ГИС нужного домена
+	Country   *string    `form:"country,omitempty" json:"country,omitempty"`
+	Travelers *Travelers `form:"travelers,omitempty" json:"travelers,omitempty"`
+}
+
 // SearchTripsParams defines parameters for SearchTrips.
 type SearchTripsParams struct {
 	// From Домашний город
@@ -774,11 +1004,29 @@ type SearchTripsParams struct {
 	AllowBorder *AllowBorder `form:"allow_border,omitempty" json:"allow_border,omitempty"`
 }
 
+// AddFavoriteJSONRequestBody defines body for AddFavorite for application/json ContentType.
+type AddFavoriteJSONRequestBody = FavoriteCreate
+
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams)
+	// ListFavorites Избранные маршруты текущего пользователя
+	// (GET /favorites)
+	ListFavorites(w http.ResponseWriter, r *http.Request)
+	// AddFavorite Добавить маршрут в избранное
+	// (POST /favorites)
+	AddFavorite(w http.ResponseWriter, r *http.Request)
+	// DeleteFavorite Убрать из избранного
+	// (DELETE /favorites/{id})
+	DeleteFavorite(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// GetFavoriteCurrent Актуальная цена избранного маршрута
+	// (GET /favorites/{id}/current)
+	GetFavoriteCurrent(w http.ResponseWriter, r *http.Request, id openapi_types.UUID)
+	// Geocode Поиск адреса (например, квартиры) рядом с городом
+	// (GET /geocode)
+	Geocode(w http.ResponseWriter, r *http.Request, params GeocodeParams)
 	// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
 	// (GET /hotels/go)
 	GoToHotels(w http.ResponseWriter, r *http.Request, params GoToHotelsParams)
@@ -806,6 +1054,9 @@ type ServerInterface interface {
 	// ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
 	// (GET /routes/road/pois)
 	ListRoadPois(w http.ResponseWriter, r *http.Request, params ListRoadPoisParams)
+	// ListTransfers Как добраться внутри города — например, из аэропорта до квартиры
+	// (GET /transfers)
+	ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams)
 	// SearchTrips Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
 	// (GET /trips)
 	SearchTrips(w http.ResponseWriter, r *http.Request, params SearchTripsParams)
@@ -818,6 +1069,36 @@ type Unimplemented struct{}
 // ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 // (GET /car-hubs)
 func (_ Unimplemented) ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListFavorites Избранные маршруты текущего пользователя
+// (GET /favorites)
+func (_ Unimplemented) ListFavorites(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// AddFavorite Добавить маршрут в избранное
+// (POST /favorites)
+func (_ Unimplemented) AddFavorite(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// DeleteFavorite Убрать из избранного
+// (DELETE /favorites/{id})
+func (_ Unimplemented) DeleteFavorite(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetFavoriteCurrent Актуальная цена избранного маршрута
+// (GET /favorites/{id}/current)
+func (_ Unimplemented) GetFavoriteCurrent(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// Geocode Поиск адреса (например, квартиры) рядом с городом
+// (GET /geocode)
+func (_ Unimplemented) Geocode(w http.ResponseWriter, r *http.Request, params GeocodeParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -872,6 +1153,12 @@ func (_ Unimplemented) GetRoadRoute(w http.ResponseWriter, r *http.Request, para
 // ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
 // (GET /routes/road/pois)
 func (_ Unimplemented) ListRoadPois(w http.ResponseWriter, r *http.Request, params ListRoadPoisParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ListTransfers Как добраться внутри города — например, из аэропорта до квартиры
+// (GET /transfers)
+func (_ Unimplemented) ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1018,6 +1305,132 @@ func (siw *ServerInterfaceWrapper) ListCarHubs(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListCarHubs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListFavorites operation middleware
+func (siw *ServerInterfaceWrapper) ListFavorites(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListFavorites(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// AddFavorite operation middleware
+func (siw *ServerInterfaceWrapper) AddFavorite(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.AddFavorite(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// DeleteFavorite operation middleware
+func (siw *ServerInterfaceWrapper) DeleteFavorite(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.DeleteFavorite(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetFavoriteCurrent operation middleware
+func (siw *ServerInterfaceWrapper) GetFavoriteCurrent(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// ------------- Path parameter "id" -------------
+	var id openapi_types.UUID
+
+	err = runtime.BindStyledParameterWithOptions("simple", "id", chi.URLParam(r, "id"), &id, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true, Type: "string", Format: "uuid", ValueIsUnescaped: r.URL.RawPath == ""})
+	if err != nil {
+		siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "id", Err: err})
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetFavoriteCurrent(w, r, id)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// Geocode operation middleware
+func (siw *ServerInterfaceWrapper) Geocode(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GeocodeParams
+
+	// ------------- Required query parameter "q" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "q", r.URL.Query(), &params.Q, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "q"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "q", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "near" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "near", r.URL.Query(), &params.Near, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "near"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "near", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.Geocode(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -1461,6 +1874,104 @@ func (siw *ServerInterfaceWrapper) ListRoadPois(w http.ResponseWriter, r *http.R
 	handler.ServeHTTP(w, r)
 }
 
+// ListTransfers operation middleware
+func (siw *ServerInterfaceWrapper) ListTransfers(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ListTransfersParams
+
+	// ------------- Required query parameter "from_lat" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from_lat", r.URL.Query(), &params.FromLat, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from_lat"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from_lat", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "from_lon" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from_lon", r.URL.Query(), &params.FromLon, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from_lon"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from_lon", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to_lat" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to_lat", r.URL.Query(), &params.ToLat, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to_lat"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to_lat", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to_lon" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to_lon", r.URL.Query(), &params.ToLon, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to_lon"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to_lon", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "country" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "country", r.URL.Query(), &params.Country, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "country"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "country", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "travelers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "travelers", r.URL.Query(), &params.Travelers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "travelers"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "travelers", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListTransfers(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // SearchTrips operation middleware
 func (siw *ServerInterfaceWrapper) SearchTrips(w http.ResponseWriter, r *http.Request) {
 
@@ -1796,6 +2307,24 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/routes/road/pois", wrapper.ListRoadPois)
 	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/geocode", wrapper.Geocode)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/transfers", wrapper.ListTransfers)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/favorites", wrapper.ListFavorites)
+	})
+	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/favorites", wrapper.AddFavorite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Delete(options.BaseURL+"/favorites/{id}", wrapper.DeleteFavorite)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/favorites/{id}/current", wrapper.GetFavoriteCurrent)
+	})
 
 	return r
 }
@@ -1850,6 +2379,219 @@ func (response ListCarHubs422ApplicationProblemPlusJSONResponse) VisitListCarHub
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListFavoritesRequestObject struct {
+}
+
+type ListFavoritesResponseObject interface {
+	VisitListFavoritesResponse(w http.ResponseWriter) error
+}
+
+type ListFavorites200JSONResponse struct {
+	Items []Favorite `json:"items"`
+}
+
+func (response ListFavorites200JSONResponse) VisitListFavoritesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavoriteRequestObject struct {
+	Body *AddFavoriteJSONRequestBody
+}
+
+type AddFavoriteResponseObject interface {
+	VisitAddFavoriteResponse(w http.ResponseWriter) error
+}
+
+type AddFavorite200JSONResponse Favorite
+
+func (response AddFavorite200JSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavorite201JSONResponse Favorite
+
+func (response AddFavorite201JSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(201)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type AddFavorite422ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response AddFavorite422ApplicationProblemPlusJSONResponse) VisitAddFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteFavoriteRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type DeleteFavoriteResponseObject interface {
+	VisitDeleteFavoriteResponse(w http.ResponseWriter) error
+}
+
+type DeleteFavorite204Response struct {
+}
+
+func (response DeleteFavorite204Response) VisitDeleteFavoriteResponse(w http.ResponseWriter) error {
+	w.WriteHeader(204)
+	return nil
+}
+
+type DeleteFavorite404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response DeleteFavorite404ApplicationProblemPlusJSONResponse) VisitDeleteFavoriteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFavoriteCurrentRequestObject struct {
+	Id openapi_types.UUID `json:"id"`
+}
+
+type GetFavoriteCurrentResponseObject interface {
+	VisitGetFavoriteCurrentResponse(w http.ResponseWriter) error
+}
+
+type GetFavoriteCurrent200JSONResponse FavoriteCurrent
+
+func (response GetFavoriteCurrent200JSONResponse) VisitGetFavoriteCurrentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetFavoriteCurrent404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetFavoriteCurrent404ApplicationProblemPlusJSONResponse) VisitGetFavoriteCurrentResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GeocodeRequestObject struct {
+	Params GeocodeParams
+}
+
+type GeocodeResponseObject interface {
+	VisitGeocodeResponse(w http.ResponseWriter) error
+}
+
+type Geocode200JSONResponse struct {
+	Items []Address `json:"items"`
+}
+
+func (response Geocode200JSONResponse) VisitGeocodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Geocode404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response Geocode404ApplicationProblemPlusJSONResponse) VisitGeocodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Geocode422ApplicationProblemPlusJSONResponse Problem
+
+func (response Geocode422ApplicationProblemPlusJSONResponse) VisitGeocodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Geocode502ApplicationProblemPlusJSONResponse Problem
+
+func (response Geocode502ApplicationProblemPlusJSONResponse) VisitGeocodeResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -2299,6 +3041,46 @@ func (response ListRoadPois502ApplicationProblemPlusJSONResponse) VisitListRoadP
 	return err
 }
 
+type ListTransfersRequestObject struct {
+	Params ListTransfersParams
+}
+
+type ListTransfersResponseObject interface {
+	VisitListTransfersResponse(w http.ResponseWriter) error
+}
+
+type ListTransfers200JSONResponse struct {
+	Items []TransferOption `json:"items"`
+}
+
+func (response ListTransfers200JSONResponse) VisitListTransfersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ListTransfers422ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ListTransfers422ApplicationProblemPlusJSONResponse) VisitListTransfersResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type SearchTripsRequestObject struct {
 	Params SearchTripsParams
 }
@@ -2370,6 +3152,21 @@ type StrictServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(ctx context.Context, request ListCarHubsRequestObject) (ListCarHubsResponseObject, error)
+	// ListFavorites Избранные маршруты текущего пользователя
+	// (GET /favorites)
+	ListFavorites(ctx context.Context, request ListFavoritesRequestObject) (ListFavoritesResponseObject, error)
+	// AddFavorite Добавить маршрут в избранное
+	// (POST /favorites)
+	AddFavorite(ctx context.Context, request AddFavoriteRequestObject) (AddFavoriteResponseObject, error)
+	// DeleteFavorite Убрать из избранного
+	// (DELETE /favorites/{id})
+	DeleteFavorite(ctx context.Context, request DeleteFavoriteRequestObject) (DeleteFavoriteResponseObject, error)
+	// GetFavoriteCurrent Актуальная цена избранного маршрута
+	// (GET /favorites/{id}/current)
+	GetFavoriteCurrent(ctx context.Context, request GetFavoriteCurrentRequestObject) (GetFavoriteCurrentResponseObject, error)
+	// Geocode Поиск адреса (например, квартиры) рядом с городом
+	// (GET /geocode)
+	Geocode(ctx context.Context, request GeocodeRequestObject) (GeocodeResponseObject, error)
 	// GoToHotels Переход на поиск жилья — то же, что /hotels/link, но перенаправлением
 	// (GET /hotels/go)
 	GoToHotels(ctx context.Context, request GoToHotelsRequestObject) (GoToHotelsResponseObject, error)
@@ -2397,6 +3194,9 @@ type StrictServerInterface interface {
 	// ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
 	// (GET /routes/road/pois)
 	ListRoadPois(ctx context.Context, request ListRoadPoisRequestObject) (ListRoadPoisResponseObject, error)
+	// ListTransfers Как добраться внутри города — например, из аэропорта до квартиры
+	// (GET /transfers)
+	ListTransfers(ctx context.Context, request ListTransfersRequestObject) (ListTransfersResponseObject, error)
 	// SearchTrips Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
 	// (GET /trips)
 	SearchTrips(ctx context.Context, request SearchTripsRequestObject) (SearchTripsResponseObject, error)
@@ -2460,6 +3260,139 @@ func (sh *strictHandler) ListCarHubs(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListCarHubsResponseObject); ok {
 		if err := validResponse.VisitListCarHubsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListFavorites operation middleware
+func (sh *strictHandler) ListFavorites(w http.ResponseWriter, r *http.Request) {
+	var request ListFavoritesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListFavorites(ctx, request.(ListFavoritesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListFavorites")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListFavoritesResponseObject); ok {
+		if err := validResponse.VisitListFavoritesResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// AddFavorite operation middleware
+func (sh *strictHandler) AddFavorite(w http.ResponseWriter, r *http.Request) {
+	var request AddFavoriteRequestObject
+
+	var body AddFavoriteJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.AddFavorite(ctx, request.(AddFavoriteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "AddFavorite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(AddFavoriteResponseObject); ok {
+		if err := validResponse.VisitAddFavoriteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// DeleteFavorite operation middleware
+func (sh *strictHandler) DeleteFavorite(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request DeleteFavoriteRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.DeleteFavorite(ctx, request.(DeleteFavoriteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "DeleteFavorite")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(DeleteFavoriteResponseObject); ok {
+		if err := validResponse.VisitDeleteFavoriteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// GetFavoriteCurrent operation middleware
+func (sh *strictHandler) GetFavoriteCurrent(w http.ResponseWriter, r *http.Request, id openapi_types.UUID) {
+	var request GetFavoriteCurrentRequestObject
+
+	request.Id = id
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetFavoriteCurrent(ctx, request.(GetFavoriteCurrentRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetFavoriteCurrent")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetFavoriteCurrentResponseObject); ok {
+		if err := validResponse.VisitGetFavoriteCurrentResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// Geocode operation middleware
+func (sh *strictHandler) Geocode(w http.ResponseWriter, r *http.Request, params GeocodeParams) {
+	var request GeocodeRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.Geocode(ctx, request.(GeocodeRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "Geocode")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GeocodeResponseObject); ok {
+		if err := validResponse.VisitGeocodeResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -2702,6 +3635,32 @@ func (sh *strictHandler) ListRoadPois(w http.ResponseWriter, r *http.Request, pa
 	}
 }
 
+// ListTransfers operation middleware
+func (sh *strictHandler) ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams) {
+	var request ListTransfersRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListTransfers(ctx, request.(ListTransfersRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListTransfers")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListTransfersResponseObject); ok {
+		if err := validResponse.VisitListTransfersResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // SearchTrips operation middleware
 func (sh *strictHandler) SearchTrips(w http.ResponseWriter, r *http.Request, params SearchTripsParams) {
 	var request SearchTripsRequestObject
@@ -2733,110 +3692,144 @@ func (sh *strictHandler) SearchTrips(w http.ResponseWriter, r *http.Request, par
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"7F3dbhzHlX6VRm8uKKRFDilKiRnshaz1HyzBXEneILC0g+ZMkexwprvdP5RoLQEOx7LsUBYj20ECexPH",
-	"693sxWKBIcURR0POEPATVL1CnmRxTlV1V3dXzwxFyasL3xjqYXX9nDr/5zvte2bNa/qeS9woNBfumb4d",
-	"2E0SkQCfLjca3p3XvaBOAnisk7AWOH7keK65YNLv2QPaY9tsh+7TDttmDw3aYZ+zLTqkJ3TItuBPBt03",
-	"6AHbYm36hA7pM4O12Dbboh06oF3TMh2Y6cOYBBumZbp2k5gLpg2rVpf4spYZ1lZJ0+brL9txIzIXlu1G",
-	"SCwz2vBh/JLnNYjtmpublnnFc8O4iVu8OlupaHb9V9phLXafDumBwbZxr0e0B0ewDHo0M1upGLRPj0v2",
-	"VkvnrzZgAe3+fmmZy17QtCNzwax78VKDmJbZtO86zbhpLlyoWGbTcfnDXHIMN24ukQBP8WZMGouBUyPX",
-	"4yXNEb6j+3TIdg32Ce3SAe3kzmHQQ/jPEV7O1q8M2mUteDKA5vhHeoAX0DH+vvWVQXv00GAteoLXAjM/",
-	"oAPao33aKSHCckwaVR/2Vw3ipQwJRhx7tlJRDz5bdvCbGz5ZBDaE+UqXx3fVlX8WkGVzwfyHmZShZ/hf",
-	"wxk5La5xzb77T4GzTt724iDUUPffaYf2WYv26DFr02ODPQCOoUO6zwmLzHzEHtNjZO4hPaAD1kbGBq6n",
-	"Q3j8lVHhxN2jXXoIo54Iru+xB3hrPbZbQt6mfbdahx1WV3GLz8Fic/MKpSs6Si827Bp5p57Q2Lej1XQL",
-	"Tt20zIB8GDsBqZsLURAT7S3HMY4U04dR4LgrOP11u+7E4buldxjg36trTf3pZisV5TQ5zknP47gRWREH",
-	"uhnY66QhFJduySgZoF9SWfA1LZ+mq20CcULfc0OCyy0G3lKD4GFrnhsRN4J/2r7fcGo28NWMz0f8/Lch",
-	"MNm9CflWzosr5tj0L+xT2qN7IKbAh+xjZL5j0MS0a1x/84rx2vzFXyBpxHSwGlfm77jLHjz5geeTIHL4",
-	"KWqBF4aOuyLYTivNOUYCBg7jwHZrZNxZrnku2YA3XC/CwUWmSRnuA2VeK78xMcXtZDfe0m9JLYK5r9jB",
-	"FS+MRqt9sEqg/JBYQEQU323WBrVogJ4c0j2QVrZNB3QoBu+zFntkgBizNj2hJ6xtWjkCLiWWciJCgB6b",
-	"eLBvB2tAp0nHR15kTzp7jvS4r3RFy0xMMZ+0hPBvc1v1PCRRuHLTMmviBke9IS8a5EJRlcV7/4Jt0S49",
-	"ZruorE9Ym23T3gjFbRl0n/bpEXuEeh9eS2dARkgV+SfowkwgJIKUVRJGTtOOSF2z0b8JW05PaIdt0T4Y",
-	"HNoXVhtsNN0HQ4482cFdHrJd2DlYpQHtSLMCJv6EDg2wXXRIj+AYuNtHZtFjskyfBFWfBEItTcaKYDrG",
-	"qi4cBJzl2fVxg697dv0qWYHhYRTYzspqBKZhEg2U412+t+w0Yg9ZThFsliGA7qLKmT28LkxAketTB+lU",
-	"ykD4VKEXBzVSZJGALJOAuDWCnkXi/I3w3ywjDkmAwzNuHzAIPWIP6SFyGZoMegRcblomccHsfZAuZ1om",
-	"TKOQQupsy1z1mpOzghORJjfP8h9jRBxUymayqh0EdlFb4Q5U+pk6YsrFddeJ3uDNwPE1UvktHYIDRw/Q",
-	"ziLNj5C2Q3D/0PduAc1plz5TDArtWiMsyrRBv0WlckCPaIc+oR3aZdusxXYtxVk/EErpCe2M0Fe3XO7V",
-	"H/AbZZ/SrpFzIHEDqtYCH5Z26CHsAV7Ac0ypYde5aYN+hUHdjjzgntjADu3+Kq+kOolB5Rqqy0MN1uIR",
-	"Ynq+6Vuuab1yJqKMthMod8tkLYO12QP2mG1zplAozXbMBTduNJ5Pz55Wc9rrjrsSVtfD6iRS+VyegmVG",
-	"geNX6/aGjpBf8ZgTZIQ9BEbHYP8hMOcRhKtb6INxUnWMqabj4kznzKKLbZl37MCF82T0hdRNnGeqiWO4",
-	"tFGt2YHQ9FXb9wPvLipwrdIaqU9G2QpOqpzNSCmibFqnZ5IoVA07TNt57aKidW3ntTnTkr/WYdWGv6I9",
-	"xluxU9cYn4ZTI8Iqkbt202/AW1euGK//5vyNy8b8dMXUzNVwwqhA7VEMgYtf5W8VaWqZ3joJ1h1yR+uS",
-	"tVA3nqDJES5LzxBOTIcegfeCCooeoL7tGD/8D2riAXg87OEPR7ojpGZT0vKOs+asexv2SgkbOFEjRyb6",
-	"PS4MirRF+7pV4qChy8gAR8PW2C63tpzj0c4e0BPag3wCnAI8MxmksS3aw+N2QG18gWalR5/QHlgN3Rlz",
-	"nJqYNn4QvjcruX/lUnXcmLnAAhPZ9XpAwlATp1mm3Yi0v2dock/nKwj9W+Q+j4fJYz0Jz3Fx8zyk18zk",
-	"r3qRN3YaHASjpYtWoiLy9xwS7nthfrMF/jUmM8G4PbSMupd6WoJTuU0ndsT/Aha/Yxn1wHHXZHqow7bY",
-	"jmWEDUJ8/ttT2kMOfGwZS/FGsiDto8z0ac8yVvhSMpUK3h/PuCqaJCQENIgHP9kRV2nummmZuBSEdfGG",
-	"aZkrMMCLVkscPMHvhd9Btup2ZI+P5PGv4sp0jPi2F5FGeBX2VmBD3w4iV5t8/o612A494m5ZSzgk4F6x",
-	"x2wLhBezzeiRbPMHffgTeOvOBO4H3+SiHF1KmNzZuUQmi1jJgcoJsajsKLUSXhgF3rq3ptyv8pO97kSe",
-	"9vq43daRD8LDY+FaHqPP2oNnbrrZDrvP2bUnfUb4YR///gjdwimk6gk4vnAJ7P65gmdnN73YjTIa9sLc",
-	"Ly5cqih+leNGl+a1DkAtDiD82FA1+vX3X9ccM0d0sawyg47ai1JT5CjznyDUYIFaxq+dNadJ6o5tXPGa",
-	"Tc8NCyesBaTuRDkb8iek08CQ/8DU8Q+Hxjgb7IOh0tqWrO/+Me3QZ2gWUTV06D53WtGIHuEoMKuHIsVc",
-	"JtKX5iuGf1ckCz6lPTRHUJVBl7WQb/weZIkOeIhBB2itdw3BBNqV9LKQtcbKfcisQo7CTrRRdYSiyW3p",
-	"ayzi0CfCY0fdSvu4p8SNP2ZtAx/RHcWSSAv2natUmZZyg+++/6aObrgVaXlyW/kzuiv8utGfeeGbot+B",
-	"n4BhV0e7O2D6YKNa8+o5p+b6+7rxkqZjj+3UJ0j5W+aa49YnygS8CwPPYvQnpwm8USVu9qUbdtMO7NLh",
-	"kTfJ9e6DMuS6UYl3wI87wTxLlz7FANjAtAyP9CGUH/IUS3qCfSM9BGvrdhU5TfKR5+aO/kYMYjJTdph8",
-	"Nr1uihsSFy+omWMb5VKUdUul9V1x5VI7g4Bg7BL4XhBp7dGi52hLbjxvMOTJrPd84t6IAkKia7ZfzBcE",
-	"tlvPEoN+w9rcyFNtaFCzI7LiBRlTIrLcy54HRLGjKLBruB/dtmuxEzquTvC/Zm12H9w9K5eHZbvGezeu",
-	"mUrWK92v73z0kZYD81FUzqUuJKcghtiHlEyWz54mW2AtGZnQXhpjnAjT3gN6Y7JpKIKUhMHhHn4tfTxL",
-	"5+xHttMIqz5x6yKCyBeoClPyIhVec5d9xh4rBWleVnmK4VCPtdhDUZoGr+MA0wbbxltv3DRmfM8JZ+7B",
-	"djZn7jn1Ta1Xt0yIllxHQIqkQL4vUACw0gYJLcP1JD1YS/pHoLyhIGwgh3W4cw8n2BfXm97qhUrFAAel",
-	"VIcWCLTHfke7tM+2C3O5Xp3MzM5dmL94aZSyzc34x1whAHUT5A/fu3ENjwlMbxk1e5lYRkDCyIYaW2QZ",
-	"y3YYVUEULKMZhyRuWgYE7z6oXhgfRg3y962/ZbYIs2hTCS8smPN84mbqkbnj/jcyxg5PFuzRoQSc5Gqh",
-	"edpe887fiI3KLxcqlfNzcwsVvTO2KlTuGUPMO2QpdCIyNoZKt/fP87PzlYvzs6alf8MHj3R0DmLBYLv0",
-	"kO3QvkysqNYrQ4wgXlAMUAtdeUxcHNEh+wxsGXs4mXlJlGxiaRRjklcXWpviOZCPKPqAp6sbgIkZl+Qr",
-	"LwZwriwm1exowoJ4w3MnGpnbUQND9Ibn6neVAgyy++J01XIXCQIvyJIt++6yQxp17atNEoYiGBl98XyK",
-	"9AXd3vM2LYzsKFbzQErMl6TkRiRkksTpkhdHC0sNG5Mao/cpM2Ribd02ZSa9mApTsskaJS6irb4oq6Eh",
-	"ZrtYe33GjRgXrU/ZFi8+gwmRAdse5DB4hfdApMvbaJ0HWrtWd8IIMBGTFkctsx4HKILVpuPqSJ6jk7pA",
-	"7mXL1KfVsxS87sWRJorzvcZGQ+9AfSPc6N08oXSwljdc8FPrxqKYDzxsti1KnqLcwB4Zl4QvxgtUxpQw",
-	"4XIXl7j1vn7tnE7Hnqrsoi8eJMfVkQkqjVfs4FXASkzAQC+AGppSShld3ktc3ZwMOoFkn9R0vXlDd312",
-	"EDjr4wtaSVF6yfOw5F+W6KzZY69E3ii6xZDhq+athR2R8xBPaT1pKWVLdm2tTE6VYZFXPmjZi9161XNL",
-	"kiVPRD2atRKh6dE+D2Wx1GKwz0EFCXBBrgJqR9r9r8ZL4wiUEPt5qqAkigP3VBQVr0SB7YbLJCixNc9d",
-	"L3VqaySqPsdR+JvhS6vMjjxupnD7osqtYWQ3SAK7KKJnXkRBdhUhxqlgqSyRrb5KLaHSQsMNRVnSCaHu",
-	"otMrLKkFj6z/gpoYARqqA9ncyUInKU+oWseNTvEtiQUI1xzf18LQvkW90OUpygFUTzDtL2qVA7atgD0S",
-	"sIsxlcBW4pAAb5xTChWR51UbnoIkrLpeVEW4CbKI61XRUug44zmQVKtOvU7c6nID8F+hFj7fF/CnPvpr",
-	"mEWBHB6HcOwD4qUPVTl45C6cgNhwtMw+1K2NDJ6el5kwL7DHdkSPQ5d2FSqxHW2V41QAKhhcXSLjTb5i",
-	"SxFxW63rM+i/z/drWMKJTbLVbAcg8O2C0aAdyR7cVggw1Oc4ZltCgXbZJ2oGbKJDFpAEuFvdRX6DwBug",
-	"7rMckwJon9/qIc/fPAXYLwzLpdgtca3scZJHS5Jqx7Q36eaz9M6fADSXYzdKMxiIkQE2ghzeUPYa9As0",
-	"Z22F2F2Dw8swqdViDzUBgx4pp+qZlLopl6T7LchSUattIgR8WZMzv7z4DggSEpPnAXlWgReytjjwUHr+",
-	"HJeL4oVH3sc7fbcRL3lr07dcSJXRQx4y9YwE6dhLimB1rxbOVH553vad6WZ92qD/K/hQFstkOjHn+PAf",
-	"UDoTzEYfgSa85tYHfcdBayI0NfmmjMuL75iWuU6CkB+3Mj07XZFJK9t3IB84XZm+gOSMVpGDZmp2cH41",
-	"XsKHFRLpIVRsN2FZXjIoMK0Ijbaw0tBjbSAzHlAgrPghdxVojYJhRvFOsYVdS771PNj4W+5UpvdoaJVB",
-	"A7M7SDCVPSvpCGP301fghnHbvxMju2ojGWuzR0ojGWsDXPE7QRvJW33BGvzAYnmeGc1AwUfj94D5dEry",
-	"IKcksVzO7ss+uFFozKnCirnNFVHm5yxhawCIeYjjO5CcY49UWCU4EyjW0NZjQipNAJVNK9PX94GG64bi",
-	"wgdcmSbVy7IOsMBrnq1DSK9P023OJB1EE4zNtnRtWpoDliATM7yIUtVCvkBEQw7KlYHllxBGeKKa/qJf",
-	"KP1FlypjGozGHzltd5pgcL4rcoJXsp14E76Q9CxOMF7tLd28nWuomqtURjRTna6JKo/W1zVT/RcUEBDr",
-	"nNGG6Nn1ihoR9Px8Zb5s5eQoaQOXZc7PzZ1iPMSncbNpBxtlbppOAx1j7W8gNLyqkPIeu4XlOJ3iT0wD",
-	"r0bbKyEHk9lBbdW8DRubWUWg0syKN4EdG+C2+xz9CGX0Z6h16VBK4w/cNrOWBHSJwMMAQsvT8H6FNnsg",
-	"z3PIi/4wEA/TMehfhEUYopbscyMyxK4ZSMhiJAPlDMDrtTIADfRWQc4FsGU4XdCmb3k3PY7PKipTnR6Q",
-	"fShn0pC6iWurpLZWddzJ5tbnbEbP7cXRWSfPMcOX3ID3RHlpmz1cMCR6jetYwQ3gDiCWjf/a5049N+rA",
-	"oAi7ZO3Ehxsa3P1IYrm/4gBA1OxaSe8t1I+3lXoy+PZ7MCU3oILvf49u6jYdnitR7QqKbzLFk8cMnk6r",
-	"51XihcpcKQQAOzgSt1hBVQ+0giFq/smJwdEndl2kjq4q9dv0oPlb3vyRVaA4qCjZp11MyFQpZnZX4GKB",
-	"GZ6ic/sAH6TOajjummVIpTKCdvR4jPZrCMDqSP2ncdz3UB89lpCvLvfwE200bdA/yA6gfYPzg29veHEU",
-	"Sji57E6U/YJCXW/RjoR0qjcOfvDUzeuX/+WNq4uXf/Pe+zdvVG9ev3HOuuWmKjdpO8wAaDtsd9qgX8qd",
-	"Sa0MRoQ9pkd8/4Piet2cQpcxQOqxo2/dVn4QjrZkyCSYkS0AYDy+HqsNfjgCmqW0xE4l4b6lP2JwPRAR",
-	"RaIwaA8Xna/M65zpt0ikwJR/sgA/WYD/BwvwIp1ihZt1/rCCrv+xfd3v8mqjXM2nTFNUedLITcBBudsv",
-	"0/so0GrqJqsibuDYRT5oXMD9Z6XVKQvPYbvGVBDPEPecPMI7l29ePk/7I6LxD0dKa9O+e5W4K9GquXCJ",
-	"fxZEPs5NrBcEoGfCr1akKN+y+RpO04nKPv2hfsdkXKB8Vhk5E9BIn7GeEGqkkToMj9DgDXijrcQ2YJ6M",
-	"B0AYwAGyGDldgo1lGjWTuz5r0Mn7CtBiYvxFB9I5kvvqYphV5OFHGt7NhJNCllTB4mjOMul6i0SLwqDm",
-	"JGuMPpXfuXmp2lRwguZK/0Pc33Oo0extJBMJgvOC/QD12se8ICMyAZPQeWZF9o6e0n0VbWwFn1VtgMwB",
-	"ervS1RVJXcGkPPWpVj26SXI/E7Xjy9wZBJftQgXsObDiM8g+b2FBrse7XYRfxxtVdmVlJC3h8Vmk6U93",
-	"dijbdOgQUsl/KpQJ8n01jwrZCcQGK59Cw90f4CEh28C/vDDgklniYSIX8abeV5LL+dZ0XP4tL9/gpR6k",
-	"idbncR0uVs4QI+q3ISQmYVfWFt5Dpqgkv13QsbhfIeociSpO+6xkVjDXsauIXdP2NTIH0PVykfsiX9CZ",
-	"vYgfooOPRSRq/VlGYvjBEhvRlQlATHX16AHPtEGVtpUpecP02E06EOh3hT3zeHxZYtB0Zkxraw7Iiotw",
-	"1FdTVQuQsY6NZRtK58dm3K94QYIOuY5EXnxAO/mCBeYEsBEYy2CKd6DnvXyrRCnvjWzV4AmLtsoGsjHE",
-	"0reUFBsnJ1T+4NWw+yIlsKtUt9KcSG69ROcPsWoMKIy0KpzI9LBQOUt1vwgRBxgZTuVw6oYgfCdJ2IB3",
-	"fa5MgXtOSW4g+3U90RFd7rJL5IzLm7Lu2Bs4vGGXNChtWtp1Jv2Kn+zBfame9ljI/giBHJ7Ve0omEr3i",
-	"Q6wDgAGQtcBd1OnCLpRKg1bOAsA8hzMSKasXsS9pF5ge+W6L822ffc77blk7+T6Okv0bARvX4MWtESwu",
-	"EekdDrLuIhqmnaoPtGeQDzQUoJ7xj8jrJayeYr0nSoa9iHqxbt7IO9OsL5OnUwrpOVu53B87xTIKcl+A",
-	"9ikMQw/oPvTFsd0c72QK5X2eb2E7irBkEimKvIzxif6oZOb73LTg9B+LHDMWQecs7igZHHiWQlt6liGl",
-	"ZALLmswn3K5b7hi/S1npR/e8SvAewHN61+snoXy53t/pxPFs3mJOKqxUJuRn4yb2JQVOKSM1WhsHMOtT",
-	"w9ZUEzUYhWXDhG83TTAcqcDOkwQAQAfJJ8QhJQwylx5FQX8ugFfX41MmuIZ9BCPev+X+XNVvHWOK7smw",
-	"Hq2oFr7GPhZgQPx6Mwp1j0OCB7SXQxHpEG3jAWqjDwjaCD8QynbSb3YLB0LNkMPExuV1xw7tBgnxNEOO",
-	"yeWA7h77DEqbhvwOlcDo4p9QgRdRUshgHeFlK/Em5jJEaQWsgE4n8Zw44t5fTQxawUlLap2ifJDjVpno",
-	"zPT5m9bLUINWyVcSdtknGYkpWb3pudHqyA2kjVRzlblL52dn8YqiiAQw3b/eulW/N795fqrywez5127/",
-	"2+wHlfNzt8/9bHIzID/vp0/zXzglHK70Q+mlK8zOv0zEXe5u/iABhapqkZhjWfM0JMSQR7xce7D7BS4D",
-	"zVFyraK94pT/W4SXDLb8CX04ujNgNPbwC9V0sZ2cNXnVnRH8dgD3XguNFMoxRn1fvYCHVpwRfJhAYoZ0",
-	"XxtuwGZJsC5tDjZ5mjO278ysz+LFi1c0TUKF7ykXQCQ9zQf4xLfTWJse0iOxLRURotUe3+Kcezy4z3Zb",
-	"4UJZjkgmFMcsNRVpQCdiMtrVBBOqPvXNzdub/zcA",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

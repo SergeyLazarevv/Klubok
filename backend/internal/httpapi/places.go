@@ -6,11 +6,13 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 )
 
 type handlers struct {
@@ -18,7 +20,11 @@ type handlers struct {
 	search *search.Service
 	hotels *hotels.Ostrovok
 	guides *guides.Service
-	log    *slog.Logger
+	// Как добраться внутри города
+	transfers *transfer.Service
+	geocoder  *transfer.Photon
+	favorites *favorites.Service
+	log       *slog.Logger
 }
 
 var _ apigen.StrictServerInterface = (*handlers)(nil)

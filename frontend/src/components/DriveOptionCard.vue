@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { CarIcon, ChevronDownIcon, InfoIcon } from '@lucide/vue'
-import type { DriveTrip, Place } from '@/api/client'
+import type { DriveTrip, Place, TripSearchParams } from '@/api/client'
 import { hours, km, rub } from '@/lib/format'
 import type { Highlight } from '@/lib/trip'
 import TripPlan from '@/components/TripPlan.vue'
+import FavoriteButton from '@/components/FavoriteButton.vue'
+import { drivePick, driveSnapshot } from '@/lib/favorites'
 
 defineProps<{
   drive: DriveTrip
@@ -13,6 +15,7 @@ defineProps<{
   month: string
   tags?: Highlight[]
   tradeoff?: { slowerHours?: number; pricierKop?: number }
+  searchParams?: TripSearchParams // для избранного: параметры поиска, в котором найден вариант
 }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -76,6 +79,14 @@ const tagLabels: Record<Highlight, string> = {
           {{ open ? 'Свернуть' : 'Подробнее: дорога, что по пути, где остановиться' }}
           <ChevronDownIcon class="size-4 transition-transform" :class="open && 'rotate-180'" />
         </button>
+        <FavoriteButton
+          :pick="drivePick"
+          :snapshot="driveSnapshot(drive)"
+          :home="home"
+          :destination="destination"
+          :month="month"
+          :params="searchParams"
+        />
       </div>
     </div>
 

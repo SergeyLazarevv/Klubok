@@ -22,6 +22,10 @@ type Config struct {
 	Osmium       string // путь к osmium
 	GeofabrikURL string
 
+	// Как добраться внутри города (публичные серверы — только для разработки)
+	PhotonURL   string
+	OSRMFootURL string
+
 	TravelpayoutsToken  string
 	TravelpayoutsMarker string
 	TravelpayoutsTRS    string // ID проекта, к которому подключены программы брендов (Островок)
@@ -43,6 +47,9 @@ func Load() Config {
 		OSMMaxLag:    envInt("KLUBOK_OSM_MAX_LAG", 30),
 		Osmium:       env("KLUBOK_OSMIUM", "osmium"),
 		GeofabrikURL: env("KLUBOK_GEOFABRIK_URL", "https://download.geofabrik.de"),
+
+		PhotonURL:   env("KLUBOK_PHOTON_URL", "https://photon.komoot.io"),
+		OSRMFootURL: env("KLUBOK_OSRM_FOOT_URL", "https://routing.openstreetmap.de/routed-foot"),
 
 		TravelpayoutsToken:  env("TRAVELPAYOUTS_TOKEN", ""),
 		TravelpayoutsMarker: env("TRAVELPAYOUTS_MARKER", ""),

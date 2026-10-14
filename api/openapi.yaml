@@ -15,6 +15,10 @@ tags:
     description: Подбор вариантов поездки
   - name: map
     description: Места на карте из OpenStreetMap
+  - name: transfers
+    description: Как добраться внутри города — из аэропорта или с вокзала до жилья
+  - name: favorites
+    description: Избранные маршруты; до авторизации — по анонимной сессии
 
 paths:
   /places:
@@ -334,6 +338,147 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
         '502': { $ref: '#/components/responses/Problem' }
+
+  /geocode:
+    get:
+      tags: [transfers]
+      operationId: geocode
+      summary: Поиск адреса (например, квартиры) рядом с городом
+      description: |
+        Адреса из OpenStreetMap (Photon). Поиск привязан к городу: результаты дальше ~60 км от него отбрасываются.
+        Точность адресов в OSM разная по странам — показываем несколько вариантов, пользователь выбирает и при
+        необходимости поправляет точку на карте.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 3, maxLength: 200 }
+        - name: near
+          in: query
+          required: true
+          description: Город, рядом с которым искать
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Найденные адреса, лучшие первыми
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Address' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
+  /transfers:
+    get:
+      tags: [transfers]
+      operationId: listTransfers
+      summary: Как добраться внутри города — например, из аэропорта до квартиры
+      description: |
+        Несколько вариантов: такси, общественный транспорт, пешком (если близко). Расстояние и время такси —
+        по дороге (OSRM). Цена такси и маршруты общественного транспорта появляются, когда настроены
+        ключи Яндекс Такси и 2ГИС; без них — ссылки, открывающие маршрут в Яндекс Картах, 2ГИС и Яндекс Go.
+      parameters:
+        - { name: from_lat, in: query, required: true, schema: { type: number, format: double, minimum: -90, maximum: 90 } }
+        - { name: from_lon, in: query, required: true, schema: { type: number, format: double, minimum: -180, maximum: 180 } }
+        - { name: to_lat, in: query, required: true, schema: { type: number, format: double, minimum: -90, maximum: 90 } }
+        - { name: to_lon, in: query, required: true, schema: { type: number, format: double, minimum: -180, maximum: 180 } }
+        - name: country
+          in: query
+          description: Страна (ISO 3166-1) — для ссылок на 2ГИС нужного домена
+          schema: { type: string, minLength: 2, maxLength: 2 }
+        - $ref: '#/components/parameters/Travelers'
+      responses:
+        '200':
+          description: Варианты, быстрые первыми
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/TransferOption' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /favorites:
+    get:
+      tags: [favorites]
+      operationId: listFavorites
+      summary: Избранные маршруты текущего пользователя
+      description: |
+        Пока нет авторизации, владелец — анонимная сессия (cookie klubok_sid, выдаётся сервером).
+        Цены в списке — на момент сохранения; актуальные — GET /favorites/{id}/current.
+      responses:
+        '200':
+          description: Избранное, новые первыми
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Favorite' }
+    post:
+      tags: [favorites]
+      operationId: addFavorite
+      summary: Добавить маршрут в избранное
+      description: Тот же вариант с теми же параметрами уже есть — возвращается существующая запись (200).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FavoriteCreate' }
+      responses:
+        '201':
+          description: Добавлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Favorite' }
+        '200':
+          description: Уже было в избранном
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Favorite' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /favorites/{id}:
+    delete:
+      tags: [favorites]
+      operationId: deleteFavorite
+      summary: Убрать из избранного
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '204': { description: Удалено }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /favorites/{id}/current:
+    get:
+      tags: [favorites]
+      operationId: getFavoriteCurrent
+      summary: Актуальная цена избранного маршрута
+      description: |
+        Повторяет сохранённый поиск с сохранёнными параметрами и ищет тот же вариант (аэропорт и даты
+        или «на машине»). status: found — тот же вариант; replaced — его нет, показан лучший с теми же
+        параметрами; past — месяц поездки прошёл; empty — вариантов нет; unavailable — источник цен недоступен.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        '200':
+          description: Пересчитанный вариант
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FavoriteCurrent' }
+        '404': { $ref: '#/components/responses/Problem' }
 
 components:
   parameters:
@@ -686,6 +831,133 @@ components:
         url: { type: string, description: Уменьшенная копия, 640 px по ширине }
         page: { type: string, description: Страница файла — автор и лицензия }
         credit: { type: string, example: 'Иван Иванов · CC BY-SA 4.0' }
+
+    Address:
+      type: object
+      required: [label, location]
+      properties:
+        label: { type: string, example: 'Абай даңғылы 10, Алматы' }
+        location: { $ref: '#/components/schemas/Point' }
+        kind:
+          type: string
+          description: house — дом, street — только улица (точку стоит поправить)
+          example: house
+        distance_km:
+          type: number
+          format: double
+          description: Расстояние от центра города
+
+    TransferOption:
+      type: object
+      required: [mode, title, links]
+      properties:
+        mode:
+          type: string
+          enum: [taxi, public_transport, walk]
+        title: { type: string, example: Такси }
+        duration_min:
+          type: integer
+          description: Время в пути; нет — неизвестно без внешнего сервиса
+        distance_km: { type: number, format: double }
+        price: { $ref: '#/components/schemas/Money' }
+        price_note:
+          type: string
+          description: Пояснение к цене, если её нет или она ориентировочная
+        approximate:
+          type: boolean
+          description: Время или расстояние посчитаны приблизительно
+        links:
+          type: array
+          description: Где открыть или заказать маршрут
+          items:
+            type: object
+            required: [title, url]
+            properties:
+              title: { type: string, example: Яндекс Карты }
+              url: { type: string }
+
+    TripSearchParams:
+      type: object
+      description: Параметры поиска поездки — те же, что у запроса GET /trips
+      required: [from, to, month]
+      properties:
+        from: { type: string, format: uuid }
+        to: { type: string, format: uuid }
+        month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        min_days: { type: integer, minimum: 1, maximum: 60 }
+        max_days: { type: integer, minimum: 1, maximum: 60 }
+        travelers: { type: integer, minimum: 1, maximum: 9 }
+        use_car: { type: boolean }
+        radius_km: { type: integer, minimum: 0, maximum: 1000 }
+        max_drive_hours: { type: number, format: double, minimum: 0, maximum: 24 }
+        consumption_l100: { type: number, format: double, minimum: 2, maximum: 30 }
+        fuel_type: { $ref: '#/components/schemas/FuelType' }
+        fuel_price_rub: { type: number, format: double, minimum: 1, maximum: 1000 }
+        allow_border: { type: boolean }
+
+    FavoritePick:
+      type: object
+      description: Какой вариант выбран в результатах
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [flight, drive]
+        hub_iata: { type: string, description: Аэропорт вылета (для flight), example: URA }
+        depart_date: { type: string, format: date }
+        return_date: { type: string, format: date }
+
+    FavoriteSnapshot:
+      type: object
+      description: Вариант на момент сохранения — для «было → стало» и показа без пересчёта
+      required: [total, per_person]
+      properties:
+        total: { $ref: '#/components/schemas/Money' }
+        per_person: { $ref: '#/components/schemas/Money' }
+        hub_name: { type: string }
+        depart_at: { type: string, format: date-time }
+        return_at: { type: string, format: date-time }
+        trip_days: { type: integer }
+        transfers: { type: integer }
+        drive_hours: { type: number, format: double }
+        found_on: { type: string, format: date }
+
+    FavoriteCreate:
+      type: object
+      required: [title, params, pick, snapshot]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 200, example: 'Самара → Алматы, ноябрь' }
+        params: { $ref: '#/components/schemas/TripSearchParams' }
+        pick: { $ref: '#/components/schemas/FavoritePick' }
+        snapshot: { $ref: '#/components/schemas/FavoriteSnapshot' }
+
+    Favorite:
+      type: object
+      required: [id, title, params, pick, snapshot, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        params: { $ref: '#/components/schemas/TripSearchParams' }
+        pick: { $ref: '#/components/schemas/FavoritePick' }
+        snapshot: { $ref: '#/components/schemas/FavoriteSnapshot' }
+        created_at: { type: string, format: date-time }
+
+    FavoriteCurrent:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [found, replaced, past, empty, unavailable]
+        result:
+          $ref: '#/components/schemas/TripsResponse'
+        option:
+          $ref: '#/components/schemas/TripOption'
+        drive:
+          $ref: '#/components/schemas/DriveTrip'
+        total: { $ref: '#/components/schemas/Money' }
+        diff:
+          $ref: '#/components/schemas/Money'
 
     Point:
       type: object

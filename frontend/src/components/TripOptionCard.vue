@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { CarIcon, ChevronDownIcon, ExternalLinkIcon, PlaneTakeoffIcon } from '@lucide/vue'
-import type { Place, TripOption } from '@/api/client'
+import type { Place, TripOption, TripSearchParams } from '@/api/client'
 import { hours, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
 import { doorToDoorHours, type Highlight } from '@/lib/trip'
 import TripPlan from '@/components/TripPlan.vue'
+import FavoriteButton from '@/components/FavoriteButton.vue'
+import { flightPick, flightSnapshot } from '@/lib/favorites'
 
 const props = defineProps<{
   option: TripOption
@@ -14,6 +16,7 @@ const props = defineProps<{
   month: string
   tags?: Highlight[]
   tradeoff?: { slowerHours?: number; pricierKop?: number }
+  searchParams?: TripSearchParams // для избранного: параметры поиска, в котором найден вариант
 }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -102,6 +105,14 @@ const fromHome = computed(() => (props.option.hub.city_iata ?? props.option.hub.
         >
           Купить билеты <ExternalLinkIcon class="size-3.5" />
         </a>
+        <FavoriteButton
+          :pick="flightPick(option)"
+          :snapshot="flightSnapshot(option)"
+          :home="home"
+          :destination="destination"
+          :month="month"
+          :params="searchParams"
+        />
         <span v-if="option.found_on" class="ml-auto text-xs text-muted-foreground">цена найдена {{ localDay(option.found_on) }}</span>
       </div>
     </div>

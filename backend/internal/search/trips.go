@@ -194,6 +194,8 @@ func (s *Service) option(r reachable, q TripsQuery, fuelPrice carcost.Kop, quote
 	if !quote.FoundOn.IsZero() && time.Since(quote.FoundOn) > staleAfter {
 		opt.Warnings = append(opt.Warnings, WarnStalePrice)
 	}
+	// Ссылка на покупку — сразу на всех путешественников, а не на одного
+	opt.Quote.BookingURL = quote.BookingURLFor(max(q.Travelers, 1))
 	travelers := carcost.Kop(max(q.Travelers, 1))
 	opt.Tickets = quote.Price * travelers
 	opt.Total = opt.Tickets + opt.Car.Total
