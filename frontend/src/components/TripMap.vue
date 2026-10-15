@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import type L from 'leaflet'
 import { Maximize2Icon } from '@lucide/vue'
 import type { RoadRoute } from '@/api/client'
 import { greatCircleKm } from '@/lib/geo'
 import { km } from '@/lib/format'
-import { arrivalOf, at, byCar, createMap, drawRoad, drawTrip, marker, roadEnd, roadLine, type Trip } from '@/lib/tripMap'
+import { arrivalOf, at, byCar, createMap, drawRoad, drawStops, drawTrip, marker, roadEnd, roadLine, roadStops, type Trip } from '@/lib/tripMap'
 import TripMapDialog from '@/components/TripMapDialog.vue'
 
 const props = defineProps<Trip>()
+/** Дорога, как она нарисована на карте, — с заездами в места по пути. */
+const emit = defineEmits<{ road: [route: RoadRoute] }>()
 
 const el = useTemplateRef<HTMLDivElement>('map')
 const insetEl = useTemplateRef<HTMLDivElement>('inset')
@@ -17,6 +19,9 @@ const showInset = ref(false)
 const expanded = ref(false)
 let map: L.Map | undefined
 let inset: L.Map | undefined
+let roadLayer: L.Layer | undefined
+let insetRoad: L.Polyline | undefined
+let stopsLayer: L.Layer | undefined
 
 // Дорога короче этой доли перелёта на общей карте сливается в точку — показываем её на врезке
 const insetRatio = 0.15
@@ -24,13 +29,45 @@ const insetRatio = 0.15
 // 0 — без перелёта, только дорога
 const flightKm = computed(() => (props.option ? greatCircleKm(at(props.option.hub), at(arrivalOf(props))) : 0))
 
+function renderStops() {
+  if (!map) return
+  stopsLayer?.remove()
+  stopsLayer = props.stops?.length ? drawStops(map, props.stops) : undefined
+}
+
+// Дорогу перерисовываем, когда меняется набор мест по пути; последний запрос побеждает
+let roadVersion = 0
+async function renderRoad() {
+  if (!map) return
+  const version = ++roadVersion
+  const drawn = await drawRoad(map, props)
+  if (!map || !drawn) return
+  if (version !== roadVersion) {
+    drawn.layer.remove()
+    return
+  }
+  roadLayer?.remove()
+  roadLayer = drawn.layer
+  road.value = drawn.route
+  emit('road', drawn.route)
+  if (inset) {
+    insetRoad?.remove()
+    insetRoad = roadLine(drawn.line, drawn.route.road.approximate).addTo(inset)
+  }
+  return drawn
+}
+
+const viaKey = computed(() => roadStops(props).join(';'))
+watch(viaKey, () => void renderRoad())
+watch(() => props.stops, renderStops, { deep: true })
+
 onMounted(async () => {
   map = createMap(el.value!)
   map.fitBounds(drawTrip(map, props), { padding: [32, 32] })
+  renderStops()
 
-  const drawn = await drawRoad(map, props)
+  const drawn = await renderRoad()
   if (!map || !drawn) return
-  road.value = drawn.route
 
   if (!props.option || greatCircleKm(at(props.home), at(props.option.hub)) > flightKm.value * insetRatio) return
   showInset.value = true
@@ -45,7 +82,7 @@ onMounted(async () => {
     boxZoom: false,
     keyboard: false,
   })
-  const insetRoad = roadLine(drawn.line, drawn.route.road.approximate).addTo(inset)
+  insetRoad = roadLine(drawn.line, drawn.route.road.approximate).addTo(inset)
   marker(props.home, 'trip-map-home').addTo(inset)
   marker(roadEnd(props), 'trip-map-hub').addTo(inset)
   inset.fitBounds(insetRoad.getBounds(), { padding: [14, 14] })
@@ -91,6 +128,6 @@ onBeforeUnmount(() => {
         Заправки, кафе и места →
       </button>
     </figcaption>
-    <TripMapDialog v-model:open="expanded" :home="home" :option="option" :drive="drive" :destination="destination" />
+    <TripMapDialog v-model:open="expanded" :home="home" :option="option" :drive="drive" :destination="destination" :stops="stops" />
   </figure>
 </template>

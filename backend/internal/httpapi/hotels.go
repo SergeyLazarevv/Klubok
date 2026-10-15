@@ -55,7 +55,7 @@ const (
 )
 
 // hotelsLink — ссылка на жильё в городе точки (для аэропорта — в его городе) на даты поездки:
-// отели Островка или квартиры посуточно на Авито (только Россия).
+// отели Островка, жильё на Суточно.ру (Россия и СНГ) или квартиры посуточно на Авито (только Россия).
 func (h *handlers) hotelsLink(ctx context.Context, provider apigen.HotelsProvider, placeID openapi_types.UUID, checkIn, checkOut openapi_types.Date, travelers *int) (string, bool, linkProblem, error) {
 	if !provider.Valid() {
 		return "", false, errBadProvider, nil
@@ -74,12 +74,20 @@ func (h *handlers) hotelsLink(ctx context.Context, provider apigen.HotelsProvide
 	if err != nil {
 		return "", false, noProblem, err
 	}
-	if provider == apigen.Avito {
+	switch provider {
+	case apigen.Avito:
 		url, ok := hotels.AvitoLink(city)
 		if !ok {
 			return "", false, errNotFound, nil
 		}
 		return url, false, noProblem, nil
+	case apigen.Sutochno:
+		url, ok := hotels.SutochnoLink(city, checkIn.Time, checkOut.Time, valueOr(travelers, 1))
+		if !ok {
+			return "", false, errNotFound, nil
+		}
+		url, partner := h.hotels.Partner(ctx, url)
+		return url, partner, noProblem, nil
 	}
 	// Ссылку отдаём, даже если Островок не успел подтвердить город: лучше догадка, чем ожидание
 	lctx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -89,7 +97,7 @@ func (h *handlers) hotelsLink(ctx context.Context, provider apigen.HotelsProvide
 }
 
 func badProviderProblem() apigen.Problem {
-	return fieldProblem("provider", "ostrovok или avito")
+	return fieldProblem("provider", "ostrovok, sutochno или avito")
 }
 
 func badDatesProblem() apigen.Problem {

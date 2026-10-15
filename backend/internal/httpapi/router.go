@@ -21,6 +21,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/linkpreview"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/httpx"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
@@ -77,7 +78,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 			ErrorHandlerWithOpts: validationError,
 		}))
 		strict := apigen.NewStrictHandlerWithOptions(&handlers{geo: d.Geo, search: d.Search, hotels: d.Hotels, guides: d.Guides,
-			transfers: d.Transfers, geocoder: d.Geocoder, favorites: d.Favorites, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
+			transfers: d.Transfers, geocoder: d.Geocoder, favorites: d.Favorites, previews: linkpreview.New(), log: d.Log}, nil, apigen.StrictHTTPServerOptions{
 			RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 				httpx.WriteProblem(w, httpx.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 			},

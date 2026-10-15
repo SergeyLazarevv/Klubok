@@ -55,6 +55,13 @@ func (o *Ostrovok) Link(ctx context.Context, city geo.Place, checkIn, checkOut t
 	path := o.cityPath(ctx, city)
 	link = fmt.Sprintf("%s%s?dates=%s-%s&guests=%d", o.base, path,
 		checkIn.Format("02.01.2006"), checkOut.Format("02.01.2006"), max(guests, 1))
+	return o.Partner(ctx, link)
+}
+
+// Partner превращает ссылку на сайт бренда в партнёрскую (Travelpayouts, проект TRAVELPAYOUTS_TRS).
+// У бренда должна быть подключена программа в этом проекте. Не вышло — исходная ссылка и false.
+// Используется и для других брендов жилья (Суточно.ру).
+func (o *Ostrovok) Partner(ctx context.Context, link string) (string, bool) {
 	if o.linker == nil {
 		return link, false
 	}
@@ -66,7 +73,7 @@ func (o *Ostrovok) Link(ctx context.Context, city geo.Place, checkIn, checkOut t
 	}
 	pl, err := o.linker.PartnerLink(ctx, link)
 	if err != nil {
-		o.log.WarnContext(ctx, "ostrovok partner link", slog.Any("err", err))
+		o.log.WarnContext(ctx, "partner link", slog.String("link", link), slog.Any("err", err))
 		return link, false
 	}
 	o.mu.Lock()

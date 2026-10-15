@@ -11,7 +11,6 @@ const props = defineProps<{
   snapshot: FavoriteSnapshot
   home: Place
   destination: Place
-  month: string
   params?: TripSearchParams // по умолчанию — параметры последнего поиска
 }>()
 
@@ -23,7 +22,7 @@ const saved = computed(() => (params.value ? favorites.find(params.value, props.
 async function toggle() {
   if (!params.value) return
   if (saved.value) await favorites.remove(saved.value)
-  else await favorites.add(favoriteTitle(props.home, props.destination, props.month), params.value, props.pick, props.snapshot)
+  else await favorites.add(favoriteTitle(props.home, props.destination, params.value.date_from, params.value.date_to), params.value, props.pick, props.snapshot)
 }
 </script>
 

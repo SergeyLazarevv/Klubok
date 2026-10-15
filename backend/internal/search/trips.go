@@ -38,11 +38,12 @@ const (
 	WarnRoadApproximate  Warning = "road_approximate"
 )
 
-// TripsQuery — поиск поездки туда и обратно: направление, месяц вылета, длительность.
+// TripsQuery — поиск поездки туда и обратно: направление, диапазон дат вылета, длительность.
 type TripsQuery struct {
 	HomeID        uuid.UUID
 	DestinationID uuid.UUID
-	Month         time.Time
+	DateFrom      time.Time
+	DateTo        time.Time
 	MinDays       int
 	MaxDays       int
 	Travelers     int
@@ -116,7 +117,7 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 		}
 	}
 
-	quotes, partial, err := s.fetchQuotes(ctx, hubs, destCity, q.Month)
+	quotes, partial, err := s.fetchQuotes(ctx, hubs, destCity, q.DateFrom, q.DateTo)
 	if err != nil {
 		if res.Drive == nil {
 			return TripsResult{}, err
@@ -131,7 +132,14 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 	for _, r := range hubs {
 		for _, quote := range quotes[r.Hub.Place.IATA] {
 			days := quote.TripDays()
-			if days < q.MinDays || days > q.MaxDays || !quote.DepartAt.After(time.Now()) {
+			depart, ret := quote.DepartAt, quote.ReturnAt
+			departDay := time.Date(depart.Year(), depart.Month(), depart.Day(), 0, 0, 0, 0, time.UTC)
+			returnDay := time.Date(ret.Year(), ret.Month(), ret.Day(), 0, 0, 0, 0, time.UTC)
+			if days < q.MinDays || days > q.MaxDays || !depart.After(time.Now()) {
+				continue
+			}
+			// Вылет и возврат — оба в пределах выбранных дат, а не только вылет
+			if departDay.Before(q.DateFrom) || returnDay.After(q.DateTo) {
 				continue
 			}
 			opt := s.option(r, q, res.FuelPrice, quote, days)
@@ -226,7 +234,8 @@ func (s *Service) resolveArrivals(ctx context.Context, opts map[uuid.UUID]TripOp
 }
 
 // RoadRoute — путь на машине между точками справочника с линией для карты.
-func (s *Service) RoadRoute(ctx context.Context, fromID, toID uuid.UUID) (road.Route, error) {
+// RoadRoute — дорога между местами; via — точки, куда заехать по пути, по порядку.
+func (s *Service) RoadRoute(ctx context.Context, fromID, toID uuid.UUID, via ...road.Point) (road.Route, error) {
 	from, err := s.geo.Get(ctx, fromID)
 	if err != nil {
 		return road.Route{}, err
@@ -235,7 +244,7 @@ func (s *Service) RoadRoute(ctx context.Context, fromID, toID uuid.UUID) (road.R
 	if err != nil {
 		return road.Route{}, err
 	}
-	return s.road.Route(ctx, roadPoint(from), roadPoint(to))
+	return s.road.Route(ctx, roadPoint(from), roadPoint(to), via...)
 }
 
 // homeAirports — аэропорты своего города, когда машины нет.
@@ -253,12 +262,34 @@ func (s *Service) homeAirports(ctx context.Context, home geo.Place) ([]reachable
 	return out, nil
 }
 
-// fetchQuotes запрашивает цены по каждому городу вылета (у города может быть несколько аэропортов)
-// и раскладывает их по IATA аэропорта. partial — часть запросов не удалась.
-func (s *Service) fetchQuotes(ctx context.Context, hubs []reachable, destCity string, month time.Time) (map[string][]fares.Quote, bool, error) {
+// monthsBetween — месяцы (1-е число), покрывающие диапазон дат: источник цен отдаёт данные по месяцу вылета.
+func monthsBetween(from, to time.Time) []time.Time {
+	months := []time.Time{time.Date(from.Year(), from.Month(), 1, 0, 0, 0, 0, time.UTC)}
+	last := time.Date(to.Year(), to.Month(), 1, 0, 0, 0, 0, time.UTC)
+	for cur := months[0]; cur.Before(last); cur = cur.AddDate(0, 1, 0) {
+		months = append(months, cur.AddDate(0, 1, 0))
+	}
+	return months
+}
+
+// fetchQuotes запрашивает цены по каждому городу вылета (у города может быть несколько аэропортов) и каждому
+// месяцу, покрывающему диапазон дат, и раскладывает их по IATA аэропорта. partial — часть запросов не удалась.
+func (s *Service) fetchQuotes(ctx context.Context, hubs []reachable, destCity string, dateFrom, dateTo time.Time) (map[string][]fares.Quote, bool, error) {
 	cities := make(map[string]struct{})
 	for _, r := range hubs {
 		cities[cityCode(r.Hub.Place)] = struct{}{}
+	}
+	months := monthsBetween(dateFrom, dateTo)
+
+	type task struct {
+		city  string
+		month time.Time
+	}
+	var tasks []task
+	for city := range cities {
+		for _, m := range months {
+			tasks = append(tasks, task{city, m})
+		}
 	}
 
 	var (
@@ -269,16 +300,16 @@ func (s *Service) fetchQuotes(ctx context.Context, hubs []reachable, destCity st
 	)
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(fetchConcurrency)
-	for city := range cities {
+	for _, t := range tasks {
 		g.Go(func() error {
-			quotes, err := s.fares.RoundTrips(gctx, fares.RoundTripQuery{Origin: city, Destination: destCity, Month: month})
+			quotes, err := s.fares.RoundTrips(gctx, fares.RoundTripQuery{Origin: t.city, Destination: destCity, Month: t.month})
 			mu.Lock()
 			defer mu.Unlock()
 			if err != nil {
 				failed++
 				lastErr = err
-				s.log.WarnContext(ctx, "fares request failed", slog.String("origin", city), slog.Any("err", err))
-				return nil // один город не должен ронять весь поиск
+				s.log.WarnContext(ctx, "fares request failed", slog.String("origin", t.city), slog.Any("err", err))
+				return nil // один запрос не должен ронять весь поиск
 			}
 			for _, q := range quotes {
 				byOrigin[q.Origin] = append(byOrigin[q.Origin], q)
@@ -290,7 +321,7 @@ func (s *Service) fetchQuotes(ctx context.Context, hubs []reachable, destCity st
 		})
 	}
 	_ = g.Wait()
-	if len(cities) > 0 && failed == len(cities) {
+	if len(tasks) > 0 && failed == len(tasks) {
 		return nil, false, fmt.Errorf("all fare requests failed: %w", lastErr)
 	}
 	return byOrigin, failed > 0, nil

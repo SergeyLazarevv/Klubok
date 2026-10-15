@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { api, type TripsResponse } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
-import { upcomingMonths, useSearchStore } from '@/stores/search'
+import { maxRangeEnd, maxSearchDate, todayISO, useSearchStore } from '@/stores/search'
 import CarSettings from '@/components/CarSettings.vue'
 import SearchLoader from '@/components/SearchLoader.vue'
 import SearchForm from '@/components/SearchForm.vue'
@@ -17,7 +17,8 @@ const route = useRoute()
 const router = useRouter()
 
 const result = ref<TripsResponse>()
-const searchedMonth = ref('')
+const searchedDateFrom = ref('')
+const searchedDateTo = ref('')
 const loading = ref(false)
 const error = ref<string>()
 const referenceFuelPrice = ref<number>()
@@ -26,14 +27,22 @@ async function runSearch() {
   if (!homePlace.value || !search.destination) return
   loading.value = true
   error.value = undefined
-  const month = search.month
+  const { dateFrom, dateTo } = search
   router.replace({
-    query: { from: homePlace.value.id, to: search.destination.id, month, min: search.minDays, max: search.maxDays },
+    query: {
+      from: homePlace.value.id,
+      to: search.destination.id,
+      date_from: dateFrom,
+      date_to: dateTo,
+      min: search.minDays,
+      max: search.maxDays,
+    },
   })
   const query = {
     from: homePlace.value.id,
     to: search.destination.id,
-    month,
+    date_from: dateFrom,
+    date_to: dateTo,
     min_days: search.minDays,
     max_days: search.maxDays,
     travelers: travelers.value,
@@ -53,14 +62,15 @@ async function runSearch() {
     return
   }
   result.value = data
-  searchedMonth.value = month
+  searchedDateFrom.value = dateFrom
+  searchedDateTo.value = dateTo
   search.lastQuery = query
   if (data?.fuel_price && profile.fuelPriceRub == null) referenceFuelPrice.value = data.fuel_price.amount
 }
 
 // Открыли ссылку с параметрами поиска — восстанавливаем их и сразу ищем
 onMounted(async () => {
-  const { from, to, month, min, max } = route.query
+  const { from, to, date_from: dateFrom, date_to: dateTo, min, max } = route.query
   if (typeof to !== 'string') return
   const { data } = await api.GET('/places/{id}', { params: { path: { id: to } } })
   if (!data) return
@@ -70,7 +80,10 @@ onMounted(async () => {
     const { data: home } = await api.GET('/places/{id}', { params: { path: { id: from } } })
     if (home) homePlace.value = home
   }
-  if (typeof month === 'string' && upcomingMonths().includes(month)) search.month = month
+  const minDate = todayISO()
+  const maxDate = maxSearchDate()
+  if (typeof dateFrom === 'string' && dateFrom >= minDate && dateFrom <= maxDate) search.dateFrom = dateFrom
+  if (typeof dateTo === 'string' && dateTo >= search.dateFrom && dateTo <= maxRangeEnd(search.dateFrom)) search.dateTo = dateTo
   if (Number(min) > 0) search.minDays = Number(min)
   if (Number(max) >= search.minDays) search.maxDays = Number(max)
   await runSearch()
@@ -98,7 +111,7 @@ onMounted(async () => {
     <p v-if="error" class="rounded-xl border border-destructive/30 bg-card p-3 text-sm text-destructive">
       {{ error }}
     </p>
-    <TripResults v-if="result" :result="result" :travelers="travelers" :month="searchedMonth" />
+    <TripResults v-if="result" :result="result" :travelers="travelers" :date-from="searchedDateFrom" :date-to="searchedDateTo" />
     <p v-else-if="!loading" class="py-6 text-center text-sm text-muted-foreground">
       Укажите, откуда и куда летите, — найдём самый дешёвый вариант. Настройки сохраняются в этом браузере.
     </p>

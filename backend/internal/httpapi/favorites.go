@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	openapi_types "github.com/oapi-codegen/runtime/types"
+
 	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
@@ -102,7 +104,7 @@ func (h *handlers) GetFavoriteCurrent(ctx context.Context, req apigen.GetFavorit
 		}
 	}
 
-	if monthPassed(params.Month, time.Now()) {
+	if datePassed(params.DateTo, time.Now()) {
 		return apigen.GetFavoriteCurrent200JSONResponse{Status: apigen.Past}, nil
 	}
 	resp, err := h.SearchTrips(ctx, apigen.SearchTripsRequestObject{Params: params})
@@ -157,12 +159,9 @@ func matchFavorite(res apigen.TripsResponse, pick apigen.FavoritePick) apigen.Fa
 // localDate — дата по местному времени аэропорта (время в ответе — с его смещением).
 func localDate(t time.Time) string { return t.Format("2006-01-02") }
 
-func monthPassed(month string, now time.Time) bool {
-	m, err := time.Parse("2006-01", month)
-	if err != nil {
-		return false
-	}
-	return m.Before(time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC))
+func datePassed(dateTo openapi_types.Date, now time.Time) bool {
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+	return dateTo.Time.Before(today)
 }
 
 func toAPIFavorite(f favorites.Favorite) (apigen.Favorite, error) {

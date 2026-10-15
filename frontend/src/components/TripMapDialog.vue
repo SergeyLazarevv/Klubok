@@ -31,7 +31,7 @@ const open = defineModel<boolean>('open', { required: true })
             <XIcon class="size-5" />
           </DialogClose>
         </header>
-        <TripMapFull :home="home" :option="option" :drive="drive" :destination="destination" class="min-h-0 flex-1" />
+        <TripMapFull :home="home" :option="option" :drive="drive" :destination="destination" :stops="stops" class="min-h-0 flex-1" />
       </DialogContent>
     </DialogPortal>
   </DialogRoot>

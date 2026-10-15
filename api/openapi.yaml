@@ -134,10 +134,12 @@ paths:
     get:
       tags: [search]
       operationId: getHotelsLink
-      summary: Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+      summary: Ссылка на поиск жилья — отели Островка, жильё на Суточно.ру или квартиры посуточно на Авито
       description: |
         Для аэропорта берётся его город. Если в Travelpayouts подключена программа Островка (TRAVELPAYOUTS_TRS),
         ссылка партнёрская. Город не нашёлся на Островке — ссылка на страницу страны.
+        Суточно.ру — поиск с городом, датами и гостями (Россия и ещё 11 стран, иначе 404); партнёрская, как Островок,
+        если программа Суточно.ру подключена в том же проекте Travelpayouts.
         Авито — раздел «Квартиры посуточно» в городе; для городов не в России — 404.
       parameters:
         - name: place
@@ -154,7 +156,7 @@ paths:
           schema: { type: string, format: date }
         - name: provider
           in: query
-          description: 'Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
+          description: 'Где искать: ostrovok — отели, sutochno — квартиры, дома и гостевые дома (Россия и СНГ, с датами), avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
           schema: { $ref: '#/components/schemas/HotelsProvider' }
         - $ref: '#/components/parameters/Travelers'
       responses:
@@ -187,12 +189,12 @@ paths:
           schema: { type: string, format: date }
         - name: provider
           in: query
-          description: 'Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
+          description: 'Где искать: ostrovok — отели, sutochno — квартиры, дома и гостевые дома (Россия и СНГ, с датами), avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито)'
           schema: { $ref: '#/components/schemas/HotelsProvider' }
         - $ref: '#/components/parameters/Travelers'
       responses:
         '302':
-          description: Перенаправление на Островок или Авито
+          description: Перенаправление на Островок, Суточно.ру или Авито
           headers:
             Location:
               schema: { type: string }
@@ -242,7 +244,8 @@ paths:
       description: |
         Для каждого доступного аэропорта вылета — лучший по полной стоимости вариант: билеты на всех
         + машина (бензин, парковка на фактические дни поездки, страховка). Сортировка — по полной стоимости.
-        Цены — из кэша поисков Aviasales, поэтому ищем по месяцу и длительности, а не по точным датам.
+        Цены — из кэша поисков Aviasales: по месяцам, покрывающим диапазон дат, с фильтром по датам и
+        длительности на нашей стороне. Начало диапазона — не дальше 3 месяцев вперёд, сам диапазон — до 60 дней.
       parameters:
         - name: from
           in: query
@@ -254,11 +257,16 @@ paths:
           required: true
           description: Город или аэропорт назначения
           schema: { type: string, format: uuid }
-        - name: month
+        - name: date_from
           in: query
           required: true
-          description: Месяц вылета
-          schema: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: '2026-11' }
+          description: Вылет не раньше этой даты — не дальше 3 месяцев от сегодня
+          schema: { type: string, format: date, example: '2026-11-15' }
+        - name: date_to
+          in: query
+          required: true
+          description: Возврат не позже этой даты (не только вылет) — не дальше 60 дней от date_from
+          schema: { type: string, format: date, example: '2026-11-22' }
         - name: min_days
           in: query
           schema: { type: integer, minimum: 1, maximum: 60, default: 3 }
@@ -293,7 +301,8 @@ paths:
       summary: Линия маршрута на машине между двумя точками — для карты
       description: |
         Геометрия кэшируется. Если маршрутизатор недоступен, возвращается прямая между точками
-        с approximate = true.
+        с approximate = true. via — места из путевого листа, куда заехать по пути: путь проходит через них
+        в указанном порядке, расстояние и время — с заездами; такой путь не кэшируется.
       parameters:
         - name: from
           in: query
@@ -303,6 +312,16 @@ paths:
           in: query
           required: true
           schema: { type: string, format: uuid }
+        - name: via
+          in: query
+          required: false
+          description: Промежуточные точки «широта,долгота», по порядку; параметр повторяется
+          style: form
+          explode: true
+          schema:
+            type: array
+            maxItems: 10
+            items: { type: string, pattern: '^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$', example: '53.2415,50.2212' }
       responses:
         '200':
           description: Маршрут
@@ -469,7 +488,7 @@ paths:
       description: |
         Повторяет сохранённый поиск с сохранёнными параметрами и ищет тот же вариант (аэропорт и даты
         или «на машине»). status: found — тот же вариант; replaced — его нет, показан лучший с теми же
-        параметрами; past — месяц поездки прошёл; empty — вариантов нет; unavailable — источник цен недоступен.
+        параметрами; past — даты поездки прошли; empty — вариантов нет; unavailable — источник цен недоступен.
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
       responses:
@@ -478,6 +497,99 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/FavoriteCurrent' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /link-preview:
+    get:
+      tags: [favorites]
+      operationId: getLinkPreview
+      summary: Превью ссылки для путевого листа — название, картинка, цена за сутки
+      description: |
+        Читает og-теги страницы. Только сайты из белого списка (Суточно.ру, Островок, 101 Отель, Твил, Трипстер,
+        Спутник8, Localrent): сервер не ходит по произвольным адресам. Авито закрыт для ботов — 404.
+        per_night — цена за сутки, если сайт пишет её в описании (Суточно.ру). Кэш — 12 часов.
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema: { type: string, maxLength: 2000, pattern: '^https?://' }
+      responses:
+        '200':
+          description: Превью
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LinkPreview' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
+  /favorites/{id}/items:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [favorites]
+      operationId: listTripItems
+      summary: Путевой лист сохранённой поездки
+      description: |
+        Пункты, которые пользователь добавил к поездке: выбранное жильё, аренда машины, места по пути, дела.
+        Каждый привязан к этапу поездки (stage), порядок — по времени добавления.
+      responses:
+        '200':
+          description: Пункты путевого листа
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/TripItem' }
+        '404': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [favorites]
+      operationId: addTripItem
+      summary: Добавить пункт в путевой лист
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TripItemCreate' }
+      responses:
+        '201':
+          description: Добавлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripItem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+
+  /favorites/{id}/items/{item_id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      - { name: item_id, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      tags: [favorites]
+      operationId: updateTripItem
+      summary: Отметить выполненным, переименовать, поменять цену
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TripItemPatch' }
+      responses:
+        '200':
+          description: Изменённый пункт
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TripItem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [favorites]
+      operationId: deleteTripItem
+      summary: Удалить пункт
+      responses:
+        '204': { description: Удалено }
         '404': { $ref: '#/components/responses/Problem' }
 
 components:
@@ -645,7 +757,7 @@ components:
           $ref: '#/components/schemas/TripOption'
         no_data:
           type: array
-          description: Аэропорты, по которым у источника нет цен на этот месяц
+          description: Аэропорты, по которым у источника нет цен на эти даты
           items: { $ref: '#/components/schemas/Place' }
         partial:
           type: boolean
@@ -728,7 +840,7 @@ components:
 
     HotelsProvider:
       type: string
-      enum: [ostrovok, avito]
+      enum: [ostrovok, sutochno, avito]
       default: ostrovok
 
     HotelsLink:
@@ -879,11 +991,12 @@ components:
     TripSearchParams:
       type: object
       description: Параметры поиска поездки — те же, что у запроса GET /trips
-      required: [from, to, month]
+      required: [from, to, date_from, date_to]
       properties:
         from: { type: string, format: uuid }
         to: { type: string, format: uuid }
-        month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$' }
+        date_from: { type: string, format: date }
+        date_to: { type: string, format: date }
         min_days: { type: integer, minimum: 1, maximum: 60 }
         max_days: { type: integer, minimum: 1, maximum: 60 }
         travelers: { type: integer, minimum: 1, maximum: 9 }
@@ -958,6 +1071,74 @@ components:
         total: { $ref: '#/components/schemas/Money' }
         diff:
           $ref: '#/components/schemas/Money'
+
+    LinkPreview:
+      type: object
+      required: [site]
+      properties:
+        site: { type: string, example: Суточно.ру }
+        title: { type: string }
+        description: { type: string }
+        image_url: { type: string }
+        per_night: { $ref: '#/components/schemas/Money' }
+
+    TripItemStage:
+      type: string
+      description: |
+        Этап поездки: prep — сборы до выезда, road — дорога туда, flight — вылет, stay — проживание,
+        see — что посмотреть на месте, place — услуги на месте (аренда машины, трансфер),
+        return — возвращение, home — дорога домой.
+      enum: [prep, road, flight, stay, see, place, return, home]
+      x-enum-varnames: [StagePrep, StageRoad, StageFlight, StageStay, StageSee, StagePlace, StageReturn, StageHome]
+
+    TripItemKind:
+      type: string
+      description: note — заметка или дело; link — страница на другом сайте (объявление, отель, аренда); place — место, куда заехать
+      enum: [note, link, place]
+      x-enum-varnames: [KindNote, KindLink, KindPlace]
+
+    TripItemCreate:
+      type: object
+      required: [stage, kind, title]
+      properties:
+        stage: { $ref: '#/components/schemas/TripItemStage' }
+        kind: { $ref: '#/components/schemas/TripItemKind' }
+        title: { type: string, minLength: 1, maxLength: 300, example: 'Заехать на озеро Белё' }
+        url: { type: string, maxLength: 2000, pattern: '^https?://', example: 'https://sutochno.ru/front/searchapp/detail/123456' }
+        price: { $ref: '#/components/schemas/Money' }
+        location:
+          description: Где это место — чтобы показать на карте и проложить дорогу через него
+          allOf: [{ $ref: '#/components/schemas/Point' }]
+        image_url: { type: string, maxLength: 2000, pattern: '^https://', description: Картинка из превью ссылки }
+        description: { type: string, maxLength: 500, description: Описание из превью ссылки }
+
+    TripItemPatch:
+      type: object
+      properties:
+        title: { type: string, minLength: 1, maxLength: 300 }
+        done: { type: boolean }
+        price: { $ref: '#/components/schemas/Money' }
+        clear_price: { type: boolean, description: 'true — убрать цену' }
+        image_url: { type: string, maxLength: 2000, pattern: '^https://', description: Картинка из превью — для ссылок, добавленных без него }
+        description: { type: string, maxLength: 500 }
+
+    TripItem:
+      type: object
+      required: [id, stage, kind, title, done, created_at]
+      properties:
+        id: { type: string, format: uuid }
+        stage: { $ref: '#/components/schemas/TripItemStage' }
+        kind: { $ref: '#/components/schemas/TripItemKind' }
+        title: { type: string }
+        url: { type: string }
+        price: { $ref: '#/components/schemas/Money' }
+        location: { $ref: '#/components/schemas/Point' }
+        image_url: { type: string }
+        description: { type: string }
+        done:
+          type: boolean
+          description: Для ссылок (жильё, аренда) — «выбрано»; цена ссылки идёт в итог, только когда она выбрана
+        created_at: { type: string, format: date-time }
 
     Point:
       type: object

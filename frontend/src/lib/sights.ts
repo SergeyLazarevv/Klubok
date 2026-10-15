@@ -1,5 +1,6 @@
 import type { GuideListing, Poi } from '@/api/client'
 import { kindLabels } from '@/lib/poiLayer'
+import type { LatLon } from '@/lib/geo'
 
 /** Карточка места в ленте: из путеводителя или из OSM. */
 export interface SightItem {
@@ -9,6 +10,7 @@ export interface SightItem {
   description?: string
   photoUrl?: string
   url?: string
+  location?: LatLon // есть — место попадёт на карту поездки
 }
 
 export const fromPoi = (p: Poi): SightItem => ({
@@ -17,6 +19,7 @@ export const fromPoi = (p: Poi): SightItem => ({
   kind: kindLabels[p.kind] ?? 'Достопримечательность',
   description: p.description,
   photoUrl: p.photo?.url,
+  location: [p.location.lat, p.location.lon],
 })
 
 const listingKinds: Partial<Record<GuideListing['type'], string>> = { see: 'Достопримечательность', do: 'Чем заняться' }
@@ -28,6 +31,7 @@ export const fromListing = (l: GuideListing, i: number): SightItem => ({
   description: l.description,
   photoUrl: l.photo?.url,
   url: l.url,
+  location: l.location && [l.location.lat, l.location.lon],
 })
 
 const norm = (s: string) => s.toLowerCase().replace(/[«»"'.,()-]/g, ' ').replace(/\s+/g, ' ').trim()

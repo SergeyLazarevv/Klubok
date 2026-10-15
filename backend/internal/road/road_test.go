@@ -68,6 +68,23 @@ func TestOSRMRoute(t *testing.T) {
 	}
 }
 
+func TestOSRMRouteVia(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Заезды — между началом и концом, в том же порядке, долгота первой
+		if want := "/route/v1/driving/50.100000,53.200000;50.500000,54.000000;49.100000,55.800000"; r.URL.Path != want {
+			t.Errorf("path = %q, want %q", r.URL.Path, want)
+		}
+		_, _ = w.Write([]byte(`{"code":"Ok","routes":[{"distance":380000,"duration":20000,"geometry":"abc"}]}`))
+	}))
+	defer srv.Close()
+
+	from, via, to := Point{Lat: 53.2, Lon: 50.1}, Point{Lat: 54, Lon: 50.5}, Point{Lat: 55.8, Lon: 49.1}
+	route, err := NewOSRM(srv.URL).Route(context.Background(), from, to, via)
+	if err != nil || route == nil || route.DistanceM != 380000 {
+		t.Fatalf("route = %+v, err = %v", route, err)
+	}
+}
+
 func TestOSRMNoRoute(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)

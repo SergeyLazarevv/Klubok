@@ -1,26 +1,42 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import type { Place, TripSearchParams } from '@/api/client'
 
-/** Ближайшие месяцы вылета в формате YYYY-MM; текущий — только если до конца больше недели. */
-export function upcomingMonths(count = 6, now = new Date()): string[] {
-  const months: string[] = []
-  const daysLeft = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() - now.getDate()
-  const start = daysLeft > 7 ? 0 : 1
-  for (let i = start; months.length < count; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth() + i, 1)
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
-  }
-  return months
+const isoDate = (d: Date) => d.toISOString().slice(0, 10)
+
+export function addDays(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00Z')
+  d.setUTCDate(d.getUTCDate() + days)
+  return isoDate(d)
 }
+
+export const todayISO = () => isoDate(new Date())
+
+/** Те же лимиты, что на backend (trips.go): начало — не дальше 90 дней, диапазон — до 60 дней. */
+export const maxSearchHorizonDays = 90
+export const maxRangeDays = 60
+
+/** Самая поздняя дата начала диапазона. */
+export const maxSearchDate = () => addDays(todayISO(), maxSearchHorizonDays)
+
+/** Самая поздняя дата конца диапазона при данном начале. */
+export const maxRangeEnd = (from: string) => addDays(from, maxRangeDays)
 
 /** Параметры поиска: куда, когда и на сколько. Хранятся в URL, чтобы результатом можно было поделиться. */
 export const useSearchStore = defineStore('search', () => {
   const destination = ref<Place | null>(null)
-  const month = ref(upcomingMonths()[0]!)
+  const dateFrom = ref(addDays(todayISO(), 7))
+  const dateTo = ref(addDays(todayISO(), 37))
   const minDays = ref(5)
   const maxDays = ref(10)
   // Параметры последнего выполненного поиска — с ними вариант сохраняется в избранное
   const lastQuery = ref<TripSearchParams | null>(null)
-  return { destination, month, minDays, maxDays, lastQuery }
+
+  // Начало сдвинулось — конец остаётся в пределах [начало, начало + 60 дней]
+  watch(dateFrom, (from) => {
+    if (dateTo.value < from) dateTo.value = from
+    else if (dateTo.value > maxRangeEnd(from)) dateTo.value = maxRangeEnd(from)
+  })
+
+  return { destination, dateFrom, dateTo, minDays, maxDays, lastQuery }
 })

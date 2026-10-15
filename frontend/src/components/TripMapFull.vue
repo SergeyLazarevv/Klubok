@@ -4,7 +4,7 @@ import type L from 'leaflet'
 import { useResizeObserver } from '@vueuse/core'
 import { LoaderCircleIcon } from '@lucide/vue'
 import { api, type Poi } from '@/api/client'
-import { byCar, createMap, drawRoad, drawTrip, roadEnd, type Trip } from '@/lib/tripMap'
+import { byCar, createMap, drawRoad, drawStops, drawTrip, roadEnd, type Trip } from '@/lib/tripMap'
 import { categories, poiCluster, poiMarker, type PoiCategory } from '@/lib/poiLayer'
 
 const props = defineProps<Trip>()
@@ -36,6 +36,7 @@ onMounted(async () => {
   map = createMap(el.value!, { scrollWheelZoom: true })
   map.fitBounds(drawTrip(map, props), { padding: [40, 40] })
   void drawRoad(map, props)
+  if (props.stops?.length) drawStops(map, props.stops)
 
   const pois = await loadPois()
   loading.value = false

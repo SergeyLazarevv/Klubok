@@ -83,9 +83,14 @@ type osrmRoute struct {
 	} `json:"routes"`
 }
 
-func (o *OSRM) Route(ctx context.Context, from, to Point) (*Route, error) {
+func (o *OSRM) Route(ctx context.Context, from, to Point, via ...Point) (*Route, error) {
+	coords := []string{lonLat(from)}
+	for _, p := range via {
+		coords = append(coords, lonLat(p))
+	}
+	coords = append(coords, lonLat(to))
 	// simplified — линия упрощена под масштаб всего маршрута: для мини-карты достаточно
-	url := fmt.Sprintf("%s/route/v1/driving/%s;%s?overview=simplified&geometries=polyline6", o.baseURL, lonLat(from), lonLat(to))
+	url := fmt.Sprintf("%s/route/v1/driving/%s?overview=simplified&geometries=polyline6", o.baseURL, strings.Join(coords, ";"))
 	var r osrmRoute
 	if err := o.get(ctx, url, &r); err != nil {
 		return nil, err

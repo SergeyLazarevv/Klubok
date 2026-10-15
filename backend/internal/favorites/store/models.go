@@ -181,3 +181,19 @@ type Session struct {
 	CreatedAt  pgtype.Timestamptz
 	LastSeenAt pgtype.Timestamptz
 }
+
+type TripItem struct {
+	ID          uuid.UUID
+	FavoriteID  uuid.UUID
+	Stage       string
+	Kind        string
+	Title       string
+	Url         pgtype.Text
+	Price       pgtype.Int8
+	Done        bool
+	CreatedAt   pgtype.Timestamptz
+	Lat         pgtype.Float8
+	Lon         pgtype.Float8
+	ImageUrl    pgtype.Text
+	Description pgtype.Text
+}

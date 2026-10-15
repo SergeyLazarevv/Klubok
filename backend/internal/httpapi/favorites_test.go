@@ -54,9 +54,24 @@ func TestMatchFavorite(t *testing.T) {
 	}
 }
 
-func TestMonthPassed(t *testing.T) {
+func TestDatePassed(t *testing.T) {
 	now := time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC)
-	if monthPassed("2026-10", now) || !monthPassed("2026-09", now) || monthPassed("2026-11", now) {
-		t.Error("monthPassed is wrong")
+	date := func(s string) openapi_types.Date {
+		d, _ := time.Parse("2006-01-02", s)
+		return openapi_types.Date{Time: d}
+	}
+	if datePassed(date("2026-10-14"), now) || !datePassed(date("2026-10-13"), now) || datePassed(date("2026-10-15"), now) {
+		t.Error("datePassed is wrong")
+	}
+}
+
+func TestParseLatLon(t *testing.T) {
+	if p, ok := parseLatLon("53.2415,50.2212"); !ok || p.Lat != 53.2415 || p.Lon != 50.2212 {
+		t.Errorf("parse = %+v, %v", p, ok)
+	}
+	for _, bad := range []string{"53.2", "x,1", "91,10", "10,181"} {
+		if _, ok := parseLatLon(bad); ok {
+			t.Errorf("%q must not parse", bad)
+		}
 	}
 }

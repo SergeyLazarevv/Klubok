@@ -1,5 +1,5 @@
 import type { DriveTrip, FavoritePick, FavoriteSnapshot, Place, TripOption, TripSearchParams } from '@/api/client'
-import { monthLabel } from '@/lib/format'
+import { dateRangeLabel } from '@/lib/format'
 
 /**
  * Ключ варианта — та же строка, что favorites.Key на сервере: по ней карточка в результатах узнаёт,
@@ -7,7 +7,7 @@ import { monthLabel } from '@/lib/format'
  */
 export function favoriteKey(p: TripSearchParams, pick: FavoritePick): string {
   return [
-    p.from, p.to, p.month, p.min_days ?? 3, p.max_days ?? 14, p.travelers ?? 1, p.use_car ? 'car' : 'nocar',
+    p.from, p.to, p.date_from, p.date_to, p.min_days ?? 3, p.max_days ?? 14, p.travelers ?? 1, p.use_car ? 'car' : 'nocar',
     pick.kind, pick.hub_iata ?? '', pick.depart_date ?? '', pick.return_date ?? '',
   ].join('|')
 }
@@ -39,6 +39,6 @@ export function driveSnapshot(d: DriveTrip): FavoriteSnapshot {
   return { total: d.total, per_person: d.per_person, drive_hours: d.drive_hours, trip_days: d.trip_days }
 }
 
-/** «Самара → Алматы, ноябрь 2026» */
-export const favoriteTitle = (home: Place, destination: Place, month: string) =>
-  `${home.city_name ?? home.name} → ${destination.city_name ?? destination.name}, ${monthLabel(month)}`
+/** «Самара → Алматы, 15 нояб. – 22 нояб.» */
+export const favoriteTitle = (home: Place, destination: Place, dateFrom: string, dateTo: string) =>
+  `${home.city_name ?? home.name} → ${destination.city_name ?? destination.name}, ${dateRangeLabel(dateFrom, dateTo)}`

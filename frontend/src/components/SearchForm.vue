@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
-import { ChevronDownIcon } from '@lucide/vue'
-import { monthLabel, plural } from '@/lib/format'
+import { plural } from '@/lib/format'
 import { useProfileStore } from '@/stores/profile'
-import { upcomingMonths, useSearchStore } from '@/stores/search'
+import { maxRangeEnd, maxSearchDate, todayISO, useSearchStore } from '@/stores/search'
 import CompactStepper from '@/components/CompactStepper.vue'
 import PlaceSearch from '@/components/PlaceSearch.vue'
 
@@ -11,12 +10,9 @@ defineProps<{ loading: boolean; disabled: boolean }>()
 const emit = defineEmits<{ search: [] }>()
 
 const { homePlace, travelers } = storeToRefs(useProfileStore())
-const { destination, month, minDays, maxDays } = storeToRefs(useSearchStore())
-const months = upcomingMonths()
-const monthName = (m: string) => {
-  const s = monthLabel(m)
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
+const { destination, dateFrom, dateTo, minDays, maxDays } = storeToRefs(useSearchStore())
+const minDate = todayISO()
+const maxDate = maxSearchDate()
 </script>
 
 <template>
@@ -33,16 +29,27 @@ const monthName = (m: string) => {
         <label for="search-to" class="search-label">Куда</label>
         <PlaceSearch v-model="destination" input-id="search-to" placeholder="Город или аэропорт" bare />
       </div>
-      <div class="search-cell relative">
-        <label for="search-month" class="search-label">Когда</label>
-        <select
-          id="search-month"
-          v-model="month"
-          class="h-7 w-full cursor-pointer appearance-none truncate bg-transparent pr-6 text-base font-semibold outline-none"
-        >
-          <option v-for="m in months" :key="m" :value="m">{{ monthName(m) }}</option>
-        </select>
-        <ChevronDownIcon class="pointer-events-none absolute right-3 bottom-3 size-4 text-muted-foreground" />
+      <div class="search-cell">
+        <label for="search-date-from" class="search-label">Когда</label>
+        <div class="flex items-center gap-1">
+          <input
+            id="search-date-from"
+            v-model="dateFrom"
+            type="date"
+            :min="minDate"
+            :max="maxDate"
+            class="h-7 w-full min-w-0 cursor-pointer bg-transparent text-base font-semibold outline-none"
+          />
+          <span class="text-muted-foreground">–</span>
+          <input
+            v-model="dateTo"
+            type="date"
+            :min="dateFrom"
+            :max="maxRangeEnd(dateFrom)"
+            aria-label="Дата окончания диапазона поиска"
+            class="h-7 w-full min-w-0 cursor-pointer bg-transparent text-base font-semibold outline-none"
+          />
+        </div>
       </div>
       <!-- На телефоне дни — во всю ширину последней строкой, рядом с «Когда» — путешественники -->
       <div class="search-cell col-span-2 max-lg:order-last lg:col-span-1">

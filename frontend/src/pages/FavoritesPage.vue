@@ -40,12 +40,19 @@ const cur = (f: Favorite) => {
 }
 const searchLink = (f: Favorite) => ({
   path: '/',
-  query: { from: f.params.from, to: f.params.to, month: f.params.month, min: f.params.min_days, max: f.params.max_days },
+  query: {
+    from: f.params.from,
+    to: f.params.to,
+    date_from: f.params.date_from,
+    date_to: f.params.date_to,
+    min: f.params.min_days,
+    max: f.params.max_days,
+  },
 })
 const statusText: Record<string, string> = {
   replaced: 'Сохранённого варианта больше нет — вот лучший с теми же параметрами',
-  past: 'Месяц поездки уже прошёл',
-  empty: 'Сейчас вариантов нет — источник не нашёл цен на этот месяц',
+  past: 'Даты поездки уже прошли',
+  empty: 'Сейчас вариантов нет — источник не нашёл цен на эти даты',
   unavailable: 'Не удалось обновить цену — источник недоступен, попробуйте позже',
 }
 </script>
@@ -129,8 +136,9 @@ const statusText: Record<string, string> = {
           :home="cur(f)!.result!.home"
           :destination="cur(f)!.result!.destination"
           :travelers="f.params.travelers ?? 1"
-          :month="f.params.month"
+          :date-from="f.params.date_from"
           :search-params="f.params"
+          :favorite="f"
         />
         <DriveOptionCard
           v-else-if="cur(f)!.drive"
@@ -138,8 +146,9 @@ const statusText: Record<string, string> = {
           :home="cur(f)!.result!.home"
           :destination="cur(f)!.result!.destination"
           :travelers="f.params.travelers ?? 1"
-          :month="f.params.month"
+          :date-from="f.params.date_from"
           :search-params="f.params"
+          :favorite="f"
         />
       </template>
     </article>

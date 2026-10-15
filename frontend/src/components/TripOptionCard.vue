@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { CarIcon, ChevronDownIcon, ExternalLinkIcon, PlaneTakeoffIcon } from '@lucide/vue'
-import type { Place, TripOption, TripSearchParams } from '@/api/client'
+import type { Favorite, Place, TripOption, TripSearchParams } from '@/api/client'
 import { hours, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
 import { doorToDoorHours, type Highlight } from '@/lib/trip'
 import TripPlan from '@/components/TripPlan.vue'
@@ -13,10 +13,11 @@ const props = defineProps<{
   home: Place
   destination: Place
   travelers: number
-  month: string
+  dateFrom: string
   tags?: Highlight[]
   tradeoff?: { slowerHours?: number; pricierKop?: number }
   searchParams?: TripSearchParams // для избранного: параметры поиска, в котором найден вариант
+  favorite?: Favorite // открыто из избранного: путевой лист этой записи
 }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -110,7 +111,6 @@ const fromHome = computed(() => (props.option.hub.city_iata ?? props.option.hub.
           :snapshot="flightSnapshot(option)"
           :home="home"
           :destination="destination"
-          :month="month"
           :params="searchParams"
         />
         <span v-if="option.found_on" class="ml-auto text-xs text-muted-foreground">цена найдена {{ localDay(option.found_on) }}</span>
@@ -118,7 +118,7 @@ const fromHome = computed(() => (props.option.hub.city_iata ?? props.option.hub.
     </div>
 
     <div v-if="open" class="border-t bg-[#f8fafd] p-4 sm:p-5">
-      <TripPlan :home="home" :option="option" :destination="destination" :travelers="travelers" :month="month" />
+      <TripPlan :home="home" :option="option" :destination="destination" :travelers="travelers" :date-from="dateFrom" :search-params="searchParams" :favorite="favorite" />
     </div>
   </article>
 </template>

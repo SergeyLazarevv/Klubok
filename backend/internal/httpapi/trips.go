@@ -15,17 +15,31 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 )
 
+// searchHorizon — насколько вперёд можно начать диапазон: дальше в кэше цен мало данных (см. docs/07-integrations.md).
+const searchHorizon = 90 * 24 * time.Hour
+
+// maxRangeDays — самый длинный диапазон дат; каждый захваченный месяц — отдельный запрос к источнику.
+const maxRangeDays = 60
+
 func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsRequestObject) (apigen.SearchTripsResponseObject, error) {
 	p := req.Params
-	month, err := time.Parse("2006-01", p.Month)
-	now := time.Now()
-	if err != nil || month.Before(time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)) {
-		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("month", "месяц должен быть текущим или будущим")), nil
+	today := time.Now().Truncate(24 * time.Hour).UTC()
+	dateFrom, dateTo := p.DateFrom.Time, p.DateTo.Time
+	switch {
+	case dateFrom.Before(today):
+		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_from", "дата вылета должна быть сегодня или позже")), nil
+	case dateFrom.After(today.Add(searchHorizon)):
+		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_from", "начало поездки — не дальше чем через 3 месяца")), nil
+	case dateTo.Before(dateFrom):
+		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_to", "не может быть раньше даты начала")), nil
+	case dateTo.After(dateFrom.AddDate(0, 0, maxRangeDays)):
+		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_to", "диапазон дат — не больше 60 дней")), nil
 	}
 	q := search.TripsQuery{
 		HomeID:        p.From,
 		DestinationID: p.To,
-		Month:         month,
+		DateFrom:      dateFrom,
+		DateTo:        dateTo,
 		MinDays:       valueOr(p.MinDays, 3),
 		MaxDays:       valueOr(p.MaxDays, 14),
 		Travelers:     valueOr(p.Travelers, 1),

@@ -213,3 +213,19 @@ erDiagram
 | note | text | Заметка (задел под «блокнот») |
 | created_at, deleted_at | timestamptz | Удаление мягкое |
 
+**`trip_items`** — путевой лист: пункты сохранённой поездки ([ADR-0019](adr/0019-trip-sheet.md)).
+
+| Поле | Тип | Примечание |
+|---|---|---|
+| id | uuid | |
+| favorite_id | uuid | Поездка из `favorites`; удаляется вместе с ней |
+| stage | text | Этап: `prep`, `road`, `flight`, `stay`, `see` (что посмотреть), `place` (аренда и услуги на месте), `return`, `home` |
+| kind | text | `note` — заметка/дело, `link` — страница на чужом сайте, `place` — место по пути или на месте |
+| title | text | |
+| url | text | Для `link` и мест из путеводителя |
+| price | bigint | Копейки; вводит пользователь, идёт в общий бюджет |
+| lat, lon | double precision | Где место (из лент мест); для карты и дороги через места по пути |
+| image_url, description | text | Превью ссылки со страницы объявления (og-теги) |
+| done | boolean | «Сделано»; у ссылок — «выбрано», только тогда цена идёт в итог |
+| created_at | timestamptz | Порядок в этапе |
+

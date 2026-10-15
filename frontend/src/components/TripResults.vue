@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Place, TripsResponse } from '@/api/client'
-import { hours, inMonth, plural, rub } from '@/lib/format'
+import { dateRangeLabel, hours, plural, rub } from '@/lib/format'
 import { highlights } from '@/lib/trip'
 import DriveOptionCard from '@/components/DriveOptionCard.vue'
 import TripOptionCard from '@/components/TripOptionCard.vue'
 
-const props = defineProps<{ result: TripsResponse; travelers: number; month: string }>()
+const props = defineProps<{ result: TripsResponse; travelers: number; dateFrom: string; dateTo: string }>()
 
 // Сначала — самый дешёвый, самый быстрый, из своего города, на машине; ниже — все остальные варианты
 const view = computed(() => highlights(props.result))
@@ -37,13 +37,13 @@ const cityOf = (p: Place) => p.city_name ?? p.name
   <div class="flex flex-col gap-4">
     <header class="flex flex-col gap-1">
       <h2 class="text-2xl font-semibold tracking-tight first-letter:uppercase sm:text-3xl">
-        {{ result.destination.name_to ?? result.destination.name }} {{ inMonth(month) }}
+        {{ result.destination.name_to ?? result.destination.name }}, {{ dateRangeLabel(dateFrom, dateTo) }}
       </h2>
       <p v-if="headline" class="text-muted-foreground sm:text-lg">{{ headline }}</p>
     </header>
 
     <p v-if="!picks.length" class="rounded-3xl bg-muted p-5 text-sm text-muted-foreground">
-      На этот месяц цен нет ни из одного доступного аэропорта. Попробуйте другой месяц или длительность.
+      На эти даты цен нет ни из одного доступного аэропорта. Попробуйте другие даты или длительность.
     </p>
 
     <template v-for="p in picks" :key="p.choice.key">
@@ -55,7 +55,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
         :home="result.home"
         :destination="result.destination"
         :travelers="travelers"
-        :month="month"
+        :date-from="dateFrom"
       />
       <TripOptionCard
         v-else
@@ -65,7 +65,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
         :home="result.home"
         :destination="result.destination"
         :travelers="travelers"
-        :month="month"
+        :date-from="dateFrom"
       />
     </template>
 
@@ -78,7 +78,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
           :home="result.home"
           :destination="result.destination"
           :travelers="travelers"
-          :month="month"
+          :date-from="dateFrom"
         />
         <TripOptionCard
           v-else
@@ -86,7 +86,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
           :home="result.home"
           :destination="result.destination"
           :travelers="travelers"
-          :month="month"
+          :date-from="dateFrom"
         />
       </template>
     </template>
@@ -103,7 +103,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
     </p>
 
     <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-      <p v-if="result.no_data.length && (result.options.length || !result.drive)">Нет цен на этот месяц: {{ result.no_data.map(cityOf).join(', ') }}.</p>
+      <p v-if="result.no_data.length && (result.options.length || !result.drive)">Нет цен на эти даты: {{ result.no_data.map(cityOf).join(', ') }}.</p>
       <p v-if="result.options.some((o) => o.warnings.includes('parking_estimated'))">Цена парковки ориентировочная — 300 ₽ в сутки.</p>
       <p v-if="result.partial" class="text-[#8c4a00]">Часть аэропортов не удалось проверить — результаты могут быть неполными.</p>
       <p>Цены — из недавних поисков на Aviasales и могут измениться. Точная цена — на сайте продавца.</p>

@@ -108,9 +108,11 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Ссылка на поиск жилья — отели Островка или квартиры посуточно на Авито
+         * Ссылка на поиск жилья — отели Островка, жильё на Суточно.ру или квартиры посуточно на Авито
          * @description Для аэропорта берётся его город. Если в Travelpayouts подключена программа Островка (TRAVELPAYOUTS_TRS),
          *     ссылка партнёрская. Город не нашёлся на Островке — ссылка на страницу страны.
+         *     Суточно.ру — поиск с городом, датами и гостями (Россия и ещё 11 стран, иначе 404); партнёрская, как Островок,
+         *     если программа Суточно.ру подключена в том же проекте Travelpayouts.
          *     Авито — раздел «Квартиры посуточно» в городе; для городов не в России — 404.
          */
         get: operations["getHotelsLink"];
@@ -175,7 +177,8 @@ export interface paths {
          * Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
          * @description Для каждого доступного аэропорта вылета — лучший по полной стоимости вариант: билеты на всех
          *     + машина (бензин, парковка на фактические дни поездки, страховка). Сортировка — по полной стоимости.
-         *     Цены — из кэша поисков Aviasales, поэтому ищем по месяцу и длительности, а не по точным датам.
+         *     Цены — из кэша поисков Aviasales: по месяцам, покрывающим диапазон дат, с фильтром по датам и
+         *     длительности на нашей стороне. Начало диапазона — не дальше 3 месяцев вперёд, сам диапазон — до 60 дней.
          */
         get: operations["searchTrips"];
         put?: never;
@@ -196,7 +199,8 @@ export interface paths {
         /**
          * Линия маршрута на машине между двумя точками — для карты
          * @description Геометрия кэшируется. Если маршрутизатор недоступен, возвращается прямая между точками
-         *     с approximate = true.
+         *     с approximate = true. via — места из путевого листа, куда заехать по пути: путь проходит через них
+         *     в указанном порядке, расстояние и время — с заездами; такой путь не кэшируется.
          */
         get: operations["getRoadRoute"];
         put?: never;
@@ -325,7 +329,7 @@ export interface paths {
          * Актуальная цена избранного маршрута
          * @description Повторяет сохранённый поиск с сохранёнными параметрами и ищет тот же вариант (аэропорт и даты
          *     или «на машине»). status: found — тот же вариант; replaced — его нет, показан лучший с теми же
-         *     параметрами; past — месяц поездки прошёл; empty — вариантов нет; unavailable — источник цен недоступен.
+         *     параметрами; past — даты поездки прошли; empty — вариантов нет; unavailable — источник цен недоступен.
          */
         get: operations["getFavoriteCurrent"];
         put?: never;
@@ -334,6 +338,73 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/link-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Превью ссылки для путевого листа — название, картинка, цена за сутки
+         * @description Читает og-теги страницы. Только сайты из белого списка (Суточно.ру, Островок, 101 Отель, Твил, Трипстер,
+         *     Спутник8, Localrent): сервер не ходит по произвольным адресам. Авито закрыт для ботов — 404.
+         *     per_night — цена за сутки, если сайт пишет её в описании (Суточно.ру). Кэш — 12 часов.
+         */
+        get: operations["getLinkPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/favorites/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Путевой лист сохранённой поездки
+         * @description Пункты, которые пользователь добавил к поездке: выбранное жильё, аренда машины, места по пути, дела.
+         *     Каждый привязан к этапу поездки (stage), порядок — по времени добавления.
+         */
+        get: operations["listTripItems"];
+        put?: never;
+        /** Добавить пункт в путевой лист */
+        post: operations["addTripItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/favorites/{id}/items/{item_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Удалить пункт */
+        delete: operations["deleteTripItem"];
+        options?: never;
+        head?: never;
+        /** Отметить выполненным, переименовать, поменять цену */
+        patch: operations["updateTripItem"];
         trace?: never;
     };
 }
@@ -441,7 +512,7 @@ export interface components {
             /** @description Лучший вариант через каждый аэропорт, дешёвые первыми */
             options: components["schemas"]["TripOption"][];
             home_best?: components["schemas"]["TripOption"];
-            /** @description Аэропорты, по которым у источника нет цен на этот месяц */
+            /** @description Аэропорты, по которым у источника нет цен на эти даты */
             no_data: components["schemas"]["Place"][];
             /** @description Часть запросов к источнику цен не удалась */
             partial: boolean;
@@ -513,7 +584,7 @@ export interface components {
          * @default ostrovok
          * @enum {string}
          */
-        HotelsProvider: "ostrovok" | "avito";
+        HotelsProvider: "ostrovok" | "sutochno" | "avito";
         HotelsLink: {
             url: string;
             provider: components["schemas"]["HotelsProvider"];
@@ -654,7 +725,10 @@ export interface components {
             from: string;
             /** Format: uuid */
             to: string;
-            month: string;
+            /** Format: date */
+            date_from: string;
+            /** Format: date */
+            date_to: string;
             min_days?: number;
             max_days?: number;
             travelers?: number;
@@ -724,6 +798,67 @@ export interface components {
             drive?: components["schemas"]["DriveTrip"];
             total?: components["schemas"]["Money"];
             diff?: components["schemas"]["Money"];
+        };
+        LinkPreview: {
+            /** @example Суточно.ру */
+            site: string;
+            title?: string;
+            description?: string;
+            image_url?: string;
+            per_night?: components["schemas"]["Money"];
+        };
+        /**
+         * @description Этап поездки: prep — сборы до выезда, road — дорога туда, flight — вылет, stay — проживание,
+         *     see — что посмотреть на месте, place — услуги на месте (аренда машины, трансфер),
+         *     return — возвращение, home — дорога домой.
+         * @enum {string}
+         */
+        TripItemStage: "prep" | "road" | "flight" | "stay" | "see" | "place" | "return" | "home";
+        /**
+         * @description note — заметка или дело; link — страница на другом сайте (объявление, отель, аренда); place — место, куда заехать
+         * @enum {string}
+         */
+        TripItemKind: "note" | "link" | "place";
+        TripItemCreate: {
+            stage: components["schemas"]["TripItemStage"];
+            kind: components["schemas"]["TripItemKind"];
+            /** @example Заехать на озеро Белё */
+            title: string;
+            /** @example https://sutochno.ru/front/searchapp/detail/123456 */
+            url?: string;
+            price?: components["schemas"]["Money"];
+            /** @description Где это место — чтобы показать на карте и проложить дорогу через него */
+            location?: components["schemas"]["Point"];
+            /** @description Картинка из превью ссылки */
+            image_url?: string;
+            /** @description Описание из превью ссылки */
+            description?: string;
+        };
+        TripItemPatch: {
+            title?: string;
+            done?: boolean;
+            price?: components["schemas"]["Money"];
+            /** @description true — убрать цену */
+            clear_price?: boolean;
+            /** @description Картинка из превью — для ссылок */
+            image_url?: string;
+            description?: string;
+        };
+        TripItem: {
+            /** Format: uuid */
+            id: string;
+            stage: components["schemas"]["TripItemStage"];
+            kind: components["schemas"]["TripItemKind"];
+            title: string;
+            url?: string;
+            price?: components["schemas"]["Money"];
+            location?: components["schemas"]["Point"];
+            image_url?: string;
+            description?: string;
+            /** @description Для ссылок (жильё, аренда) — «выбрано»; цена ссылки идёт в итог, только когда она выбрана */
+            done: boolean;
+            /** Format: date-time */
+            created_at: string;
         };
         Point: {
             /** Format: double */
@@ -903,7 +1038,7 @@ export interface operations {
                 place: string;
                 check_in: string;
                 check_out: string;
-                /** @description Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
+                /** @description Где искать: ostrovok — отели, sutochno — квартиры, дома и гостевые дома (Россия и СНГ, с датами), avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
                 provider?: components["schemas"]["HotelsProvider"];
                 travelers?: components["parameters"]["Travelers"];
             };
@@ -932,7 +1067,7 @@ export interface operations {
                 place: string;
                 check_in: string;
                 check_out: string;
-                /** @description Где искать: ostrovok — отели, avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
+                /** @description Где искать: ostrovok — отели, sutochno — квартиры, дома и гостевые дома (Россия и СНГ, с датами), avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
                 provider?: components["schemas"]["HotelsProvider"];
                 travelers?: components["parameters"]["Travelers"];
             };
@@ -942,7 +1077,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Перенаправление на Островок или Авито */
+            /** @description Перенаправление на Островок, Суточно.ру или Авито */
             302: {
                 headers: {
                     Location?: string;
@@ -999,8 +1134,10 @@ export interface operations {
                 from: string;
                 /** @description Город или аэропорт назначения */
                 to: string;
-                /** @description Месяц вылета */
-                month: string;
+                /** @description Вылет не раньше этой даты — не дальше 3 месяцев от сегодня */
+                date_from: string;
+                /** @description Возврат не позже этой даты (не только вылет) — не дальше 60 дней от date_from */
+                date_to: string;
                 min_days?: number;
                 max_days?: number;
                 travelers?: components["parameters"]["Travelers"];
@@ -1042,6 +1179,8 @@ export interface operations {
             query: {
                 from: string;
                 to: string;
+                /** @description Промежуточные точки «широта,долгота», по порядку; параметр повторяется */
+                via?: string[];
             };
             header?: never;
             path?: never;
@@ -1246,6 +1385,134 @@ export interface operations {
                 };
             };
             404: components["responses"]["Problem"];
+        };
+    };
+    getLinkPreview: {
+        parameters: {
+            query: {
+                url: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Превью */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkPreview"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    listTripItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Пункты путевого листа */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["TripItem"][];
+                    };
+                };
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    addTripItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripItemCreate"];
+            };
+        };
+        responses: {
+            /** @description Добавлено */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripItem"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+        };
+    };
+    deleteTripItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Удалено */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    updateTripItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                item_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TripItemPatch"];
+            };
+        };
+        responses: {
+            /** @description Изменённый пункт */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TripItem"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
 }

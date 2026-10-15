@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CarIcon, ChevronDownIcon, InfoIcon } from '@lucide/vue'
-import type { DriveTrip, Place, TripSearchParams } from '@/api/client'
+import type { DriveTrip, Favorite, Place, TripSearchParams } from '@/api/client'
 import { hours, km, rub } from '@/lib/format'
 import type { Highlight } from '@/lib/trip'
 import TripPlan from '@/components/TripPlan.vue'
@@ -12,10 +12,11 @@ defineProps<{
   home: Place
   destination: Place
   travelers: number
-  month: string
+  dateFrom: string
   tags?: Highlight[]
   tradeoff?: { slowerHours?: number; pricierKop?: number }
   searchParams?: TripSearchParams // для избранного: параметры поиска, в котором найден вариант
+  favorite?: Favorite // открыто из избранного: путевой лист этой записи
 }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -84,14 +85,13 @@ const tagLabels: Record<Highlight, string> = {
           :snapshot="driveSnapshot(drive)"
           :home="home"
           :destination="destination"
-          :month="month"
           :params="searchParams"
         />
       </div>
     </div>
 
     <div v-if="open" class="border-t bg-[#f8fafd] p-4 sm:p-5">
-      <TripPlan :home="home" :drive="drive" :destination="destination" :travelers="travelers" :month="month" />
+      <TripPlan :home="home" :drive="drive" :destination="destination" :travelers="travelers" :date-from="dateFrom" :search-params="searchParams" :favorite="favorite" />
     </div>
   </article>
 </template>

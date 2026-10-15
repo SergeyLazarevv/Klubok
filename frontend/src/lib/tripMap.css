@@ -16,6 +16,24 @@
   stroke: var(--flight);
   fill: var(--card);
 }
+/* Места из путевого листа */
+.trip-map-stop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--card);
+  border-radius: 999px;
+  box-shadow: 0 1px 3px rgb(20 32 46 / 35%);
+}
+.trip-map-stop-road {
+  background: var(--road);
+}
+.trip-map-stop-see {
+  color: #fff;
+  font-size: 11px;
+  line-height: 1;
+  background: var(--primary);
+}
 .trip-map-label {
   padding: 1px 8px;
   font: inherit;

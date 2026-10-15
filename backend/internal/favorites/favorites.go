@@ -45,6 +45,16 @@ func (s *Service) Add(ctx context.Context, sessionID uuid.UUID, f Favorite) (Fav
 	if err != nil {
 		return Favorite{}, false, err
 	}
+	// Этот вариант удаляли — возвращаем ту же запись вместе с путевым листом («Отменить», повторная ☆)
+	old, err := s.q.RestoreFavorite(ctx, store.RestoreFavoriteParams{
+		Title: f.Title, Snapshot: f.Snapshot, SessionID: sessionID, Fingerprint: fp,
+	})
+	if err == nil {
+		return Favorite{old.ID, old.Title, old.Params, old.Pick, old.Snapshot, old.CreatedAt.Time}, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return Favorite{}, false, fmt.Errorf("restore favorite: %w", err)
+	}
 	r, err := s.q.InsertFavorite(ctx, store.InsertFavoriteParams{
 		ID: uuid.Must(uuid.NewV7()), SessionID: sessionID, Kind: "trip", Title: f.Title,
 		Params: f.Params, Pick: f.Pick, Snapshot: f.Snapshot, Fingerprint: fp,
@@ -95,7 +105,8 @@ func (s *Service) Delete(ctx context.Context, sessionID, id uuid.UUID) error {
 type fingerprintParams struct {
 	From      string `json:"from"`
 	To        string `json:"to"`
-	Month     string `json:"month"`
+	DateFrom  string `json:"date_from"`
+	DateTo    string `json:"date_to"`
 	MinDays   *int   `json:"min_days"`
 	MaxDays   *int   `json:"max_days"`
 	Travelers *int   `json:"travelers"`
@@ -109,7 +120,7 @@ type fingerprintPick struct {
 	ReturnDate string `json:"return_date"`
 }
 
-// Key — ключ варианта: «откуда|куда|месяц|дни от|до|люди|машина|вид|аэропорт|туда|обратно».
+// Key — ключ варианта: «откуда|куда|дата от|дата до|дни от|до|люди|машина|вид|аэропорт|туда|обратно».
 func Key(params, pick json.RawMessage) (string, error) {
 	var p fingerprintParams
 	var k fingerprintPick
@@ -120,7 +131,7 @@ func Key(params, pick json.RawMessage) (string, error) {
 		return "", fmt.Errorf("pick: %w", err)
 	}
 	return strings.Join([]string{
-		p.From, p.To, p.Month, itoa(p.MinDays, 3), itoa(p.MaxDays, 14), itoa(p.Travelers, 1), btoa(p.UseCar),
+		p.From, p.To, p.DateFrom, p.DateTo, itoa(p.MinDays, 3), itoa(p.MaxDays, 14), itoa(p.Travelers, 1), btoa(p.UseCar),
 		k.Kind, k.HubIATA, k.DepartDate, k.ReturnDate,
 	}, "|"), nil
 }

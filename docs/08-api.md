@@ -53,7 +53,7 @@ REST, JSON, префикс `/api/v1`. Контракт — `api/openapi.yaml` (s
 
 ## 8.5. Поиск — MVP
 
-**Реализовано:** `GET /trips?from&to&month=YYYY-MM&min_days&max_days&travelers&use_car&<параметры машины>` (с машиной в ответе ещё `drive` — поездка целиком на машине, `drive_skipped`, `hidden_flights`, см. 6.1a) — без сохранения поиска; ссылку на результат даёт URL фронтенда (`/?from&to&month&min&max`). Ответ: лучший вариант через каждый аэропорт (билеты на всех + машина, аэропорт прилёта `arrival`), `home_best`, `savings_vs_home`, `no_data`, `partial`, предупреждения. Контракт — `api/openapi.yaml`.
+**Реализовано:** `GET /trips?from&to&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&min_days&max_days&travelers&use_car&<параметры машины>` (начало диапазона — не дальше 3 месяцев вперёд, диапазон — до 60 дней, вылет и возврат внутри него; с машиной в ответе ещё `drive` — поездка целиком на машине, `drive_skipped`, `hidden_flights`, см. 6.1a) — без сохранения поиска; ссылку на результат даёт URL фронтенда (`/?from&to&date_from&date_to&min&max`). Ответ: лучший вариант через каждый аэропорт (билеты на всех + машина, аэропорт прилёта `arrival`), `home_best`, `savings_vs_home`, `no_data`, `partial`, предупреждения. Контракт — `api/openapi.yaml`.
 
 **Реализовано:** `GET /routes/road?from&to` — дорога между двумя точками справочника для мини-карты: `road` (км, минуты, `approximate`) и `polyline` (Encoded Polyline, точность 6).
 
@@ -109,6 +109,20 @@ REST, JSON, префикс `/api/v1`. Контракт — `api/openapi.yaml` (s
 |---|---|---|
 | GET | `/searches/{id}` | Повторно открыть результат (хранится 24 ч) |
 | GET | `/me/searches` | История поисков пользователя |
+
+## 8.5a. Избранное и путевой лист — MVP
+
+Владелец — анонимная сессия (cookie `klubok_sid`), см. [ADR-0018](adr/0018-favorites.md) и [ADR-0019](adr/0019-trip-sheet.md).
+
+| Метод | Путь | Описание |
+|---|---|---|
+| GET, POST | `/favorites` | Список и сохранение поездки (тот же вариант — та же запись; удалённая возвращается вместе с путевым листом) |
+| DELETE | `/favorites/{id}` | Убрать из избранного (мягко) |
+| GET | `/favorites/{id}/current` | Актуальная цена сохранённого варианта |
+| GET, POST | `/favorites/{id}/items` | Путевой лист: пункты по этапам поездки, добавление пункта |
+| GET | `/routes/road?from&to&via=lat,lon…` | Дорога для карты; `via` — места из путевого листа, через которые её проложить (до 10) |
+| GET | `/link-preview?url=` | Превью ссылки: название, картинка, цена за сутки — только сайты из белого списка |
+| PATCH, DELETE | `/favorites/{id}/items/{item_id}` | Отметить сделанным, переименовать, поменять цену (`clear_price` — убрать); удалить |
 
 ## 8.6. v2+
 

@@ -40,8 +40,8 @@ type Route struct {
 type Router interface {
 	// Table — расстояния от одной точки до многих, без линий.
 	Table(ctx context.Context, from Point, to []Point) ([]*Leg, error)
-	// Route — путь между двумя точками с линией.
-	Route(ctx context.Context, from, to Point) (*Route, error)
+	// Route — путь между двумя точками с линией; via — промежуточные точки по порядку («заехать по пути»).
+	Route(ctx context.Context, from, to Point, via ...Point) (*Route, error)
 }
 
 const (
@@ -119,7 +119,11 @@ func (s *Service) Legs(ctx context.Context, from Point, to []Point) (map[uuid.UU
 
 // Route возвращает путь с линией для карты. Сначала смотрим кэш; если маршрутизатор недоступен
 // или проезда нет — прямая между точками с оценкой по прямой.
-func (s *Service) Route(ctx context.Context, from, to Point) (Route, error) {
+// via — места, куда пользователь хочет заехать по пути: такой путь у каждого свой, в кэш его не пишем.
+func (s *Service) Route(ctx context.Context, from, to Point, via ...Point) (Route, error) {
+	if len(via) > 0 {
+		return s.routeVia(ctx, from, to, via)
+	}
 	cached, err := s.q.GetRoadRoute(ctx, store.GetRoadRouteParams{FromID: from.ID, ToID: to.ID})
 	if err == nil {
 		return Route{
@@ -147,6 +151,26 @@ func (s *Service) Route(ctx context.Context, from, to Point) (Route, error) {
 		return Route{}, fmt.Errorf("cache road route: %w", err)
 	}
 	return *route, nil
+}
+
+func (s *Service) routeVia(ctx context.Context, from, to Point, via []Point) (Route, error) {
+	route, err := s.router.Route(ctx, from, to, via...)
+	if err == nil && route != nil {
+		return *route, nil
+	}
+	if err != nil {
+		s.log.WarnContext(ctx, "router failed, using straight lines via stops", slog.Any("err", err))
+	}
+	// Ломаная через все точки, оценка — сумма участков
+	points := append(append([]Point{from}, via...), to)
+	var leg Leg
+	for i := 1; i < len(points); i++ {
+		e := Estimate(points[i-1], points[i])
+		leg.DistanceM += e.DistanceM
+		leg.DurationS += e.DurationS
+	}
+	leg.Approximate = true
+	return Route{Leg: leg, Polyline: EncodePolyline(points)}, nil
 }
 
 // Estimate — грубая оценка пути, когда маршрутизатор недоступен. В кэш не пишется.

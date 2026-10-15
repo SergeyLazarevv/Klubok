@@ -2,7 +2,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import './tripMap.css'
 import { api, type DriveTrip, type Place, type RoadRoute, type TripOption } from '@/api/client'
-import { decodePolyline, greatCircleArc, type LatLon } from '@/lib/geo'
+import { decodePolyline, greatCircleArc, greatCircleKm, type LatLon } from '@/lib/geo'
 
 /**
  * Что рисуем: с перелётом (option) — дорога от дома до аэропорта вылета и перелёт до аэропорта прилёта;
@@ -13,6 +13,15 @@ export interface Trip {
   destination: Place
   option?: TripOption
   drive?: DriveTrip
+  stops?: Stop[] // места из путевого листа
+}
+
+/** Место из путевого листа: по пути (road) — дорога идёт через него; в городе (see) — просто отметка «хочу побывать». */
+export interface Stop {
+  id: string
+  title: string
+  at: LatLon
+  onRoad: boolean
 }
 
 export const at = (p: Place): LatLon => [p.location.lat, p.location.lon]
@@ -26,11 +35,13 @@ export const byCar = (t: Trip) => (t.option ? !!t.option.car && t.home.id !== t.
 // Линии дорог одинаковы для всех поисков — храним, пока открыта страница
 const roadCache = new Map<string, Promise<RoadRoute | undefined>>()
 
-function fetchRoad(from: string, to: string) {
-  const key = `${from}:${to}`
+function fetchRoad(from: string, to: string, via: LatLon[]) {
+  const viaParam = via.map(([lat, lon]) => `${lat.toFixed(5)},${lon.toFixed(5)}`)
+  const key = [from, to, ...viaParam].join(':')
   let route = roadCache.get(key)
   if (!route) {
-    route = api.GET('/routes/road', { params: { query: { from, to } } }).then(({ data }) => data)
+    const query = { from, to, ...(viaParam.length ? { via: viaParam } : {}) }
+    route = api.GET('/routes/road', { params: { query } }).then(({ data }) => data)
     roadCache.set(key, route)
     route.then((r) => r || roadCache.delete(key)) // ошибку не кэшируем
   }
@@ -80,16 +91,47 @@ export function drawTrip(map: L.Map, t: Trip) {
 }
 
 /**
- * Загружает дорогу и рисует её под точками. Если сервер не ответил — прямая с пометкой approximate.
- * undefined — до аэропорта не на машине.
+ * Места по пути — в порядке удаления от дома: для дороги между городами этого достаточно,
+ * чтобы не петлять туда-обратно.
+ */
+export function roadStops(t: Trip): LatLon[] {
+  const home = at(t.home)
+  return (t.stops ?? [])
+    .filter((s) => s.onRoad)
+    .map((s) => s.at)
+    .sort((a, b) => greatCircleKm(home, a) - greatCircleKm(home, b))
+    .slice(0, 10)
+}
+
+/**
+ * Загружает дорогу (через места по пути) и рисует её под точками. Если сервер не ответил — ломаная
+ * с пометкой approximate. undefined — до аэропорта не на машине.
  */
 export async function drawRoad(map: L.Map, t: Trip) {
   if (!byCar(t)) return undefined
   const end = roadEnd(t)
-  const fetched = await fetchRoad(t.home.id, end.id)
+  const via = roadStops(t)
+  const fetched = await fetchRoad(t.home.id, end.id, via)
   const known = t.option?.car?.road ?? t.drive?.road ?? { distance_km: 0, duration_min: 0, approximate: true }
   const route: RoadRoute = fetched ?? { road: { ...known, approximate: true }, polyline: '' }
-  const line = fetched?.polyline ? decodePolyline(fetched.polyline) : [at(t.home), at(end)]
-  roadLine(line, route.road.approximate).addTo(map).bringToBack() // точки и подписи — поверх дороги
-  return { route, line }
+  const line = fetched?.polyline ? decodePolyline(fetched.polyline) : [at(t.home), ...via, at(end)]
+  const layer = roadLine(line, route.road.approximate).addTo(map).bringToBack() // точки и подписи — поверх дороги
+  return { route, line, layer }
+}
+
+/** Отметки мест из путевого листа: по пути — цвета дороги, в городе — флажок «хочу побывать». */
+export function drawStops(map: L.Map, stops: Stop[]) {
+  const layers = stops.map((s) =>
+    L.marker(s.at, {
+      icon: L.divIcon({
+        className: `trip-map-stop ${s.onRoad ? 'trip-map-stop-road' : 'trip-map-stop-see'}`,
+        html: s.onRoad ? '' : '<span>★</span>',
+        iconSize: s.onRoad ? [16, 16] : [20, 20],
+      }),
+      title: s.title,
+      keyboard: false,
+      zIndexOffset: 1000, // выбранное пользователем — поверх заправок и кафе
+    }).bindTooltip(s.title, { direction: 'top', offset: [0, -10], className: 'trip-map-label' }),
+  )
+  return L.featureGroup(layers).addTo(map)
 }

@@ -31,6 +31,27 @@ func (q *Queries) DeleteFavorite(ctx context.Context, arg DeleteFavoriteParams) 
 	return result.RowsAffected(), nil
 }
 
+const deleteTripItem = `-- name: DeleteTripItem :execrows
+DELETE FROM trip_items i
+USING favorites f
+WHERE i.id = $1 AND i.favorite_id = $2
+  AND f.id = i.favorite_id AND f.session_id = $3 AND f.deleted_at IS NULL
+`
+
+type DeleteTripItemParams struct {
+	ID         uuid.UUID
+	FavoriteID uuid.UUID
+	SessionID  uuid.UUID
+}
+
+func (q *Queries) DeleteTripItem(ctx context.Context, arg DeleteTripItemParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTripItem, arg.ID, arg.FavoriteID, arg.SessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getFavorite = `-- name: GetFavorite :one
 SELECT id, title, params, pick, snapshot, created_at
 FROM favorites
@@ -127,6 +148,78 @@ func (q *Queries) InsertFavorite(ctx context.Context, arg InsertFavoriteParams) 
 	return i, err
 }
 
+const insertTripItem = `-- name: InsertTripItem :one
+INSERT INTO trip_items (id, favorite_id, stage, kind, title, url, price, lat, lon, image_url, description)
+SELECT $1, f.id, $2, $3, $4, $5, $6, $7, $8,
+       $9, $10
+FROM favorites f
+WHERE f.id = $11 AND f.session_id = $12 AND f.deleted_at IS NULL
+RETURNING id, stage, kind, title, url, price, done, created_at, lat, lon, image_url, description
+`
+
+type InsertTripItemParams struct {
+	ID          uuid.UUID
+	Stage       string
+	Kind        string
+	Title       string
+	Url         pgtype.Text
+	Price       pgtype.Int8
+	Lat         pgtype.Float8
+	Lon         pgtype.Float8
+	ImageUrl    pgtype.Text
+	Description pgtype.Text
+	FavoriteID  uuid.UUID
+	SessionID   uuid.UUID
+}
+
+type InsertTripItemRow struct {
+	ID          uuid.UUID
+	Stage       string
+	Kind        string
+	Title       string
+	Url         pgtype.Text
+	Price       pgtype.Int8
+	Done        bool
+	CreatedAt   pgtype.Timestamptz
+	Lat         pgtype.Float8
+	Lon         pgtype.Float8
+	ImageUrl    pgtype.Text
+	Description pgtype.Text
+}
+
+func (q *Queries) InsertTripItem(ctx context.Context, arg InsertTripItemParams) (InsertTripItemRow, error) {
+	row := q.db.QueryRow(ctx, insertTripItem,
+		arg.ID,
+		arg.Stage,
+		arg.Kind,
+		arg.Title,
+		arg.Url,
+		arg.Price,
+		arg.Lat,
+		arg.Lon,
+		arg.ImageUrl,
+		arg.Description,
+		arg.FavoriteID,
+		arg.SessionID,
+	)
+	var i InsertTripItemRow
+	err := row.Scan(
+		&i.ID,
+		&i.Stage,
+		&i.Kind,
+		&i.Title,
+		&i.Url,
+		&i.Price,
+		&i.Done,
+		&i.CreatedAt,
+		&i.Lat,
+		&i.Lon,
+		&i.ImageUrl,
+		&i.Description,
+	)
+	return i, err
+}
+
 const listFavorites = `-- name: ListFavorites :many
 SELECT id, title, params, pick, snapshot, created_at
 FROM favorites
@@ -168,4 +261,187 @@ func (q *Queries) ListFavorites(ctx context.Context, sessionID uuid.UUID) ([]Lis
 		return nil, err
 	}
 	return items, nil
+}
+
+const listTripItems = `-- name: ListTripItems :many
+
+SELECT i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description
+FROM trip_items i
+JOIN favorites f ON f.id = i.favorite_id
+WHERE i.favorite_id = $1 AND f.session_id = $2 AND f.deleted_at IS NULL
+ORDER BY i.created_at
+`
+
+type ListTripItemsParams struct {
+	FavoriteID uuid.UUID
+	SessionID  uuid.UUID
+}
+
+type ListTripItemsRow struct {
+	ID          uuid.UUID
+	Stage       string
+	Kind        string
+	Title       string
+	Url         pgtype.Text
+	Price       pgtype.Int8
+	Done        bool
+	CreatedAt   pgtype.Timestamptz
+	Lat         pgtype.Float8
+	Lon         pgtype.Float8
+	ImageUrl    pgtype.Text
+	Description pgtype.Text
+}
+
+// Путевой лист. Владелец пункта — владелец сохранённой поездки, поэтому везде проверяем сессию через favorites.
+func (q *Queries) ListTripItems(ctx context.Context, arg ListTripItemsParams) ([]ListTripItemsRow, error) {
+	rows, err := q.db.Query(ctx, listTripItems, arg.FavoriteID, arg.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTripItemsRow{}
+	for rows.Next() {
+		var i ListTripItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Stage,
+			&i.Kind,
+			&i.Title,
+			&i.Url,
+			&i.Price,
+			&i.Done,
+			&i.CreatedAt,
+			&i.Lat,
+			&i.Lon,
+			&i.ImageUrl,
+			&i.Description,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const restoreFavorite = `-- name: RestoreFavorite :one
+UPDATE favorites SET deleted_at = NULL, title = $1, snapshot = $2, created_at = now()
+WHERE id = (
+    SELECT f.id FROM favorites f
+    WHERE f.session_id = $3 AND f.fingerprint = $4 AND f.deleted_at IS NOT NULL
+    ORDER BY f.deleted_at DESC LIMIT 1
+)
+AND NOT EXISTS (
+    SELECT 1 FROM favorites a WHERE a.session_id = $3 AND a.fingerprint = $4 AND a.deleted_at IS NULL
+)
+RETURNING id, title, params, pick, snapshot, created_at
+`
+
+type RestoreFavoriteParams struct {
+	Title       string
+	Snapshot    json.RawMessage
+	SessionID   uuid.UUID
+	Fingerprint string
+}
+
+type RestoreFavoriteRow struct {
+	ID        uuid.UUID
+	Title     string
+	Params    json.RawMessage
+	Pick      json.RawMessage
+	Snapshot  json.RawMessage
+	CreatedAt pgtype.Timestamptz
+}
+
+// Вариант удаляли, а теперь сохраняют снова — возвращаем ту же запись, чтобы не потерять путевой лист.
+func (q *Queries) RestoreFavorite(ctx context.Context, arg RestoreFavoriteParams) (RestoreFavoriteRow, error) {
+	row := q.db.QueryRow(ctx, restoreFavorite,
+		arg.Title,
+		arg.Snapshot,
+		arg.SessionID,
+		arg.Fingerprint,
+	)
+	var i RestoreFavoriteRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Params,
+		&i.Pick,
+		&i.Snapshot,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateTripItem = `-- name: UpdateTripItem :one
+UPDATE trip_items i SET
+    title = COALESCE($1, i.title),
+    done  = COALESCE($2, i.done),
+    image_url   = COALESCE($3, i.image_url),
+    description = COALESCE($4, i.description),
+    price = CASE WHEN $5::boolean THEN NULL ELSE COALESCE($6, i.price) END
+FROM favorites f
+WHERE i.id = $7 AND i.favorite_id = $8
+  AND f.id = i.favorite_id AND f.session_id = $9 AND f.deleted_at IS NULL
+RETURNING i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description
+`
+
+type UpdateTripItemParams struct {
+	Title       pgtype.Text
+	Done        pgtype.Bool
+	ImageUrl    pgtype.Text
+	Description pgtype.Text
+	ClearPrice  bool
+	Price       pgtype.Int8
+	ID          uuid.UUID
+	FavoriteID  uuid.UUID
+	SessionID   uuid.UUID
+}
+
+type UpdateTripItemRow struct {
+	ID          uuid.UUID
+	Stage       string
+	Kind        string
+	Title       string
+	Url         pgtype.Text
+	Price       pgtype.Int8
+	Done        bool
+	CreatedAt   pgtype.Timestamptz
+	Lat         pgtype.Float8
+	Lon         pgtype.Float8
+	ImageUrl    pgtype.Text
+	Description pgtype.Text
+}
+
+// Пустое поле — не менять; цену можно сбросить флагом clear_price.
+func (q *Queries) UpdateTripItem(ctx context.Context, arg UpdateTripItemParams) (UpdateTripItemRow, error) {
+	row := q.db.QueryRow(ctx, updateTripItem,
+		arg.Title,
+		arg.Done,
+		arg.ImageUrl,
+		arg.Description,
+		arg.ClearPrice,
+		arg.Price,
+		arg.ID,
+		arg.FavoriteID,
+		arg.SessionID,
+	)
+	var i UpdateTripItemRow
+	err := row.Scan(
+		&i.ID,
+		&i.Stage,
+		&i.Kind,
+		&i.Title,
+		&i.Url,
+		&i.Price,
+		&i.Done,
+		&i.CreatedAt,
+		&i.Lat,
+		&i.Lon,
+		&i.ImageUrl,
+		&i.Description,
+	)
+	return i, err
 }

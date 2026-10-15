@@ -11,6 +11,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/linkpreview"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 )
@@ -24,6 +25,7 @@ type handlers struct {
 	transfers *transfer.Service
 	geocoder  *transfer.Photon
 	favorites *favorites.Service
+	previews  *linkpreview.Fetcher
 	log       *slog.Logger
 }
 
