@@ -47,6 +47,7 @@ const searchLink = (f: Favorite) => ({
     date_to: f.params.date_to,
     min: f.params.min_days,
     max: f.params.max_days,
+    weekends: f.params.weekends ? '1' : undefined,
   },
 })
 const statusText: Record<string, string> = {

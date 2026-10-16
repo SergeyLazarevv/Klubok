@@ -254,6 +254,36 @@ func (e PoiCategory) Valid() bool {
 	}
 }
 
+// Defines values for StayPriceCategory.
+const (
+	Hotel3 StayPriceCategory = "hotel3"
+)
+
+// Valid indicates whether the value is a known member of the StayPriceCategory enum.
+func (e StayPriceCategory) Valid() bool {
+	switch e {
+	case Hotel3:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for StayPriceSource.
+const (
+	Rosstat StayPriceSource = "rosstat"
+)
+
+// Valid indicates whether the value is a known member of the StayPriceSource enum.
+func (e StayPriceSource) Valid() bool {
+	switch e {
+	case Rosstat:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TransferOptionMode.
 const (
 	PublicTransport TransferOptionMode = "public_transport"
@@ -377,6 +407,24 @@ func (e TripsResponseDriveSkipped) Valid() bool {
 	}
 }
 
+// Defines values for WeatherDaySource.
+const (
+	Climate  WeatherDaySource = "climate"
+	Forecast WeatherDaySource = "forecast"
+)
+
+// Valid indicates whether the value is a known member of the WeatherDaySource enum.
+func (e WeatherDaySource) Valid() bool {
+	switch e {
+	case Climate:
+		return true
+	case Forecast:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetPoiParamsType.
 const (
 	Node     GetPoiParamsType = "node"
@@ -415,6 +463,17 @@ type Address struct {
 
 // BorderInfo defines model for BorderInfo.
 type BorderInfo struct {
+	CrossingHours float64 `json:"crossing_hours"`
+
+	// Insurance Сумма в минимальных единицах валюты (копейках)
+	Insurance Money  `json:"insurance"`
+	Note      string `json:"note"`
+}
+
+// BorderRule defines model for BorderRule.
+type BorderRule struct {
+	// CountryCode Example: KZ
+	CountryCode   string  `json:"country_code"`
 	CrossingHours float64 `json:"crossing_hours"`
 
 	// Insurance Сумма в минимальных единицах валюты (копейках)
@@ -499,6 +558,35 @@ type DriveTrip struct {
 
 // DriveTripWarnings defines model for DriveTrip.Warnings.
 type DriveTripWarnings string
+
+// ExploreItem defines model for ExploreItem.
+type ExploreItem struct {
+	Best TripOption `json:"best"`
+	City Place      `json:"city"`
+
+	// Drive Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
+	// не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+	Drive    *DriveTrip  `json:"drive,omitempty"`
+	HomeBest *TripOption `json:"home_best,omitempty"`
+}
+
+// ExploreResponse defines model for ExploreResponse.
+type ExploreResponse struct {
+	// BorderRules Правила въезда на машине в другие страны (если use_car и allow_border) — для поездок на машине в соседние страны
+	BorderRules *[]BorderRule `json:"border_rules,omitempty"`
+
+	// DriveBetter Сколько городов убрано: перелёты туда есть, но на машине дешевле и не намного дольше
+	// (перелёт предлагается, только если он дешевле машины или от двери до места минимум на четверть быстрее)
+	DriveBetter int `json:"drive_better"`
+
+	// FuelPrice Сумма в минимальных единицах валюты (копейках)
+	FuelPrice *Money        `json:"fuel_price,omitempty"`
+	Home      Place         `json:"home"`
+	Items     []ExploreItem `json:"items"`
+
+	// Partial Часть запросов к источнику цен не удалась
+	Partial bool `json:"partial"`
+}
 
 // Favorite defines model for Favorite.
 type Favorite struct {
@@ -804,6 +892,38 @@ type RoadRoute struct {
 	Road     RoadLeg `json:"road"`
 }
 
+// StayPrice defines model for StayPrice.
+type StayPrice struct {
+	// Basis Чья это цена — город наблюдения Росстата («Сызрань») или «Россия» (средняя)
+	//
+	// Example: Самара
+	Basis string `json:"basis"`
+
+	// Category hotel3 — гостиница 3*
+	Category StayPriceCategory `json:"category"`
+
+	// CityId Example: Q1781
+	CityId string `json:"city_id"`
+
+	// PerNight Сумма в минимальных единицах валюты (копейках)
+	PerNight Money `json:"per_night"`
+
+	// Period Месяц наблюдения (1-е число)
+	Period openapi_types.Date `json:"period"`
+	Source StayPriceSource    `json:"source"`
+}
+
+// StayPriceCategory hotel3 — гостиница 3*
+type StayPriceCategory string
+
+// StayPriceSource defines model for StayPrice.Source.
+type StayPriceSource string
+
+// StayPricesResponse defines model for StayPricesResponse.
+type StayPricesResponse struct {
+	Items []StayPrice `json:"items"`
+}
+
 // TransferOption defines model for TransferOption.
 type TransferOption struct {
 	// Approximate Время или расстояние посчитаны приблизительно
@@ -976,6 +1096,9 @@ type TripSearchParams struct {
 	To              openapi_types.UUID `json:"to"`
 	Travelers       *int               `json:"travelers,omitempty"`
 	UseCar          *bool              `json:"use_car,omitempty"`
+
+	// Weekends Только вылет чт–сб и возвращение вс–пн
+	Weekends *bool `json:"weekends,omitempty"`
 }
 
 // TripsResponse defines model for TripsResponse.
@@ -1009,6 +1132,44 @@ type TripsResponse struct {
 
 // TripsResponseDriveSkipped Почему нет варианта на машине (если use_car)
 type TripsResponseDriveSkipped string
+
+// WeatherDay defines model for WeatherDay.
+type WeatherDay struct {
+	// Code Код погоды WMO: 0 ясно, 1–3 облачно, 45/48 туман, 51–67 и 80–82 дождь, 71–77 и 85–86 снег, 95–99 гроза
+	Code int                `json:"code"`
+	Date openapi_types.Date `json:"date"`
+
+	// PrecipMm Осадки за сутки
+	PrecipMm float64 `json:"precip_mm"`
+
+	// PrecipProbability Вероятность осадков, % (только forecast)
+	PrecipProbability *int `json:"precip_probability,omitempty"`
+
+	// Source forecast — прогноз; climate — обычно в эти дни (средние за 5 лет)
+	Source WeatherDaySource `json:"source"`
+
+	// TMax Максимум днём
+	TMax float64 `json:"t_max"`
+
+	// TMin Минимум ночью
+	TMin float64 `json:"t_min"`
+
+	// WetShare Доля дней с осадками от 1 мм в эти даты, 0–1 (только climate)
+	WetShare *float64 `json:"wet_share,omitempty"`
+}
+
+// WeatherDaySource forecast — прогноз; climate — обычно в эти дни (средние за 5 лет)
+type WeatherDaySource string
+
+// WeatherResponse defines model for WeatherResponse.
+type WeatherResponse struct {
+	// Attribution Example: Open-Meteo.com
+	Attribution string       `json:"attribution"`
+	Days        []WeatherDay `json:"days"`
+
+	// Stale Источник недоступен — данные из кэша старше срока
+	Stale bool `json:"stale"`
+}
 
 // AllowBorder defines model for AllowBorder.
 type AllowBorder = bool
@@ -1046,6 +1207,37 @@ type ListCarHubsParams struct {
 	// Days Длительность поездки в сутках — для парковки
 	Days      *int       `form:"days,omitempty" json:"days,omitempty"`
 	Travelers *Travelers `form:"travelers,omitempty" json:"travelers,omitempty"`
+
+	// ConsumptionL100 Расход топлива, л/100 км
+	ConsumptionL100 *ConsumptionL100 `form:"consumption_l100,omitempty" json:"consumption_l100,omitempty"`
+	FuelType        *FuelTypeParam   `form:"fuel_type,omitempty" json:"fuel_type,omitempty"`
+
+	// FuelPriceRub Своя цена топлива за литр; если не задана — из справочника
+	FuelPriceRub *FuelPriceRub `form:"fuel_price_rub,omitempty" json:"fuel_price_rub,omitempty"`
+
+	// AllowBorder Учитывать аэропорты в другой стране
+	AllowBorder *AllowBorder `form:"allow_border,omitempty" json:"allow_border,omitempty"`
+}
+
+// ExploreDestinationsParams defines parameters for ExploreDestinations.
+type ExploreDestinationsParams struct {
+	// From Домашний город
+	From      openapi_types.UUID `form:"from" json:"from"`
+	DateFrom  openapi_types.Date `form:"date_from" json:"date_from"`
+	DateTo    openapi_types.Date `form:"date_to" json:"date_to"`
+	MinDays   *int               `form:"min_days,omitempty" json:"min_days,omitempty"`
+	MaxDays   *int               `form:"max_days,omitempty" json:"max_days,omitempty"`
+	Travelers *Travelers         `form:"travelers,omitempty" json:"travelers,omitempty"`
+
+	// Weekends Только поездки на выходные — вылет в чт–сб, возвращение в вс–пн (по местному времени)
+	Weekends *bool `form:"weekends,omitempty" json:"weekends,omitempty"`
+
+	// UseCar Есть машина — вылеты и из соседних аэропортов
+	UseCar   *bool     `form:"use_car,omitempty" json:"use_car,omitempty"`
+	RadiusKm *RadiusKm `form:"radius_km,omitempty" json:"radius_km,omitempty"`
+
+	// MaxDriveHours Максимум часов за рулём в одну сторону; 0 — без ограничения
+	MaxDriveHours *MaxDriveHours `form:"max_drive_hours,omitempty" json:"max_drive_hours,omitempty"`
 
 	// ConsumptionL100 Расход топлива, л/100 км
 	ConsumptionL100 *ConsumptionL100 `form:"consumption_l100,omitempty" json:"consumption_l100,omitempty"`
@@ -1104,6 +1296,14 @@ type SearchPlacesParams struct {
 // GetPoiParamsType defines parameters for GetPoi.
 type GetPoiParamsType string
 
+// GetDriveRouteParams defines parameters for GetDriveRoute.
+type GetDriveRouteParams struct {
+	FromLat float64 `form:"from_lat" json:"from_lat"`
+	FromLon float64 `form:"from_lon" json:"from_lon"`
+	ToLat   float64 `form:"to_lat" json:"to_lat"`
+	ToLon   float64 `form:"to_lon" json:"to_lon"`
+}
+
 // GetRoadRouteParams defines parameters for GetRoadRoute.
 type GetRoadRouteParams struct {
 	From openapi_types.UUID `form:"from" json:"from"`
@@ -1148,6 +1348,9 @@ type SearchTripsParams struct {
 	MaxDays   *int               `form:"max_days,omitempty" json:"max_days,omitempty"`
 	Travelers *Travelers         `form:"travelers,omitempty" json:"travelers,omitempty"`
 
+	// Weekends Только поездки на выходные — вылет в чт–сб, возвращение в вс–пн (по местному времени)
+	Weekends *bool `form:"weekends,omitempty" json:"weekends,omitempty"`
+
 	// UseCar Есть машина — искать и в соседних аэропортах
 	UseCar   *bool     `form:"use_car,omitempty" json:"use_car,omitempty"`
 	RadiusKm *RadiusKm `form:"radius_km,omitempty" json:"radius_km,omitempty"`
@@ -1166,6 +1369,16 @@ type SearchTripsParams struct {
 	AllowBorder *AllowBorder `form:"allow_border,omitempty" json:"allow_border,omitempty"`
 }
 
+// GetWeatherParams defines parameters for GetWeather.
+type GetWeatherParams struct {
+	Lat      float64            `form:"lat" json:"lat"`
+	Lon      float64            `form:"lon" json:"lon"`
+	DateFrom openapi_types.Date `form:"date_from" json:"date_from"`
+
+	// DateTo Включительно; диапазон — не больше 62 дней
+	DateTo openapi_types.Date `form:"date_to" json:"date_to"`
+}
+
 // AddFavoriteJSONRequestBody defines body for AddFavorite for application/json ContentType.
 type AddFavoriteJSONRequestBody = FavoriteCreate
 
@@ -1180,6 +1393,9 @@ type ServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams)
+	// ExploreDestinations Куда угодно — самые дешёвые поездки из дома во все города
+	// (GET /explore)
+	ExploreDestinations(w http.ResponseWriter, r *http.Request, params ExploreDestinationsParams)
 	// ListFavorites Избранные маршруты текущего пользователя
 	// (GET /favorites)
 	ListFavorites(w http.ResponseWriter, r *http.Request)
@@ -1231,18 +1447,27 @@ type ServerInterface interface {
 	// GetPoi Место с подробностями — описание и фото
 	// (GET /pois/{type}/{id})
 	GetPoi(w http.ResponseWriter, r *http.Request, pType GetPoiParamsType, id int64)
+	// GetDriveRoute Линия маршрута на машине между двумя точками по координатам — для карты «Куда угодно»
+	// (GET /routes/drive)
+	GetDriveRoute(w http.ResponseWriter, r *http.Request, params GetDriveRouteParams)
 	// GetRoadRoute Линия маршрута на машине между двумя точками — для карты
 	// (GET /routes/road)
 	GetRoadRoute(w http.ResponseWriter, r *http.Request, params GetRoadRouteParams)
 	// ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
 	// (GET /routes/road/pois)
 	ListRoadPois(w http.ResponseWriter, r *http.Request, params ListRoadPoisParams)
+	// ListStayPrices Ориентировочная цена жилья по городам карты
+	// (GET /stay-prices)
+	ListStayPrices(w http.ResponseWriter, r *http.Request)
 	// ListTransfers Как добраться внутри города — например, из аэропорта до квартиры
 	// (GET /transfers)
 	ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams)
 	// SearchTrips Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
 	// (GET /trips)
 	SearchTrips(w http.ResponseWriter, r *http.Request, params SearchTripsParams)
+	// GetWeather Погода на даты поездки в точке
+	// (GET /weather)
+	GetWeather(w http.ResponseWriter, r *http.Request, params GetWeatherParams)
 }
 
 // Unimplemented server implementation that returns http.StatusNotImplemented for each endpoint.
@@ -1252,6 +1477,12 @@ type Unimplemented struct{}
 // ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 // (GET /car-hubs)
 func (_ Unimplemented) ListCarHubs(w http.ResponseWriter, r *http.Request, params ListCarHubsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// ExploreDestinations Куда угодно — самые дешёвые поездки из дома во все города
+// (GET /explore)
+func (_ Unimplemented) ExploreDestinations(w http.ResponseWriter, r *http.Request, params ExploreDestinationsParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1357,6 +1588,12 @@ func (_ Unimplemented) GetPoi(w http.ResponseWriter, r *http.Request, pType GetP
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// GetDriveRoute Линия маршрута на машине между двумя точками по координатам — для карты «Куда угодно»
+// (GET /routes/drive)
+func (_ Unimplemented) GetDriveRoute(w http.ResponseWriter, r *http.Request, params GetDriveRouteParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // GetRoadRoute Линия маршрута на машине между двумя точками — для карты
 // (GET /routes/road)
 func (_ Unimplemented) GetRoadRoute(w http.ResponseWriter, r *http.Request, params GetRoadRouteParams) {
@@ -1369,6 +1606,12 @@ func (_ Unimplemented) ListRoadPois(w http.ResponseWriter, r *http.Request, para
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
+// ListStayPrices Ориентировочная цена жилья по городам карты
+// (GET /stay-prices)
+func (_ Unimplemented) ListStayPrices(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
 // ListTransfers Как добраться внутри города — например, из аэропорта до квартиры
 // (GET /transfers)
 func (_ Unimplemented) ListTransfers(w http.ResponseWriter, r *http.Request, params ListTransfersParams) {
@@ -1378,6 +1621,12 @@ func (_ Unimplemented) ListTransfers(w http.ResponseWriter, r *http.Request, par
 // SearchTrips Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
 // (GET /trips)
 func (_ Unimplemented) SearchTrips(w http.ResponseWriter, r *http.Request, params SearchTripsParams) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetWeather Погода на даты поездки в точке
+// (GET /weather)
+func (_ Unimplemented) GetWeather(w http.ResponseWriter, r *http.Request, params GetWeatherParams) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -1518,6 +1767,208 @@ func (siw *ServerInterfaceWrapper) ListCarHubs(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListCarHubs(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ExploreDestinations operation middleware
+func (siw *ServerInterfaceWrapper) ExploreDestinations(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params ExploreDestinationsParams
+
+	// ------------- Required query parameter "from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from", r.URL.Query(), &params.From, runtime.BindQueryParameterOptions{Type: "string", Format: "uuid"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "date_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "date_from", r.URL.Query(), &params.DateFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "date_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "date_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "date_to", r.URL.Query(), &params.DateTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "date_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date_to", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "min_days" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "min_days", r.URL.Query(), &params.MinDays, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "min_days"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "min_days", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "max_days" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "max_days", r.URL.Query(), &params.MaxDays, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "max_days"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "max_days", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "travelers" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "travelers", r.URL.Query(), &params.Travelers, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "travelers"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "travelers", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "weekends" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "weekends", r.URL.Query(), &params.Weekends, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "weekends"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "weekends", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "use_car" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "use_car", r.URL.Query(), &params.UseCar, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "use_car"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "use_car", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "radius_km" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "radius_km", r.URL.Query(), &params.RadiusKm, runtime.BindQueryParameterOptions{Type: "integer", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "radius_km"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "radius_km", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "max_drive_hours" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "max_drive_hours", r.URL.Query(), &params.MaxDriveHours, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "max_drive_hours"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "max_drive_hours", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "consumption_l100" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "consumption_l100", r.URL.Query(), &params.ConsumptionL100, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "consumption_l100"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "consumption_l100", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "fuel_type" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "fuel_type", r.URL.Query(), &params.FuelType, runtime.BindQueryParameterOptions{Type: "string", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "fuel_type"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fuel_type", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "fuel_price_rub" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "fuel_price_rub", r.URL.Query(), &params.FuelPriceRub, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "fuel_price_rub"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "fuel_price_rub", Err: err})
+		}
+		return
+	}
+
+	// ------------- Optional query parameter "allow_border" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "allow_border", r.URL.Query(), &params.AllowBorder, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "allow_border"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "allow_border", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ExploreDestinations(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2150,6 +2601,78 @@ func (siw *ServerInterfaceWrapper) GetPoi(w http.ResponseWriter, r *http.Request
 	handler.ServeHTTP(w, r)
 }
 
+// GetDriveRoute operation middleware
+func (siw *ServerInterfaceWrapper) GetDriveRoute(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetDriveRouteParams
+
+	// ------------- Required query parameter "from_lat" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from_lat", r.URL.Query(), &params.FromLat, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from_lat"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from_lat", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "from_lon" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "from_lon", r.URL.Query(), &params.FromLon, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "from_lon"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "from_lon", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to_lat" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to_lat", r.URL.Query(), &params.ToLat, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to_lat"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to_lat", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "to_lon" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "to_lon", r.URL.Query(), &params.ToLon, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "to_lon"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "to_lon", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetDriveRoute(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
 // GetRoadRoute operation middleware
 func (siw *ServerInterfaceWrapper) GetRoadRoute(w http.ResponseWriter, r *http.Request) {
 
@@ -2246,6 +2769,20 @@ func (siw *ServerInterfaceWrapper) ListRoadPois(w http.ResponseWriter, r *http.R
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.ListRoadPois(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// ListStayPrices operation middleware
+func (siw *ServerInterfaceWrapper) ListStayPrices(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.ListStayPrices(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2453,6 +2990,19 @@ func (siw *ServerInterfaceWrapper) SearchTrips(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// ------------- Optional query parameter "weekends" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, false, "weekends", r.URL.Query(), &params.Weekends, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "weekends"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "weekends", Err: err})
+		}
+		return
+	}
+
 	// ------------- Optional query parameter "use_car" -------------
 
 	err = runtime.BindQueryParameterWithOptions("form", true, false, "use_car", r.URL.Query(), &params.UseCar, runtime.BindQueryParameterOptions{Type: "boolean", Format: ""})
@@ -2546,6 +3096,78 @@ func (siw *ServerInterfaceWrapper) SearchTrips(w http.ResponseWriter, r *http.Re
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.SearchTrips(w, r, params)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetWeather operation middleware
+func (siw *ServerInterfaceWrapper) GetWeather(w http.ResponseWriter, r *http.Request) {
+
+	var err error
+	_ = err
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetWeatherParams
+
+	// ------------- Required query parameter "lat" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "lat", r.URL.Query(), &params.Lat, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "lat"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lat", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "lon" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "lon", r.URL.Query(), &params.Lon, runtime.BindQueryParameterOptions{Type: "number", Format: "double"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "lon"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "lon", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "date_from" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "date_from", r.URL.Query(), &params.DateFrom, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "date_from"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date_from", Err: err})
+		}
+		return
+	}
+
+	// ------------- Required query parameter "date_to" -------------
+
+	err = runtime.BindQueryParameterWithOptions("form", true, true, "date_to", r.URL.Query(), &params.DateTo, runtime.BindQueryParameterOptions{Type: "string", Format: "date"})
+	if err != nil {
+		var requiredError *runtime.RequiredParameterError
+		if errors.As(err, &requiredError) {
+			siw.ErrorHandlerFunc(w, r, &RequiredParamError{ParamName: "date_to"})
+		} else {
+			siw.ErrorHandlerFunc(w, r, &InvalidParamFormatError{ParamName: "date_to", Err: err})
+		}
+		return
+	}
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetWeather(w, r, params)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -2696,6 +3318,18 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Get(options.BaseURL+"/trips", wrapper.SearchTrips)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/explore", wrapper.ExploreDestinations)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/stay-prices", wrapper.ListStayPrices)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/weather", wrapper.GetWeather)
+	})
+	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/routes/drive", wrapper.GetDriveRoute)
+	})
+	r.Group(func(r chi.Router) {
 		r.Get(options.BaseURL+"/routes/road", wrapper.GetRoadRoute)
 	})
 	r.Group(func(r chi.Router) {
@@ -2788,6 +3422,72 @@ func (response ListCarHubs422ApplicationProblemPlusJSONResponse) VisitListCarHub
 	}
 	w.Header().Set("Content-Type", "application/problem+json")
 	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExploreDestinationsRequestObject struct {
+	Params ExploreDestinationsParams
+}
+
+type ExploreDestinationsResponseObject interface {
+	VisitExploreDestinationsResponse(w http.ResponseWriter) error
+}
+
+type ExploreDestinations200JSONResponse ExploreResponse
+
+func (response ExploreDestinations200JSONResponse) VisitExploreDestinationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExploreDestinations404ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response ExploreDestinations404ApplicationProblemPlusJSONResponse) VisitExploreDestinationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExploreDestinations422ApplicationProblemPlusJSONResponse Problem
+
+func (response ExploreDestinations422ApplicationProblemPlusJSONResponse) VisitExploreDestinationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type ExploreDestinations502ApplicationProblemPlusJSONResponse Problem
+
+func (response ExploreDestinations502ApplicationProblemPlusJSONResponse) VisitExploreDestinationsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -3564,6 +4264,44 @@ func (response GetPoi404ApplicationProblemPlusJSONResponse) VisitGetPoiResponse(
 	return err
 }
 
+type GetDriveRouteRequestObject struct {
+	Params GetDriveRouteParams
+}
+
+type GetDriveRouteResponseObject interface {
+	VisitGetDriveRouteResponse(w http.ResponseWriter) error
+}
+
+type GetDriveRoute200JSONResponse RoadRoute
+
+func (response GetDriveRoute200JSONResponse) VisitGetDriveRouteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetDriveRoute422ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetDriveRoute422ApplicationProblemPlusJSONResponse) VisitGetDriveRouteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetRoadRouteRequestObject struct {
 	Params GetRoadRouteParams
 }
@@ -3682,6 +4420,27 @@ func (response ListRoadPois502ApplicationProblemPlusJSONResponse) VisitListRoadP
 	return err
 }
 
+type ListStayPricesRequestObject struct {
+}
+
+type ListStayPricesResponseObject interface {
+	VisitListStayPricesResponse(w http.ResponseWriter) error
+}
+
+type ListStayPrices200JSONResponse StayPricesResponse
+
+func (response ListStayPrices200JSONResponse) VisitListStayPricesResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type ListTransfersRequestObject struct {
 	Params ListTransfersParams
 }
@@ -3788,11 +4547,66 @@ func (response SearchTrips502ApplicationProblemPlusJSONResponse) VisitSearchTrip
 	return err
 }
 
+type GetWeatherRequestObject struct {
+	Params GetWeatherParams
+}
+
+type GetWeatherResponseObject interface {
+	VisitGetWeatherResponse(w http.ResponseWriter) error
+}
+
+type GetWeather200JSONResponse WeatherResponse
+
+func (response GetWeather200JSONResponse) VisitGetWeatherResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetWeather422ApplicationProblemPlusJSONResponse struct {
+	ProblemApplicationProblemPlusJSONResponse
+}
+
+func (response GetWeather422ApplicationProblemPlusJSONResponse) VisitGetWeatherResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(422)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetWeather502ApplicationProblemPlusJSONResponse Problem
+
+func (response GetWeather502ApplicationProblemPlusJSONResponse) VisitGetWeatherResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/problem+json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// ListCarHubs Аэропорты, до которых можно доехать на машине, и расходы на дорогу
 	// (GET /car-hubs)
 	ListCarHubs(ctx context.Context, request ListCarHubsRequestObject) (ListCarHubsResponseObject, error)
+	// ExploreDestinations Куда угодно — самые дешёвые поездки из дома во все города
+	// (GET /explore)
+	ExploreDestinations(ctx context.Context, request ExploreDestinationsRequestObject) (ExploreDestinationsResponseObject, error)
 	// ListFavorites Избранные маршруты текущего пользователя
 	// (GET /favorites)
 	ListFavorites(ctx context.Context, request ListFavoritesRequestObject) (ListFavoritesResponseObject, error)
@@ -3844,18 +4658,27 @@ type StrictServerInterface interface {
 	// GetPoi Место с подробностями — описание и фото
 	// (GET /pois/{type}/{id})
 	GetPoi(ctx context.Context, request GetPoiRequestObject) (GetPoiResponseObject, error)
+	// GetDriveRoute Линия маршрута на машине между двумя точками по координатам — для карты «Куда угодно»
+	// (GET /routes/drive)
+	GetDriveRoute(ctx context.Context, request GetDriveRouteRequestObject) (GetDriveRouteResponseObject, error)
 	// GetRoadRoute Линия маршрута на машине между двумя точками — для карты
 	// (GET /routes/road)
 	GetRoadRoute(ctx context.Context, request GetRoadRouteRequestObject) (GetRoadRouteResponseObject, error)
 	// ListRoadPois Заправки, кафе и достопримечательности вдоль дороги
 	// (GET /routes/road/pois)
 	ListRoadPois(ctx context.Context, request ListRoadPoisRequestObject) (ListRoadPoisResponseObject, error)
+	// ListStayPrices Ориентировочная цена жилья по городам карты
+	// (GET /stay-prices)
+	ListStayPrices(ctx context.Context, request ListStayPricesRequestObject) (ListStayPricesResponseObject, error)
 	// ListTransfers Как добраться внутри города — например, из аэропорта до квартиры
 	// (GET /transfers)
 	ListTransfers(ctx context.Context, request ListTransfersRequestObject) (ListTransfersResponseObject, error)
 	// SearchTrips Самые дешёвые поездки туда и обратно с учётом дороги до соседних аэропортов
 	// (GET /trips)
 	SearchTrips(ctx context.Context, request SearchTripsRequestObject) (SearchTripsResponseObject, error)
+	// GetWeather Погода на даты поездки в точке
+	// (GET /weather)
+	GetWeather(ctx context.Context, request GetWeatherRequestObject) (GetWeatherResponseObject, error)
 }
 
 type StrictHandlerFunc func(ctx context.Context, w http.ResponseWriter, r *http.Request, request any) (any, error)
@@ -3916,6 +4739,32 @@ func (sh *strictHandler) ListCarHubs(w http.ResponseWriter, r *http.Request, par
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListCarHubsResponseObject); ok {
 		if err := validResponse.VisitListCarHubsResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ExploreDestinations operation middleware
+func (sh *strictHandler) ExploreDestinations(w http.ResponseWriter, r *http.Request, params ExploreDestinationsParams) {
+	var request ExploreDestinationsRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ExploreDestinations(ctx, request.(ExploreDestinationsRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ExploreDestinations")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ExploreDestinationsResponseObject); ok {
+		if err := validResponse.VisitExploreDestinationsResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4385,6 +5234,32 @@ func (sh *strictHandler) GetPoi(w http.ResponseWriter, r *http.Request, pType Ge
 	}
 }
 
+// GetDriveRoute operation middleware
+func (sh *strictHandler) GetDriveRoute(w http.ResponseWriter, r *http.Request, params GetDriveRouteParams) {
+	var request GetDriveRouteRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetDriveRoute(ctx, request.(GetDriveRouteRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetDriveRoute")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetDriveRouteResponseObject); ok {
+		if err := validResponse.VisitGetDriveRouteResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // GetRoadRoute operation middleware
 func (sh *strictHandler) GetRoadRoute(w http.ResponseWriter, r *http.Request, params GetRoadRouteParams) {
 	var request GetRoadRouteRequestObject
@@ -4430,6 +5305,30 @@ func (sh *strictHandler) ListRoadPois(w http.ResponseWriter, r *http.Request, pa
 		sh.options.ResponseErrorHandlerFunc(w, r, err)
 	} else if validResponse, ok := response.(ListRoadPoisResponseObject); ok {
 		if err := validResponse.VisitListRoadPoisResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
+// ListStayPrices operation middleware
+func (sh *strictHandler) ListStayPrices(w http.ResponseWriter, r *http.Request) {
+	var request ListStayPricesRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.ListStayPrices(ctx, request.(ListStayPricesRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "ListStayPrices")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(ListStayPricesResponseObject); ok {
+		if err := validResponse.VisitListStayPricesResponse(w); err != nil {
 			sh.options.ResponseErrorHandlerFunc(w, r, err)
 		}
 	} else if response != nil {
@@ -4489,178 +5388,236 @@ func (sh *strictHandler) SearchTrips(w http.ResponseWriter, r *http.Request, par
 	}
 }
 
+// GetWeather operation middleware
+func (sh *strictHandler) GetWeather(w http.ResponseWriter, r *http.Request, params GetWeatherParams) {
+	var request GetWeatherRequestObject
+
+	request.Params = params
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetWeather(ctx, request.(GetWeatherRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetWeather")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetWeatherResponseObject); ok {
+		if err := validResponse.VisitGetWeatherResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
 // Stored as a slice of fixed-width chunks rather than one concatenated
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"7H3/c9zGlee/gsLtD2QFIocUpdhkXaUUb+y4bJ95knxbW6FvCpwBSaxmgAmAocWoeMUhLUsOFdGyvZWU",
-	"s7Yj+273h9TVjSiOOOKXYZX+gkb+hPwlV++97kYDaMyApEQ7tanadUgKQHe/fv2+ft7rO2bNb7Z8z/Gi",
-	"0Jy9Y7bswG46kRPgb9caDf+jn/tB3Qng17oT1gK3Fbm+Z86a7Pv4HuvHm/E222XdeDN+YLBu/Lt4gw3Y",
-	"CRvEG/BPBts12F68EW+xp2zAnhtxJ96MN1iXHbOeaZkufOnXbSdYMy3Ts5uOOWvaMGp1kYa1zLC24jRt",
-	"Gn/Jbjcic3bJboSOZUZrLXh+0fcbju2Z6+uW+Ybvhe0mTvHdqUpFM+s/sW7cie+yAdsz4k2c6yHrwxIs",
-	"gx1OTlUqBjtgRwVzqyXfrzZgAO38XrPMJT9o2pE5a9b99mLDMS2zad92m+2mOXu5YplN16NfpuUyvHZz",
-	"0QlwFW+2ncZ84Nac6+1FzRIes102iHeM+BPWY8esm1mHwfbhP4e4ORtzBuvFHfjNAJrjP7I93ICu8deN",
-	"Lw3WZ/tG3GEnuC3w5XvsmPXZAesWEGGp7TSqLZhfNWgvpkgwZNlTlYq68Kmihd9caznzwIbwvcLh8V11",
-	"5H8InCVz1vwvkwlDT9K/hpPiszjGe/btfwzcVeeXfjsINdT9N9ZlB3GH9dlRvMWOjPgecAwbsF0iLDLz",
-	"YfyIHSFzD9geO463kLGB69kAfp0zKkTcJ6zH9uGpp5zr+/E93LV+vFNA3qZ9u1qHGVZXcIpnYLHpGYXS",
-	"FR2l5xt2zXm7LmncsqOVZApu3bTMwPl12w2cujkbBW1Hu8vtNj7JPx9Ggest4+ev23W3Hb5TuIcB/nv1",
-	"VlO/uqlKRVlNhnOS9bhe5CzzBd0M7FWnwQWXbshIPqAfUhnwdS2fJqOtA3HClu+FDg43H/iLDQcXW/O9",
-	"yPEi+NFutRpuzQa+mmzREz/5lxCY7E5JvhXfxREzbPpNfJ/12RM4psCH8cfIfEcgiVnPuP7mG8brM1d+",
-	"iqThn0OJXq8HTog/tgK/5QSRS0uou2FkezUHtqRIaBKH76B06BlsEG9yEUQi3WBP+QHYQ9GR588MG1rm",
-	"Lder54db8duhQ8dnjw3YkWWEUeA4Ef4J5sAO4wfsgA0MOImsH3/CusYYTu4eO5BnEeSfAapIijYQiA/G",
-	"Tct0btvNVsMRY+VZ2DIb9qLTgLklz7LP2BPWZc9hWt2/fP+XL+JtdhhvG1MVy2CfsUOifryt/ZxPnDBy",
-	"y33Xi8z1dfX4/YpPRvnKh3IIf/FfnFoEQ5Cifttb8vPbWwv8MHS9ZS5StJI6tzuuF7YDYIpRk37P95w1",
-	"eMPzI3w4LxDU1STftbIT45/QLe8NO3jDD6PhKh0sDlBsuBVwQFA0b8ZbsGUG6MABewLcEG+yYzbgD+/G",
-	"nfihASI63mIn7CTeMq0MARelFVSKEKCjSj/csoNbQKeyz0d+ZJf9eob0OK9kRMuUZhZ9tIDwvyQ75Cwk",
-	"Ubhy3TJrfAeHvSE2GmSeogbz+/55vMF67CjeQUV8Em/Fm6w/RClbBttlB+wwfog6HV5LvoCMkCjpT9A8",
-	"LXFIOCmrThi5TTtyNPKM/Tu309gJ68YbILlwImSRgf3FdsFIQ57s4iz34x2YOVgcx6wrTAaQuick9o5Q",
-	"Ct7js31o5q1hy2w5QbXlBKHvlWQWy2yBWTBSRuFDwFm+XR/18HXfrr/roAwMo8B2l1cirmNGEjfDuzS3",
-	"9Gf4HNKcwtksRQDdRhUze3idq/c81yfG76mEAbeXQ78d1Jw8iwTOkhM4Xo3UnjTsh9jmltEOnQAfT5n0",
-	"7ITrx33kMjQH2CFwuWmZjgcmza+S4UzLhM8opEhU1orfLM8KbuQ0yfQSP4w44iBS1uWodhDYeWmFM1Dp",
-	"Z+qIKQbXbSda+jcDt6U5ld+yARjnbA9tKKT5IdJ2AKY9+lUdoDnrseeKQmE9a4hGmTDYtyhU9tgh67Kn",
-	"rMt68WbciXcsxRHb40LpKesOkVcLHnlse7Sj8X3WMzLOAU5AlVrgn7Au24c5wAu4jjHVpR6fMNiXZKiI",
-	"BT7hE9hmvbmskOpKhUoSqkduZNwh7z9Z38SCZ1o/OhVRRNsSwt0y444Rb8X34kfxJjGFQul425z12o3G",
-	"2eTsaSWnvep6y2F1NayWOZVnshQsMwrcVrVur+kI+SXFE+CMxA+A0TGQ8wCY8xBCERtogxGpusZY0/Xw",
-	"S+Nm3n2yzI/swIP1pOSFkE3EM1VpGC6uVWt2wCV91W61Av82CnCt0BoqT4bpCiJVRmckFFEmrZMzb9qr",
-	"fuBGjs7ydkDZVO0orfPsyLkUuU2t7+HWS3jZFgXrRspakH43HDuorczT8/CmW7s1MmjClzQPzwIPenYr",
-	"XPGjsu/dEM/DrrhRo4xjUDfFs3J1fLLK+JZK02Gb8QY+lt+Sv0G6KU7oY9ZFZQQe918/+TzleVoGHs0d",
-	"0EjxA4oIvet4y9GKOTvNgyji9ylrxG6M3IihtG8HAY+DZAMNS0ulJRKe1FFPJzp+3TL9VhkvG55+n57E",
-	"RYcYAhr9TmIXojlrR+2U6Fry2x5FztBWrSPxULo4zVa0BsaWZ6/absMGfaMVX2d37fh0hm3KPGffjGz/",
-	"CiKeGJ1Hg3GD9UHJQfBkN94m44YdY5AJDJt9DH8+ADmP/383p/XrTssOomqdH76UzNPJsZX2YtW1I1sz",
-	"tc/SCQWa0SHrkZbhymepAe5AOq7zwfVruqFEwEnuGL4qdIJ2SwInagde2dVkNgXHG7YlNxTpkLVd0nvB",
-	"rbABWGL4FwhKx3dFMoVCyiJqBmR58Wf2BKk1QDmB9k8Xfn1xiGYjOAoHYCuyroxTn7AeWo5SlRdt7mnU",
-	"WcZEK+FU40Gq+l768SHsQzHeO/l/PIttRht+mhWe1s6yvXCJh6rz1lHKDNNEulMyOm+1aLlNJEDUiLdp",
-	"u69fUZxC23192rTEX+twKhqtZe2ZeKvt1jWKteHWHO40JyfxjTeMn//zpRvXjJmJijYy6oZRzhgcRkcc",
-	"/F16K2/yWaa/6gSrrvORNmLUQdftBD1iHlHpGzzGgoeD+09sD93BLpyib9Fl2AF798WhbgmJVy9o+ZF7",
-	"y1311+zlAjGv0evf48AgWTvsQDdKO2jokoEkiOMH6cOPp3uPnbA+pLJgFRA4EvkBLlfAQz0y2Ofo9fbZ",
-	"U9YHp1a3xqyuEZ63sBFgbpbcf2VTddyY2sAcE9lJiiJHArsRaf+eoskdXSijHei/eMq4vMgm6STNih/5",
-	"Iz+DD8HTIoJU4MFk9zl0eEYENGEH9AAmXcD3fmAZdT8JBHFOpZCDY1PWBAMSXcuoB653S2Qmu/EGmIxh",
-	"w3Fa9LdnrI8c+MgyFttrckBIqrAT4BHLWPZ5GoYUT9wRulmRJKHjgATx4U82164emo4wFESd22AMLcMD",
-	"frRSEH/i/J77O5ytOjcXRliwa5gkxi3TMeIv/chphO/C3HROQuRpcQ+P4w6qVYwadXi8BKI/8aN4I+4I",
-	"UwoCJpv0iz46G/irbonoCE1yXjxdSJjM2ulEykEsuaBiQswrM0q0hB9Ggb/q31L2V/lT2I782ooHO2mv",
-	"upGv3Umg8HzgCKGcNSiGn123aS871SJmAMXnoQ1XVvuGbpQVvY8xdUDB1cEEZIHMYUJ7hGx0CxJYNAMd",
-	"P0E4/4iHAo8wxtiH3ynUEm/Hd+n89kWMD/6wi//+EMN4Y8hmJxCoBK6M747nzDa76be9KLXuy9M/vXy1",
-	"osTBXC+6OqMN2NTQm6utqSru+gc/12x2hhh8WOULOsrMC9GZocz/BikHKrlj/JN7y206ddc23vCbTd8L",
-	"cyusBU7djTI7+wek07EhfkAYx4t9Y5RR0gLNrVW26Vjrx5APRjsBZWWX7VKQEa0KSk2DnbHP4R5FMu7q",
-	"TMVo3ebJnfusj/oZEFIYYszl/r/nPsADHuE9pmwWMYF2JL1wSJsnyn6ILFCGwm60VuSofYWAKhUBYBns",
-	"AOckw65H8RaiBih8iNn4Dsw7gxpL+XHvfPCmjm44FaGKM1P5Gu032m408F76pNQYjHZ2wPTBWrXm1zOi",
-	"5voHuucFTUcuu2RgUHi5IzM378CD57GCytME3qg6XvqlG3bTDuzCxyO/zPbugjAk2ajEp8GwPcG8WI89",
-	"w4SFgWk0ysxA6mVAKbFkBbtGsogiFdB0fuN7maX/og3HZLJoMbogJ+4Q33hOzQzbKJuijFt4Wt/JBDbg",
-	"gKAzF7T8INJq5Xnf1cLfKM8zoOTj+y3Hu4Hom/fsVj6/E9hePU0M9sd4i6wepvWVanbkLPtBSpVwVMKS",
-	"7wNR7CgK7FoG5qJ8oO2Grqc7+F/FW/FdsH+tTN483jHev/GeqWQpk/m23N/8RsuBWbcyY6fkkongVEF0",
-	"qpfms2dyChSAAduc9ROn64Sr9j7QG5ODA+61SQaHffgnYfTq4itOZLuNsNpyvDp3qbJgsdwnCTCG29yL",
-	"P40fKeBQgsE8Q/+wH3fiBxwmClbHHqZ5No23fnHTmGz5bjh5B6azPnnHra9rzdwlx9GS65DChxysussR",
-	"uTDSmhNahucLesQdYR+B8IZQpYEc1iVvB1awy7c32dXLlYoBBkqhDM0R6En8W9ZjB/Fm7lueX3cmp6Yv",
-	"z1y5OkzYZr74+wxwA2UT5Hvfv/EeLhOY3jJq9pJjGYETRjZgoiLLWLLDqApHwTKa7dBpNy0DDOcWiF54",
-	"Powazl83/j01RfjKS0CdDfFu/ZbjpfBjmeX+BzLGNkVPnrCBAH9ncIlZ2r7nX7rRNiqvzVYql6anZyt6",
-	"Y2yFi9xz+twfOYvC+B/qVCbT++8zUzOVKzNTpqV/owUW6fCgzKwR77D9eJsdiEiTqr1SxAjas4oC6qAp",
-	"j5GcQzaIPwVdFj/Iz0SnXqSQlZpGUSZZcaHVKb4LAZq8DXg6nAeomFFJ2WLwBnFlPspoRyXDyA3fK/Vk",
-	"Dm2Jsc+CWKoC9s06skBXLXc5QeAHabKl311ynUZd+2rTCUPujAzfePpE8oJu7lmdlqSwNGHoAndXjVDJ",
-	"SPKi345mFxs2RnnKpRWH5KsE8iEfG1Sy/xohzr2tAw6DQkUc72DS5DkpMTpa9+MNAguCChEOG+ZKUA0i",
-	"PEcEinvsWKvXMoDpEtxYbwd4BKtN1ysR2lcHyLxsmXoYRJqC1/22NvvtN9YaegPqj9yM3skSSgcx/4UH",
-	"dmrdmOffAws7iaIQPCR+aFzlthgBiowxrsLFLK6S9r7+3rhOxp4KJqMHe8jl6sh0k2di3pdm3Wn4TcGf",
-	"clNlQ4eTx4itREsdx9tkIAJ4/xBZMOW3vCJmKwOdnUPujzfpqOShqQOZJtzFB+/Df8GRglQkmr9kZGpD",
-	"SA3Xu6UzHL4AD4088AOIRxOqiOiJFh639OjvKbZUDfr0vunyK/+PHcNQUNtjQMqbCtTM0oHnAjEGD5cR",
-	"tU0RC+A+T2TfdoE924sNt1bFlCB6agA0atzSej6nQ53i01WByM9jH+OduCMSx7ADBwJ22lORij3uGsSb",
-	"clMGlIoeIA9jKhoDVgOJT+3qY126TflOFFuNVBtNcooF2Ymd9Gfabb1hBz8GvHqJc/oSJJwGzlZEl7cj",
-	"neFyFojaqKh93ddqmC8JLdjhKZQBOzDG1KwTHEtkwj3WHUc59OLPKgoFwAtzSuFjR+Zi0H/eA9ACijSQ",
-	"qQP21ErXC8F/2FNC7g5E7Ufy8a5W+JYMug3PU5QJyYkdOnNU7nQCIozs5ZFPizndwIeHmoWlxCbSjkaW",
-	"vok408gzI9F9YkZF6L7hcZpvdMEVHrDZRYNF5ak0gu5KpTJq3/PIKkwN9oVVeorRprHqsWVHkRPAx/7n",
-	"ShS1wtnJybNGfIexl91ovL9kzv6qFKN9aOmVePw7CigdyRAiZorvwY9gXqcgR6TP8QgecCoRFuMEdQmF",
-	"zvoCY8zh8gDjvkcQJSAkNz8unPUVBfZ7BMDfTa1nwPZxjgODPULD7lF6Zy+PRGLKw5SMJHZfJFwngvbk",
-	"UuB70WSIIFW71ZokDzSJVY3kpp9p2SkPLMyf1mEn8x1tRAwskQSlILLjXWlWEOBmMGc0BERB6RVA6TYi",
-	"b9JO4MjAk/wceWcMmey38Q7bTdA9FlmWaF1ntMucgSBN4RdyloUYo6jt2Ff3Vkl/w0q4CWKKkqmcvWaZ",
-	"ty/BC5dW7QCiaiG8CZT5b/Q2/PgufQF+pJTbhwoV5+2otqJR1g3HDpICpDSNoVCbSLclilLiB6JId0vv",
-	"WqTF5UhxV0/H4lQ9eS5BqGCXVPPgrDLRMkFqYL2uYAeeSX+Slh2yiONUAkSKglMd6/Uhh+ZGpE85/1/0",
-	"Gk9Idopypf6s0Qo4aCfuYLx1A+TrHkbD423+YNcywEaUpdSy5kjUL1kcO0tPSGwtFFzbAv6DLz2j1hL8",
-	"UC14Ao5Ewl2LSsrWDVnKeYu3wL/AU9zPPmeMqcdUreTdthTYUfwxyNhxa8EjvCZfAgrfXWT9TxMhAEUz",
-	"eSpQdTkEh6h2SZxvIG1SWSghwkAT0+LgJlGMSIObvFqunBTArZ6nQfDn6zQS/vymGA5/u0Fj0s+OI36c",
-	"56PT22IK+NsvcR6csQrjGm4gQkCJhnnzhs6ysIPAXR0NbpWFgIu+j2WWRYZwzQ7KKF7w4FA6nR5tLCIf",
-	"i3btVlGsTXks8osfUnHIGsAD9yT6POLDazMpHY3qDE2ieEuVwGXgzKWJfTHoZv7KCNjymWvU3NotJ6qe",
-	"YSn0ZvjKquHOjtI+a4lbGNkNR5a65iuWX0YR3Aq27EkOlsoS6Yo3ISVUWmi4IX+WdIdQt9HJFhbU3w2t",
-	"ucsVaOnCXIhHIWuTVOQJNgbpyCRBolNFe5Ee4GB7ltBt8RZZgqgIwd6k5DcQKg9CS/Wu0lpJuQ5Ss3fO",
-	"0SzKwpNbXQr8ZqlaCXw68ks9m/toUeQj0w/qnG2gLKXBU+m+ThZ1TeLHUQ52tTK8k4+Va7Y0e+ccfZXw",
-	"H88yi6Qd0uydQlJVdG9GfqktitTuSGX7HGFvgCpX2Jpma6nsIzALTkdlyYThig7wkE4LdZB7XrkImFCI",
-	"py8YpM0Pb7mtllMviJTfw1zJlgyEp6rklAp52SHAGJMRdE7CccW+jHy/2vCV9isQpa+i6EAZ7/lVtD0/",
-	"HHrWSiuyFbded7wq2bGhtp/cgRoj5TVgELfAyM0uuBg8N8NjOqIvAbUYQAfLSDWYI/eeUkbxNnfke6yn",
-	"UEnNvSgsd6quE/BwddEJo9MVfHp+tV6q3hArak944JgSxfE2hB22clYf6wr2IGOPmAJDYn3CTVG2qRxu",
-	"QiwwV9uEM9Vt4h+xUwFQNlfGqYbMIPr2DPokwWMZjKvFtzR+JIFsEtV2xPplJ5+mdXYFYHa4dqMQQoSe",
-	"o6pvgQERPJOmd7ylELpnkD+LqLKOipIpkle8tYgqYxLqJhySzDd3jvISbR17Zi1pQKvX5t/O5EgJ1kOh",
-	"LcqddUXqnbKxeLRwybu4p+802ov+rYkFD7BqbJ8wCzxcir3NJAq97tfCycprl+yWO9GsTxgYQsBmbRyt",
-	"LvB8Ga+F/tCnDDWvIjvA0jdyug9A1pGnzMMfJk3KuDb/tmmZq04Q0nIrE1MTFYEas1suAPImKhOXkZzR",
-	"CnLQZM0OLq20F/GXZScqTBYJliXMbo5pOTZhA6G+fQws9MiS0ybj+6mmT3i0k5BAzxJvnaWZ2II3lmrE",
-	"ObCKeqmkZ5BYoJYMecZ3k1cQLAAv/ZY/2VO7qsZb8UP5GswQ+rs85rQRvHXAWYMWzIen8Eiqd9bwhifA",
-	"fDoBuZcRkFivksTEh7WvGcuNmJlcvi3XuMX1TDrW040fqn1owJDAYw09Lk3AsvHOTqaVanL7Kw3XDfiG",
-	"H5MwleUDRe1QydI5R7tMvTxNpjkp22mWeDbd33Td0iywoJVL2htCvY98gSVFmeLSVB+zAsJwN1LTbPOn",
-	"VnnruMSSk96fJR7Otggu8Uq6LW3JF2QD3xLPq42W1z/MdBedrlSGdBY9XUfRbHszXWfR/wMIXmwOlZKG",
-	"aNX18xIR5PxMZaZoZLmUpJupZc5MT5/ieQgutZtNO1grMtF0EugIw9bHXMLnknSpfl6sn1qqFPxK4hHO",
-	"rb0cUnkrBB3MD2Fik0u8kcMQPfYtZT2l+yCrxDgA8ROA/2Pbv0NesAJR+E9ESdkxG/CKQKrzQkOig7VK",
-	"O8ZYDeKtjnELNXE1dOsWBfLB4nzEi5mk6dGjkqdxkOTYlJCDtDs8K37AdWe5ZhNzBlkF8VZSq8g/gCES",
-	"SRqsDpikEsCoSD6LjhgUYzoH/58HsCwmcWbUsuY8/YHtS4QJ7GWPuvTobewMs6fepedTEDg4ppsIatvC",
-	"fMdTnozJdwCMdxQOTpgWMgUtfVvV79BoxOKprEPRoVFRHjyjRaQCbVxWYBlJzyA7VtSRZNS2aB9HyuZT",
-	"YfOCWQP/HO9wb4CXooxNVyrjEzkGulavy62jjXLC6Od+fe2lSc5MU6n19fWsyl9/hXI74UsNg31PVBbN",
-	"XhD+lOG5I2Do6crUxUzoy0zmdXBemZ98sK/BgWpX3Ctg95TMRsFErN9wCEyU5qt/xL8rrJWxHV9+7/S8",
-	"9p/R3b3Avd2EupWZM1P3ewUrQIn5LDGfskFpcgo5P1wfcg0Y77BeRrvEj7ise64E61Hk6B5CEaSXPvh/",
-	"KFE2De4B64TZWNajNJSAzYLH4Skv/pwzG14cjk8YVMUwa2CmUDYo1w81Z4jGYKInx1NqQY0pdxUcxY4N",
-	"dqgEdLICd8HTr3nOaNlhJEx1XEHOrKe4yn1Y1ZyBfcmEXFamSlEXnNmcoTQt04cOlEBMtnZCp+3fcqJs",
-	"m7gf5GC9fPEslqMTit8mrbVEKYBg8xTpz3uaP0ubZGQyqg2Fsyc7V+xR/qhLm6rgoMdbgPfhRroaQu0V",
-	"WSk8XvBExLQw9KdycG82jdlFWW8UYYgz8BGJMkkKhDDwYQn4GcS32FdqjJRKNXahiI/O5QEFdSFAuZU9",
-	"XGOIlRunw4zSbQ8xzoWxlyxGqV8cvxBAoR/UPhaTeJn2scIlMvjJdgVvHnJp0z3vufhW+fJz+V2NVqF/",
-	"T21ssel8AVJLmOc5i1duxquxeDNA61IW79RLH/0UBuYFBiFyBumJYGIlnprltVPK1ck78D/VUhZqihUu",
-	"2nrc460C0oT44c6Mpf8oEfPcp1HActPb8EGrbme24dWdSIIGX7ALOvRAQpyCQkWq9S5Z4YJP5zfxJs9A",
-	"c6YEgwHtDR68Qs/BSlLdfZq8sEQQK34io187ORR1wSlednzR8kdvEH0GWRuEBnQ17VWMMWxV4EEG51vp",
-	"+egskCQnEW/NatryUgavK9Mu/+sq3WpHlzbJsk34jft+HX6NX5JEYd9xC1/mB7py9ugdYNcN0S7zWPQq",
-	"GKiwfWgvmTQRhAdpGDCByL3opLEHOSfEGmIoohmIOa4uL1DkxKKLEzA7R6HrPkKTO5SLV2+EOhQOaHJ5",
-	"VKYmRe/A+LxHj06WZbIgvx4qcYY06L6slWy5yhvOCJYh7U0oi8giFgTmjZcy6CbqOXYwdK6v2sM6j2Eq",
-	"LjZ7iXbp15gt35MCo6eegK6leuj5MO6rFniWeaVydgGpSBdlScYYHlmSNyA/N9Br2xW1G8BK41k2k5KI",
-	"99MSsjHBh5JsXMEWk5PLfol8PwhibDcKYZeveYVPXynleXEoCoR48RwHZxkgoEXWh+TGFt71JFAlMoEB",
-	"Qfiuwb7hwgqLl4WwHVCmhIuGhELqYqliAXs89chpyAel3/Jv+tRZs5ykSGoKzmv5ZD5cW3Fqt6quV+7b",
-	"RY3Nh33bb0fn/bi+L4AitmYN0XeUdArnBvDeRVEc/UOGZS1R6EGYjadcE/REAkb84xj7ExvIxBo8+ph9",
-	"zb6wkM33qF0VHO5xy8BWp9rBRLsHpaEoXU2Y6DhlFEuWI+H3lUZbim4Dncy10mfkcLDBeIEMV/q9lrPq",
-	"st1lT5dtz0r8yyST9JEvKVy6aoUeX1nmIFqGpimrLBWUZDAtc8Wx6xzX+q5S0JqsPstq6xdsjPLV8wZn",
-	"yR1dXP6KwNWODB6n4edCcEK1ISUOE7NVS1B2VJSqVr40UghrUFZPUCiKnLIwIaVInDDYv4quEbsGMUnL",
-	"XvPbUSi6kYu798RteDy3TsHroywbQMp87Ob1a//jF+/OX/vn9z+4eaN68/oNqPhK5L68VC/Vf7kb70wY",
-	"iWkkVANEAuNH7JDmf5wfr5fRKgKwlS5EjbeUPxAqSsOr0uyV+Yu0qrRSMkWVTNixqK8RR9Sob2pKGR6g",
-	"C6LRnDFTmRmfK6CH7J2XO2kLXtLtQ7MjumOo3c1dQ0C4nokeiAPqqMd6aXZAHJk4whKrJ3rug87/aqRQ",
-	"hTssdlWS9uYkOkml864Aiylyl5d6zFRmCrITSl/wvyvuvyvu/wSK+2UGipTTo3OrlPb5Fx0XepwV7MWK",
-	"OGHSnFKylGwT/8wQW6UEm2VYpEh9g96+1Era6Ov1938ktzIa/vIl3na0n9Vh2xMGBHgkc4tGCvE2BaaQ",
-	"vXmfZBUfBqctv1pLY8BNVaYM9o3w2CwYDjN68BN6mCd0muMNUEGPecwcE8qvWQbYcg3IpY7PpuBrHO3P",
-	"wzr8gm+hbahd2UBi0Y5S7i07mlCozJuLUVmLVB1PKGjCdhUNIa8YyNzNuk+WASFk+0rTLEFLA6l2H7eC",
-	"GmntZrv79rXkhADgV/Hv4vs44tS0gT4sht0KNJZ6w0IplUUd4MvGpcq3DnmVgkVdpD6RKNtJnEWynCug",
-	"UtDSJ0FMF+Y1JeBS7QtrJRFI3jLDKuS8IQFpNEzUBH2acXj1LD00Chf/tXJHUnq6AEMN2pOONy6k3tvX",
-	"bl67xA6GgOZLR0WvzqSCotOl7RverqYcaynd8Iu+13CbbqSHs09V1BrRUXj2HzJMWlBY9jKDpCKUjiJR",
-	"DZGSAJNN+UW1Uy5ueh5sOOHK0DJU8z39ZF49DijJ8vBDDe+mkj38LKkHS8IHtafrLScSfToyJ2uEnYZv",
-	"vV1/tVYa5wTNln7H9+/ciAv5IU5waopB/SI/pppJnqEoQ+fJZXHp3CkDFyrWTo1WqDenZRrfC0yyqL3i",
-	"TErurVqcqLYsU4LG+DI5taD0L1dADwArPociMVQVvPPrDvdPeaZRFDAmVbb0FTXPRTPbF9fZsAGYC3/I",
-	"VfNl7595mAuOKwk5ynCmI/t7EqJ2xPoFdgdyEd0G+KPkcppaAepIKuS9pB7q4g0H7TT4iVHSvNwrSdV+",
-	"SjQbb3M2yNYKJJUmPMqUuepPOXZNu6U5cy3fHYLv+zxbdzl1BdPMmL8WYv156sTQwqSO6Ik6Hd5gdo8S",
-	"PfnMMHweO7Md81siFPbM3lshktiaFPuEFlqHrDgPS/1ximrejF/HxuK6lu5FM+6XPBozUPKF95LsvMAN",
-	"YDQYbxDEalXFOtDzXvZKkULeG3qlCYWqt1Q2EBeoWPqrV/IXjJUU/in84I6Kn5DR8Mx4UuYPsLgbYSrJ",
-	"FWJJ88zCSpmkhR1EnMYy9zkYnPBJ+RdY1+NFAtx3S4Gv+VWKxSZ70hwRdcFH2LcscBp2wUU+RSitkgAt",
-	"cVfdK7W0R15tMeRAnhtXJz/EL5kcYCQDFMBxKk/A9ULhadCeswDuBggnRfdp/RH7AjE0osAA+fYAohIY",
-	"ydoS7KjmfYZcr6CpDbCGsLi4uQFRRUd4h9devJWID9RnkAkylGZYxn9FXp8wVl07fZqSjpNFbnhh4880",
-	"UnyW/4R/RzmQhKLSrWn78d0Fj+2mLyuSF5MJdPiB0nRgWKsCSkzxqVFzRyr4gLmLK0flzFC86PZKLwSS",
-	"2yJKxY5eRsG77ruRf96vagJCA+KeJMaWcVKNF38mKuFp6VrUrgAtr024C1k0gFG2LN6ay9Uc4QPpqiYg",
-	"ON7v02ogKJDWo1v4qmunAguaa8quXJ6Ynpm6Yl2pTExPT02bqYDcpZ8tLNTvTFnT62MLCxMLC/WfjP/M",
-	"En+8rPzxH3S9oZr2baorwDhG/oqYNZwAUP/VmjkJF+rlqiJaLjpxMOxilFzvJ0VcsT2oZMUDnJZcqW4K",
-	"B+plFLrIvyKtR1jkv1cQAQc8rQyf/1gUdkOl/LR1RUWDJv1PqA6mrF0nv8eN/gVvhNWvjHThdn9BUQ3w",
-	"nN7w/xsSfH+TvsdFwh0zp8JKzgSvwSrvyfBmNqlTo7WwUu1D9Yf16xL451mu4CHtbFHDIVkjL4OuzzXX",
-	"sXN0+338/pHSkE5eO3RAkaM/jbQ9khnACVzw8od5DG9wmjCoqQTrqq/k7MJ4W7sOkWvMrYTHD6mxe+Ji",
-	"WanbPI558zACnRxj5a4AqPSN9OU/36lzm2ZfsD+wx3MZryoDBOpbyhVFHCj/KZEqX4quu2kIWuhYYjAj",
-	"O6W3/OKqv6TNakkJVW3YZTEduQaXr6vJi0uvVzRX5Q0b2PfOOvDUa6mRp14rP3Tk/yArjvwLWG/h/eNd",
-	"Y+ztG+8bl6euXr00NV7UPZ+sE8l1Mv5Lvs+eqHDBQKBujfxGYrMoM1wiNXdxmJTz1bWmLoJ7iQmyz1WJ",
-	"jpgm2RBT2//lfIbqV4Tx20s608UPyCTahd0nRz6NY5fp5zTuH91lDQqUt1pKgVqGwP6pTfIpW/ypcYLj",
-	"YX3/xIUFYhlqzwTptmEWcIBdFFCnpoqBUgp3FpRAnz4pe0DtIvzk7oL3E9XMBxzME5FbwVCGttUftlw8",
-	"QDrd49q+T9C1Y1GKNLT73+hmfsMXqDZ6wndwWykyoMKf4MPGtVXXDu2GE87yb1P0ZAfuXuHlcoOcBjwy",
-	"MIbahfVjidYxx8RZ2LXiY46UIs18JB0BDsozsFhrT9eRTvYaQ9wu68n14ZeOWW/CSGMSMtNIWLuXLoa7",
-	"rC6sR9fHnxC2GcuoOjSx7Kqku3M1yebptDaBKm6K9uA/vl6DRRVkErKW64dyLEv85IXqpvUqPBlLc1El",
-	"P+JKNvSYbyTdN8Wec34SLF5iwwdU+I9JYdjLwvWorayLl5WEaaYr01cvTU1dmroy+qoH3WqVcChfMR66",
-	"ffZMu94xIkoKpSqF4ngBORT+JUqoiywkQuSfkgTT0+VIoBtRtlHXwm0un7J7pHYE+/aQEaZmXmWDysym",
-	"/6uor1W1i+izIzDUhujISZknUiDx3dxhBeVRsI2imbt2xUt2I3R0XZNfcW/SvzfrHF5xP7xVZ8a4zBgU",
-	"P/awDN51L6D8mb7jyjKGtFzONyxWwjL4S4kTM2C72sArTNYJVoXqxguNzEm75U6uTuHG81fyXpoMNil4",
-	"nExRSl8X6KAbyuItts8O+bTUChOt9PgWv/mEkmyaHl7ZPjb8g3yZmg/+W5Iyy93OmA2rqvK0pfvYWf2R",
-	"Iu+D37Pd4aACjP8eSrdEQviTeSX+iGZ2o7trzvEva1u2KlZ4uksr2eKiS6tK9gSgu/7h+v8fAA==",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

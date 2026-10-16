@@ -24,4 +24,9 @@ func TestKey(t *testing.T) {
 	if want := "a|b|2026-11-16|2026-11-23|3|14|1|nocar|drive|||"; got != want {
 		t.Errorf("defaults: Key = %q, want %q", got, want)
 	}
+	// Только выходные — другой вариант; без флага ключ прежний, как у записей до его появления
+	got, _ = Key([]byte(`{"from":"a","to":"b","date_from":"2026-11-16","date_to":"2026-11-23","weekends":true}`), []byte(`{"kind":"drive"}`))
+	if want := "a|b|2026-11-16|2026-11-23|3|14|1|nocar|drive||||weekends"; got != want {
+		t.Errorf("weekends: Key = %q, want %q", got, want)
+	}
 }

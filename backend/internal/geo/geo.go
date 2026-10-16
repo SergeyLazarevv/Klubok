@@ -109,6 +109,28 @@ func (s *Service) AirportsByIATA(ctx context.Context, codes []string) (map[strin
 	return out, nil
 }
 
+// CitiesByIATA возвращает города по кодам. Неизвестных кодов в ответе нет.
+func (s *Service) CitiesByIATA(ctx context.Context, codes []string) (map[string]Place, error) {
+	rows, err := s.q.ListCitiesByIATA(ctx, codes)
+	if err != nil {
+		return nil, fmt.Errorf("list cities by iata: %w", err)
+	}
+	out := make(map[string]Place, len(rows))
+	for _, r := range rows {
+		out[r.Iata] = placeFromRow(store.SearchPlacesRow(r))
+	}
+	return out, nil
+}
+
+// CitiesWithAirports — коды городов страны, из которых летают.
+func (s *Service) CitiesWithAirports(ctx context.Context, country string) ([]string, error) {
+	codes, err := s.q.ListCitiesWithAirports(ctx, country)
+	if err != nil {
+		return nil, fmt.Errorf("list cities with airports: %w", err)
+	}
+	return codes, nil
+}
+
 // AirportsWithin возвращает аэропорты в радиусе от точки по прямой, ближайшие первыми.
 func (s *Service) AirportsWithin(ctx context.Context, originID uuid.UUID, radiusKm int) ([]Hub, error) {
 	origin, err := s.Get(ctx, originID)

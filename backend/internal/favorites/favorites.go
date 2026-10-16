@@ -111,6 +111,7 @@ type fingerprintParams struct {
 	MaxDays   *int   `json:"max_days"`
 	Travelers *int   `json:"travelers"`
 	UseCar    *bool  `json:"use_car"`
+	Weekends  bool   `json:"weekends"`
 }
 
 type fingerprintPick struct {
@@ -130,10 +131,15 @@ func Key(params, pick json.RawMessage) (string, error) {
 	if err := json.Unmarshal(pick, &k); err != nil {
 		return "", fmt.Errorf("pick: %w", err)
 	}
-	return strings.Join([]string{
+	parts := []string{
 		p.From, p.To, p.DateFrom, p.DateTo, itoa(p.MinDays, 3), itoa(p.MaxDays, 14), itoa(p.Travelers, 1), btoa(p.UseCar),
 		k.Kind, k.HubIATA, k.DepartDate, k.ReturnDate,
-	}, "|"), nil
+	}
+	// Только выходные — другая выдача; в конце и только когда включено, чтобы ключи старых записей не поменялись
+	if p.Weekends {
+		parts = append(parts, "weekends")
+	}
+	return strings.Join(parts, "|"), nil
 }
 
 // Fingerprint — хеш ключа: по нему не добавляем один и тот же вариант дважды.

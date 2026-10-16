@@ -189,6 +189,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Куда угодно — самые дешёвые поездки из дома во все города
+         * @description Для каждого города, куда у источника есть цены на выбранные даты, — самый дешёвый вариант по полной
+         *     стоимости (билеты на всех + машина до соседнего аэропорта, если use_car) и лучший вылет из своего города.
+         *     С машиной перелёт предлагается, только если он дешевле поездки целиком на машине или заметно быстрее;
+         *     поездка на машине до города — в drive (реальная дорога).
+         *     Ограничения дат — как у /trips. Поездки целиком на машине здесь не считаются — их оценивает клиент
+         *     по своему справочнику городов. Сортировка — по полной стоимости на всех.
+         */
+        get: operations["exploreDestinations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/stay-prices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ориентировочная цена жилья по городам карты
+         * @description Средняя цена суток в гостинице 3* с человека по данным Росстата (ЕМИСС): своя для городов наблюдения,
+         *     для остальных городов России — ближайшего города наблюдения (до 250 км) или средняя по России.
+         *     Зарубежных городов нет. Ключ — Wikidata ID города карты (cities.geojson). Обновляется командой
+         *     stay-update; ответ кэшируется в Redis.
+         */
+        get: operations["listStayPrices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/weather": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Погода на даты поездки в точке
+         * @description По дням: ближайшие 16 дней — прогноз Open-Meteo (source = forecast), дальше — «обычно в эти дни»
+         *     (source = climate): средние по наблюдениям за 5 прошлых лет в окне ±3 дня. Ответы источника кэшируются
+         *     в Redis по сетке 0,1°; свежесть проверяется при чтении: прогноз — 6 часов, норма — 30 дней. Если источник
+         *     недоступен, отдаётся устаревшее из кэша со stale = true. Даты — местные для точки.
+         */
+        get: operations["getWeather"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/routes/drive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Линия маршрута на машине между двумя точками по координатам — для карты «Куда угодно»
+         * @description Для точек не из справочника (города карты). Кэш — Redis на 30 дней; если маршрутизатор недоступен —
+         *     прямая с approximate = true.
+         */
+        get: operations["getDriveRoute"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/routes/road": {
         parameters: {
             query?: never;
@@ -505,6 +597,99 @@ export interface components {
             crossing_hours: number;
             note: string;
         };
+        ExploreResponse: {
+            home: components["schemas"]["Place"];
+            fuel_price?: components["schemas"]["Money"];
+            /** @description Часть запросов к источнику цен не удалась */
+            partial: boolean;
+            /** @description Правила въезда на машине в другие страны (если use_car и allow_border) — для поездок на машине в соседние страны */
+            border_rules?: components["schemas"]["BorderRule"][];
+            /**
+             * @description Сколько городов убрано: перелёты туда есть, но на машине дешевле и не намного дольше
+             *     (перелёт предлагается, только если он дешевле машины или от двери до места минимум на четверть быстрее)
+             */
+            drive_better: number;
+            items: components["schemas"]["ExploreItem"][];
+        };
+        BorderRule: {
+            /** @example KZ */
+            country_code: string;
+            insurance: components["schemas"]["Money"];
+            /** Format: double */
+            crossing_hours: number;
+            note: string;
+        };
+        ExploreItem: {
+            city: components["schemas"]["Place"];
+            best: components["schemas"]["TripOption"];
+            home_best?: components["schemas"]["TripOption"];
+            drive?: components["schemas"]["DriveTrip"];
+        };
+        StayPricesResponse: {
+            items: components["schemas"]["StayPrice"][];
+        };
+        WeatherDay: {
+            /** Format: date */
+            date: string;
+            /**
+             * @description forecast — прогноз; climate — обычно в эти дни (средние за 5 лет)
+             * @enum {string}
+             */
+            source: "forecast" | "climate";
+            /** @description Код погоды WMO: 0 ясно, 1–3 облачно, 45/48 туман, 51–67 и 80–82 дождь, 71–77 и 85–86 снег, 95–99 гроза */
+            code: number;
+            /**
+             * Format: double
+             * @description Максимум днём
+             */
+            t_max: number;
+            /**
+             * Format: double
+             * @description Минимум ночью
+             */
+            t_min: number;
+            /**
+             * Format: double
+             * @description Осадки за сутки
+             */
+            precip_mm: number;
+            /** @description Вероятность осадков, % (только forecast) */
+            precip_probability?: number;
+            /**
+             * Format: double
+             * @description Доля дней с осадками от 1 мм в эти даты, 0–1 (только climate)
+             */
+            wet_share?: number;
+        };
+        WeatherResponse: {
+            days: components["schemas"]["WeatherDay"][];
+            /** @description Источник недоступен — данные из кэша старше срока */
+            stale: boolean;
+            /** @example Open-Meteo.com */
+            attribution: string;
+        };
+        StayPrice: {
+            /** @example Q1781 */
+            city_id: string;
+            per_night: components["schemas"]["Money"];
+            /**
+             * @description hotel3 — гостиница 3*
+             * @enum {string}
+             */
+            category: "hotel3";
+            /** @enum {string} */
+            source: "rosstat";
+            /**
+             * @description Чья это цена — город наблюдения Росстата («Сызрань») или «Россия» (средняя)
+             * @example Самара
+             */
+            basis: string;
+            /**
+             * Format: date
+             * @description Месяц наблюдения (1-е число)
+             */
+            period: string;
+        };
         TripsResponse: {
             home: components["schemas"]["Place"];
             destination: components["schemas"]["Place"];
@@ -742,6 +927,8 @@ export interface components {
             /** Format: double */
             fuel_price_rub?: number;
             allow_border?: boolean;
+            /** @description Только вылет чт–сб и возвращение вс–пн */
+            weekends?: boolean;
         };
         /** @description Какой вариант выбран в результатах */
         FavoritePick: {
@@ -1141,6 +1328,8 @@ export interface operations {
                 min_days?: number;
                 max_days?: number;
                 travelers?: components["parameters"]["Travelers"];
+                /** @description Только поездки на выходные — вылет в чт–сб, возвращение в вс–пн (по местному времени) */
+                weekends?: boolean;
                 /** @description Есть машина — искать и в соседних аэропортах */
                 use_car?: boolean;
                 radius_km?: components["parameters"]["RadiusKm"];
@@ -1172,6 +1361,125 @@ export interface operations {
             404: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
+        };
+    };
+    exploreDestinations: {
+        parameters: {
+            query: {
+                /** @description Домашний город */
+                from: string;
+                date_from: string;
+                date_to: string;
+                min_days?: number;
+                max_days?: number;
+                travelers?: components["parameters"]["Travelers"];
+                /** @description Только поездки на выходные — вылет в чт–сб, возвращение в вс–пн (по местному времени) */
+                weekends?: boolean;
+                /** @description Есть машина — вылеты и из соседних аэропортов */
+                use_car?: boolean;
+                radius_km?: components["parameters"]["RadiusKm"];
+                /** @description Максимум часов за рулём в одну сторону; 0 — без ограничения */
+                max_drive_hours?: components["parameters"]["MaxDriveHours"];
+                /** @description Расход топлива, л/100 км */
+                consumption_l100?: components["parameters"]["ConsumptionL100"];
+                fuel_type?: components["parameters"]["FuelTypeParam"];
+                /** @description Своя цена топлива за литр; если не задана — из справочника */
+                fuel_price_rub?: components["parameters"]["FuelPriceRub"];
+                /** @description Учитывать аэропорты в другой стране */
+                allow_border?: components["parameters"]["AllowBorder"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Направления, дешёвые первыми */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExploreResponse"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    listStayPrices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Цены по городам */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StayPricesResponse"];
+                };
+            };
+        };
+    };
+    getWeather: {
+        parameters: {
+            query: {
+                lat: number;
+                lon: number;
+                date_from: string;
+                /** @description Включительно; диапазон — не больше 62 дней */
+                date_to: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Погода по дням */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WeatherResponse"];
+                };
+            };
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    getDriveRoute: {
+        parameters: {
+            query: {
+                from_lat: number;
+                from_lon: number;
+                to_lat: number;
+                to_lon: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Маршрут */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoadRoute"];
+                };
+            };
+            422: components["responses"]["Problem"];
         };
     };
     getRoadRoute: {

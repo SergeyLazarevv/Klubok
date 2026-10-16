@@ -3,6 +3,8 @@ package search
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
@@ -39,30 +41,69 @@ type DriveOption struct {
 
 // drive считает вариант «только на машине». nil и причина — вариант не подходит.
 func (s *Service) drive(ctx context.Context, home, dest geo.Place, q TripsQuery, fuelPrice carcost.Kop) (*DriveOption, DriveSkip, error) {
-	var border *carcost.BorderRule
-	if dest.CountryCode != home.CountryCode {
-		if !q.Car.AllowBorder {
-			return nil, DriveBorderBlocked, nil
-		}
-		rules, err := s.costs.BorderRules(ctx, home.CountryCode)
-		if err != nil {
-			return nil, "", err
-		}
-		rule, known := rules[dest.CountryCode]
-		if !known {
-			rule = carcost.BorderRule{Note: "Нет данных о правилах въезда на машине в эту страну — проверьте самостоятельно."}
-		}
-		border = &rule
-	}
-
-	legs, err := s.road.Legs(ctx, roadPoint(home), []road.Point{roadPoint(dest)})
+	drives, skips, err := s.drives(ctx, home, []geo.Place{dest}, q, fuelPrice)
 	if err != nil {
 		return nil, "", err
 	}
-	leg, ok := legs[dest.ID]
-	if !ok {
-		return nil, DriveNoRoad, nil
+	return drives[dest.ID], skips[dest.ID], nil
+}
+
+// drives — варианты «только на машине» до нескольких мест: дорога — одним запросом к маршрутизатору (с кэшем).
+// Места без варианта — в skips с причиной.
+func (s *Service) drives(ctx context.Context, home geo.Place, dests []geo.Place, q TripsQuery, fuelPrice carcost.Kop) (map[uuid.UUID]*DriveOption, map[uuid.UUID]DriveSkip, error) {
+	out := make(map[uuid.UUID]*DriveOption, len(dests))
+	skips := make(map[uuid.UUID]DriveSkip)
+	var rules map[string]carcost.BorderRule
+	var points []road.Point
+	for _, d := range dests {
+		if d.CountryCode == home.CountryCode {
+			points = append(points, roadPoint(d))
+			continue
+		}
+		if !q.Car.AllowBorder {
+			skips[d.ID] = DriveBorderBlocked
+			continue
+		}
+		if rules == nil {
+			var err error
+			if rules, err = s.costs.BorderRules(ctx, home.CountryCode); err != nil {
+				return nil, nil, err
+			}
+		}
+		points = append(points, roadPoint(d))
 	}
+	legs, err := s.road.Legs(ctx, roadPoint(home), points)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, dest := range dests {
+		if _, blocked := skips[dest.ID]; blocked {
+			continue
+		}
+		leg, ok := legs[dest.ID]
+		if !ok {
+			skips[dest.ID] = DriveNoRoad
+			continue
+		}
+		var border *carcost.BorderRule
+		if dest.CountryCode != home.CountryCode {
+			rule, known := rules[dest.CountryCode]
+			if !known {
+				rule = carcost.BorderRule{Note: "Нет данных о правилах въезда на машине в эту страну — проверьте самостоятельно."}
+			}
+			border = &rule
+		}
+		d, skip := newDrive(leg, border, q, fuelPrice)
+		if d == nil {
+			skips[dest.ID] = skip
+			continue
+		}
+		out[dest.ID] = d
+	}
+	return out, skips, nil
+}
+
+func newDrive(leg road.Leg, border *carcost.BorderRule, q TripsQuery, fuelPrice carcost.Kop) (*DriveOption, DriveSkip) {
 	d := &DriveOption{Leg: leg, DriveHours: float64(leg.DurationS) / 3600, Border: border, TripDays: q.MinDays}
 	var insurance carcost.Kop
 	if border != nil {
@@ -71,7 +112,7 @@ func (s *Service) drive(ctx context.Context, home, dest geo.Place, q TripsQuery,
 		d.Warnings = append(d.Warnings, WarnBorder)
 	}
 	if q.Car.MaxDriveHours > 0 && d.DriveHours > q.Car.MaxDriveHours {
-		return nil, DriveTooLong, nil
+		return nil, DriveTooLong
 	}
 	if leg.Approximate {
 		d.Warnings = append(d.Warnings, WarnRoadApproximate)
@@ -84,7 +125,7 @@ func (s *Service) drive(ctx context.Context, home, dest geo.Place, q TripsQuery,
 	})
 	d.Total = d.Cost.Total
 	d.PerPerson = d.Total / carcost.Kop(max(q.Travelers, 1))
-	return d, "", nil
+	return d, ""
 }
 
 // doorToDoorHours — время туда от двери до места: дорога до аэропорта + перелёт.

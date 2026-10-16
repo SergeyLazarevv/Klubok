@@ -4,3 +4,56 @@
 // source: queries.sql
 
 package store
+
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/jackc/pgx/v5/pgtype"
+)
+
+const getFareSnapshot = `-- name: GetFareSnapshot :one
+SELECT fetched_at, quotes FROM fare_snapshots
+WHERE source = $1 AND origin_iata = $2 AND month = $3
+`
+
+type GetFareSnapshotParams struct {
+	Source     string
+	OriginIata string
+	Month      pgtype.Date
+}
+
+type GetFareSnapshotRow struct {
+	FetchedAt pgtype.Timestamptz
+	Quotes    json.RawMessage
+}
+
+func (q *Queries) GetFareSnapshot(ctx context.Context, arg GetFareSnapshotParams) (GetFareSnapshotRow, error) {
+	row := q.db.QueryRow(ctx, getFareSnapshot, arg.Source, arg.OriginIata, arg.Month)
+	var i GetFareSnapshotRow
+	err := row.Scan(&i.FetchedAt, &i.Quotes)
+	return i, err
+}
+
+const upsertFareSnapshot = `-- name: UpsertFareSnapshot :exec
+INSERT INTO fare_snapshots (source, origin_iata, month, fetched_at, quotes)
+VALUES ($1, $2, $3, now(), $4)
+ON CONFLICT (source, origin_iata, month) DO UPDATE SET fetched_at = now(), quotes = EXCLUDED.quotes
+`
+
+type UpsertFareSnapshotParams struct {
+	Source     string
+	OriginIata string
+	Month      pgtype.Date
+	Quotes     json.RawMessage
+}
+
+func (q *Queries) UpsertFareSnapshot(ctx context.Context, arg UpsertFareSnapshotParams) error {
+	_, err := q.db.Exec(ctx, upsertFareSnapshot,
+		arg.Source,
+		arg.OriginIata,
+		arg.Month,
+		arg.Quotes,
+	)
+	return err
+}

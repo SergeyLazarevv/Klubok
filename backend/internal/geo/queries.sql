@@ -83,3 +83,17 @@ SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.cou
 FROM places p
 LEFT JOIN places c ON c.kind = 'city' AND c.iata = p.city_iata
 WHERE p.kind = 'airport' AND p.iata = ANY(@codes::text[]) AND p.is_active;
+
+-- name: ListCitiesByIATA :many
+SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       NULL::text AS city_name
+FROM places p
+WHERE p.kind = 'city' AND p.iata = ANY(@codes::text[]) AND p.is_active;
+
+-- name: ListCitiesWithAirports :many
+-- Города страны, из которых летают: есть хотя бы один действующий аэропорт.
+SELECT DISTINCT c.iata FROM places c
+JOIN places a ON a.kind = 'airport' AND a.city_iata = c.iata AND a.is_active
+WHERE c.kind = 'city' AND c.is_active AND c.country_code = @country_code
+ORDER BY c.iata;

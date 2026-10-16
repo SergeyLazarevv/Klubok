@@ -274,6 +274,10 @@ paths:
           in: query
           schema: { type: integer, minimum: 1, maximum: 60, default: 14 }
         - $ref: '#/components/parameters/Travelers'
+        - name: weekends
+          in: query
+          description: Только поездки на выходные — вылет в чт–сб, возвращение в вс–пн (по местному времени)
+          schema: { type: boolean, default: false }
         - name: use_car
           in: query
           description: Есть машина — искать и в соседних аэропортах
@@ -293,6 +297,129 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
         '502': { $ref: '#/components/responses/Problem' }
+
+  /explore:
+    get:
+      tags: [search]
+      operationId: exploreDestinations
+      summary: Куда угодно — самые дешёвые поездки из дома во все города
+      description: |
+        Для каждого города, куда у источника есть цены на выбранные даты, — самый дешёвый вариант по полной
+        стоимости (билеты на всех + машина до соседнего аэропорта, если use_car) и лучший вылет из своего города.
+        С машиной перелёт предлагается, только если он дешевле поездки целиком на машине или заметно быстрее;
+        поездка на машине до города — в drive (реальная дорога).
+        Ограничения дат — как у /trips. Поездки целиком на машине здесь не считаются — их оценивает клиент
+        по своему справочнику городов. Сортировка — по полной стоимости на всех.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Домашний город
+          schema: { type: string, format: uuid }
+        - name: date_from
+          in: query
+          required: true
+          schema: { type: string, format: date, example: '2026-11-15' }
+        - name: date_to
+          in: query
+          required: true
+          schema: { type: string, format: date, example: '2026-12-15' }
+        - name: min_days
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60, default: 3 }
+        - name: max_days
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 60, default: 14 }
+        - $ref: '#/components/parameters/Travelers'
+        - name: weekends
+          in: query
+          description: Только поездки на выходные — вылет в чт–сб, возвращение в вс–пн (по местному времени)
+          schema: { type: boolean, default: false }
+        - name: use_car
+          in: query
+          description: Есть машина — вылеты и из соседних аэропортов
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/RadiusKm'
+        - $ref: '#/components/parameters/MaxDriveHours'
+        - $ref: '#/components/parameters/ConsumptionL100'
+        - $ref: '#/components/parameters/FuelTypeParam'
+        - $ref: '#/components/parameters/FuelPriceRub'
+        - $ref: '#/components/parameters/AllowBorder'
+      responses:
+        '200':
+          description: Направления, дешёвые первыми
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExploreResponse' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
+  /stay-prices:
+    get:
+      tags: [search]
+      operationId: listStayPrices
+      summary: Ориентировочная цена жилья по городам карты
+      description: |
+        Средняя цена суток в гостинице 3* с человека по данным Росстата (ЕМИСС): своя для городов наблюдения,
+        для остальных городов России — ближайшего города наблюдения (до 250 км) или средняя по России.
+        Зарубежных городов нет. Ключ — Wikidata ID города карты (cities.geojson). Обновляется командой
+        stay-update; ответ кэшируется в Redis.
+      responses:
+        '200':
+          description: Цены по городам
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StayPricesResponse' }
+
+  /weather:
+    get:
+      tags: [search]
+      operationId: getWeather
+      summary: Погода на даты поездки в точке
+      description: |
+        По дням: ближайшие 16 дней — прогноз Open-Meteo (source = forecast), дальше — «обычно в эти дни»
+        (source = climate): средние по наблюдениям за 5 прошлых лет в окне ±3 дня. Ответы источника кэшируются
+        в Redis по сетке 0,1°; свежесть проверяется при чтении: прогноз — 6 часов, норма — 30 дней. Если источник
+        недоступен, отдаётся устаревшее из кэша со stale = true. Даты — местные для точки.
+      parameters:
+        - { name: lat, in: query, required: true, schema: { type: number, format: double, minimum: -90, maximum: 90 } }
+        - { name: lon, in: query, required: true, schema: { type: number, format: double, minimum: -180, maximum: 180 } }
+        - { name: date_from, in: query, required: true, schema: { type: string, format: date } }
+        - name: date_to
+          in: query
+          required: true
+          description: Включительно; диапазон — не больше 62 дней
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: Погода по дням
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WeatherResponse' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
+  /routes/drive:
+    get:
+      tags: [search]
+      operationId: getDriveRoute
+      summary: Линия маршрута на машине между двумя точками по координатам — для карты «Куда угодно»
+      description: |
+        Для точек не из справочника (города карты). Кэш — Redis на 30 дней; если маршрутизатор недоступен —
+        прямая с approximate = true.
+      parameters:
+        - { name: from_lat, in: query, required: true, schema: { type: number, format: double, minimum: -90, maximum: 90 } }
+        - { name: from_lon, in: query, required: true, schema: { type: number, format: double, minimum: -180, maximum: 180 } }
+        - { name: to_lat, in: query, required: true, schema: { type: number, format: double, minimum: -90, maximum: 90 } }
+        - { name: to_lon, in: query, required: true, schema: { type: number, format: double, minimum: -180, maximum: 180 } }
+      responses:
+        '200':
+          description: Маршрут
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RoadRoute' }
+        '422': { $ref: '#/components/responses/Problem' }
 
   /routes/road:
     get:
@@ -742,6 +869,98 @@ components:
         crossing_hours: { type: number, format: double }
         note: { type: string }
 
+    ExploreResponse:
+      type: object
+      required: [home, items, partial, drive_better]
+      properties:
+        home: { $ref: '#/components/schemas/Place' }
+        fuel_price: { $ref: '#/components/schemas/Money' }
+        partial:
+          type: boolean
+          description: Часть запросов к источнику цен не удалась
+        border_rules:
+          type: array
+          description: Правила въезда на машине в другие страны (если use_car и allow_border) — для поездок на машине в соседние страны
+          items: { $ref: '#/components/schemas/BorderRule' }
+        drive_better:
+          type: integer
+          description: |
+            Сколько городов убрано: перелёты туда есть, но на машине дешевле и не намного дольше
+            (перелёт предлагается, только если он дешевле машины или от двери до места минимум на четверть быстрее)
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ExploreItem' }
+
+    BorderRule:
+      type: object
+      required: [country_code, insurance, crossing_hours, note]
+      properties:
+        country_code: { type: string, example: KZ }
+        insurance: { $ref: '#/components/schemas/Money' }
+        crossing_hours: { type: number, format: double }
+        note: { type: string }
+
+    ExploreItem:
+      type: object
+      required: [city, best]
+      properties:
+        city: { $ref: '#/components/schemas/Place' }
+        best:
+          $ref: '#/components/schemas/TripOption'
+        home_best:
+          $ref: '#/components/schemas/TripOption'
+        drive:
+          $ref: '#/components/schemas/DriveTrip'
+
+    StayPricesResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/StayPrice' }
+
+    WeatherDay:
+      type: object
+      required: [date, source, code, t_max, t_min, precip_mm]
+      properties:
+        date: { type: string, format: date }
+        source:
+          type: string
+          enum: [forecast, climate]
+          description: forecast — прогноз; climate — обычно в эти дни (средние за 5 лет)
+        code: { type: integer, description: 'Код погоды WMO: 0 ясно, 1–3 облачно, 45/48 туман, 51–67 и 80–82 дождь, 71–77 и 85–86 снег, 95–99 гроза' }
+        t_max: { type: number, format: double, description: Максимум днём, °C }
+        t_min: { type: number, format: double, description: Минимум ночью, °C }
+        precip_mm: { type: number, format: double, description: Осадки за сутки, мм (у climate — в среднем) }
+        precip_probability: { type: integer, description: 'Вероятность осадков, % (только forecast)' }
+        wet_share: { type: number, format: double, description: 'Доля дней с осадками от 1 мм в эти даты, 0–1 (только climate)' }
+
+    WeatherResponse:
+      type: object
+      required: [days, stale, attribution]
+      properties:
+        days:
+          type: array
+          items: { $ref: '#/components/schemas/WeatherDay' }
+        stale: { type: boolean, description: Источник недоступен — данные из кэша старше срока }
+        attribution: { type: string, example: 'Open-Meteo.com' }
+
+    StayPrice:
+      type: object
+      required: [city_id, per_night, category, source, basis, period]
+      properties:
+        city_id: { type: string, example: Q1781 }
+        per_night:
+          $ref: '#/components/schemas/Money'
+        category: { type: string, enum: [hotel3], description: hotel3 — гостиница 3*, сутки с человека }
+        source: { type: string, enum: [rosstat] }
+        basis:
+          type: string
+          description: Чья это цена — город наблюдения Росстата («Сызрань») или «Россия» (средняя)
+          example: Самара
+        period: { type: string, format: date, description: Месяц наблюдения (1-е число) }
+
     TripsResponse:
       type: object
       required: [home, destination, options, no_data, partial, hidden_flights]
@@ -1007,6 +1226,7 @@ components:
         fuel_type: { $ref: '#/components/schemas/FuelType' }
         fuel_price_rub: { type: number, format: double, minimum: 1, maximum: 1000 }
         allow_border: { type: boolean }
+        weekends: { type: boolean, description: Только вылет чт–сб и возвращение вс–пн }
 
     FavoritePick:
       type: object

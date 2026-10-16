@@ -56,6 +56,8 @@ sql:
             go_type: github.com/google/uuid.UUID
           - db_type: geography
             go_type: string
+          - db_type: jsonb
+            go_type: encoding/json.RawMessage
   - engine: postgresql
     schema: migrations
     queries: internal/poi/queries.sql
@@ -116,3 +118,12 @@ sql:
             go_type: string
           - db_type: jsonb
             go_type: encoding/json.RawMessage
+  - engine: postgresql
+    schema: migrations
+    queries: internal/stay/queries.sql
+    gen:
+      go:
+        package: store
+        out: internal/stay/store
+        sql_package: pgx/v5
+        emit_empty_slices: true

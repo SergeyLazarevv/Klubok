@@ -3,15 +3,18 @@ package road
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"math"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road/store"
 )
@@ -54,6 +57,45 @@ type Service struct {
 	q      *store.Queries
 	router Router
 	log    *slog.Logger
+	cache  *redis.Client // nil — маршруты по координатам не кэшируются
+}
+
+// UseCache включает кэш маршрутов по координатам (RouteCoords).
+func (s *Service) UseCache(c *redis.Client) { s.cache = c }
+
+// coordsTTL — сколько хранить маршрут между точками: дороги меняются редко.
+const coordsTTL = 30 * 24 * time.Hour
+
+// RouteCoords — путь между произвольными точками, не из справочника (города карты «Куда угодно»).
+// Кэш — Redis по координатам с точностью ~100 м; без маршрутизатора — прямая с оценкой.
+func (s *Service) RouteCoords(ctx context.Context, from, to Point) (Route, error) {
+	key := fmt.Sprintf("klubok:route:v1:%.3f,%.3f:%.3f,%.3f", from.Lat, from.Lon, to.Lat, to.Lon)
+	if s.cache != nil {
+		if data, err := s.cache.Get(ctx, key).Bytes(); err == nil {
+			var r Route
+			if json.Unmarshal(data, &r) == nil {
+				return r, nil
+			}
+		} else if !errors.Is(err, redis.Nil) {
+			s.log.WarnContext(ctx, "route cache get", slog.Any("err", err))
+		}
+	}
+	route, err := s.router.Route(ctx, from, to)
+	if err != nil || route == nil {
+		if err != nil {
+			s.log.WarnContext(ctx, "router failed, using straight line", slog.Any("err", err))
+		}
+		// Прямую не кэшируем: маршрутизатор мог быть недоступен временно
+		return Route{Leg: Estimate(from, to), Polyline: EncodePolyline([]Point{from, to})}, nil
+	}
+	if s.cache != nil {
+		if data, err := json.Marshal(route); err == nil {
+			if err := s.cache.Set(ctx, key, data, coordsTTL).Err(); err != nil {
+				s.log.WarnContext(ctx, "route cache set", slog.Any("err", err))
+			}
+		}
+	}
+	return *route, nil
 }
 
 func NewService(pool *pgxpool.Pool, router Router, log *slog.Logger) *Service {

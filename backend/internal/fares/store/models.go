@@ -5,6 +5,8 @@
 package store
 
 import (
+	"encoding/json"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -17,15 +19,23 @@ type BorderRule struct {
 	Note          string
 }
 
+type FareSnapshot struct {
+	Source     string
+	OriginIata string
+	Month      pgtype.Date
+	FetchedAt  pgtype.Timestamptz
+	Quotes     json.RawMessage
+}
+
 type Favorite struct {
 	ID          uuid.UUID
 	SessionID   uuid.UUID
 	UserID      pgtype.UUID
 	Kind        string
 	Title       string
-	Params      []byte
-	Pick        []byte
-	Snapshot    []byte
+	Params      json.RawMessage
+	Pick        json.RawMessage
+	Snapshot    json.RawMessage
 	Fingerprint string
 	Note        pgtype.Text
 	CreatedAt   pgtype.Timestamptz
@@ -178,6 +188,17 @@ type Session struct {
 	UserID     pgtype.UUID
 	CreatedAt  pgtype.Timestamptz
 	LastSeenAt pgtype.Timestamptz
+}
+
+type StayPrice struct {
+	CityID    string
+	CityName  string
+	PriceKop  int64
+	Category  string
+	Source    string
+	Basis     string
+	Period    pgtype.Date
+	UpdatedAt pgtype.Timestamptz
 }
 
 type TripItem struct {

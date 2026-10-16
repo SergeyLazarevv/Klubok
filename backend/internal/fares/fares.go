@@ -20,6 +20,7 @@ type Quote struct {
 	Source          string
 	Origin          string // IATA аэропорта вылета
 	Destination     string // IATA аэропорта прилёта
+	DestinationCity string // IATA города прилёта
 	DepartAt        time.Time
 	ReturnAt        time.Time
 	Price           int64 // копейки
@@ -41,8 +42,8 @@ func (q Quote) TripDays() int {
 
 // RoundTripQuery — направление и месяц вылета; дата возвращения любая.
 type RoundTripQuery struct {
-	Origin      string // IATA города или аэропорта
-	Destination string
+	Origin      string    // IATA города или аэропорта
+	Destination string    // пусто — любые направления («куда угодно»)
 	Month       time.Time // берутся год и месяц
 }
 

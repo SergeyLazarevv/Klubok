@@ -6,6 +6,8 @@ import { hours, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
 import { doorToDoorHours, type Highlight } from '@/lib/trip'
 import TripPlan from '@/components/TripPlan.vue'
 import FavoriteButton from '@/components/FavoriteButton.vue'
+import WeatherChip from '@/components/WeatherChip.vue'
+import WeatherDays from '@/components/WeatherDays.vue'
 import { flightPick, flightSnapshot } from '@/lib/favorites'
 
 const props = defineProps<{
@@ -30,6 +32,13 @@ const cityOf = (p: Place) => p.city_name ?? p.name
 const arrival = computed(() => props.option.arrival ?? props.destination)
 const door = computed(() => doorToDoorHours(props.option))
 const fromHome = computed(() => (props.option.hub.city_iata ?? props.option.hub.iata) === props.home.iata)
+// Погода в месте прилёта на дни поездки — по местным датам рейсов
+const weather = computed(() => ({
+  lat: arrival.value.location.lat,
+  lon: arrival.value.location.lon,
+  from: props.option.depart_at.slice(0, 10),
+  to: props.option.return_at.slice(0, 10),
+}))
 </script>
 
 <template>
@@ -59,7 +68,7 @@ const fromHome = computed(() => (props.option.hub.city_iata ?? props.option.hub.
         <div class="flex flex-col items-end">
           <span class="text-3xl font-semibold tracking-tight tabular-nums">{{ rub(option.total) }}</span>
           <span class="text-xs text-muted-foreground">
-            {{ travelers > 1 ? `${rub(option.per_person)} с человека` : 'дорога и билеты' }}
+            дорога и билеты на всех
           </span>
           <span v-if="option.savings_vs_home && option.savings_vs_home.amount > 0" class="text-sm font-medium text-success tabular-nums">
             −{{ rub(option.savings_vs_home.amount) }} к вылету из дома
@@ -85,6 +94,7 @@ const fromHome = computed(() => (props.option.hub.city_iata ?? props.option.hub.
         <span v-if="door" class="rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
           от двери до места ~{{ hours(door) }}
         </span>
+        <WeatherChip :query="weather" />
       </div>
 
       <div class="flex flex-wrap items-center gap-2 pt-1">
@@ -117,7 +127,8 @@ const fromHome = computed(() => (props.option.hub.city_iata ?? props.option.hub.
       </div>
     </div>
 
-    <div v-if="open" class="border-t bg-[#f8fafd] p-4 sm:p-5">
+    <div v-if="open" class="flex flex-col gap-5 border-t bg-[#f8fafd] p-4 sm:p-5">
+      <WeatherDays :query="weather" :title="`Погода в г. ${cityOf(destination)}`" />
       <TripPlan :home="home" :option="option" :destination="destination" :travelers="travelers" :date-from="dateFrom" :search-params="searchParams" :favorite="favorite" />
     </div>
   </article>

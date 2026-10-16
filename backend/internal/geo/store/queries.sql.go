@@ -228,6 +228,90 @@ func (q *Queries) ListAirportsWithin(ctx context.Context, arg ListAirportsWithin
 	return items, nil
 }
 
+const listCitiesByIATA = `-- name: ListCitiesByIATA :many
+SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
+       ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,
+       NULL::text AS city_name
+FROM places p
+WHERE p.kind = 'city' AND p.iata = ANY($1::text[]) AND p.is_active
+`
+
+type ListCitiesByIATARow struct {
+	ID          uuid.UUID
+	Kind        string
+	Iata        string
+	CityIata    pgtype.Text
+	NameRu      string
+	NameEn      pgtype.Text
+	NameTo      pgtype.Text
+	CountryCode string
+	Lat         float64
+	Lon         float64
+	Timezone    string
+	CityName    pgtype.Text
+}
+
+func (q *Queries) ListCitiesByIATA(ctx context.Context, codes []string) ([]ListCitiesByIATARow, error) {
+	rows, err := q.db.Query(ctx, listCitiesByIATA, codes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCitiesByIATARow{}
+	for rows.Next() {
+		var i ListCitiesByIATARow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Iata,
+			&i.CityIata,
+			&i.NameRu,
+			&i.NameEn,
+			&i.NameTo,
+			&i.CountryCode,
+			&i.Lat,
+			&i.Lon,
+			&i.Timezone,
+			&i.CityName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCitiesWithAirports = `-- name: ListCitiesWithAirports :many
+SELECT DISTINCT c.iata FROM places c
+JOIN places a ON a.kind = 'airport' AND a.city_iata = c.iata AND a.is_active
+WHERE c.kind = 'city' AND c.is_active AND c.country_code = $1
+ORDER BY c.iata
+`
+
+// Города страны, из которых летают: есть хотя бы один действующий аэропорт.
+func (q *Queries) ListCitiesWithAirports(ctx context.Context, countryCode string) ([]string, error) {
+	rows, err := q.db.Query(ctx, listCitiesWithAirports, countryCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var iata string
+		if err := rows.Scan(&iata); err != nil {
+			return nil, err
+		}
+		items = append(items, iata)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchPlaces = `-- name: SearchPlaces :many
 SELECT p.id, p.kind, p.iata, p.city_iata, p.name_ru, p.name_en, p.name_to, p.country_code,
        ST_Y(p.location::geometry)::float8 AS lat, ST_X(p.location::geometry)::float8 AS lon, p.timezone,

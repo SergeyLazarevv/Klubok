@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
+import { CalendarDaysIcon, XIcon } from '@lucide/vue'
 import { api, type TripsResponse } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
 import { maxRangeEnd, maxSearchDate, todayISO, useSearchStore } from '@/stores/search'
@@ -36,6 +37,7 @@ async function runSearch() {
       date_to: dateTo,
       min: search.minDays,
       max: search.maxDays,
+      weekends: search.weekends ? '1' : undefined,
     },
   })
   const query = {
@@ -45,6 +47,7 @@ async function runSearch() {
     date_to: dateTo,
     min_days: search.minDays,
     max_days: search.maxDays,
+    weekends: search.weekends || undefined,
     travelers: travelers.value,
     use_car: profile.hasCar,
     radius_km: profile.radiusKm,
@@ -70,7 +73,7 @@ async function runSearch() {
 
 // Открыли ссылку с параметрами поиска — восстанавливаем их и сразу ищем
 onMounted(async () => {
-  const { from, to, date_from: dateFrom, date_to: dateTo, min, max } = route.query
+  const { from, to, date_from: dateFrom, date_to: dateTo, min, max, weekends } = route.query
   if (typeof to !== 'string') return
   const { data } = await api.GET('/places/{id}', { params: { path: { id: to } } })
   if (!data) return
@@ -86,6 +89,7 @@ onMounted(async () => {
   if (typeof dateTo === 'string' && dateTo >= search.dateFrom && dateTo <= maxRangeEnd(search.dateFrom)) search.dateTo = dateTo
   if (Number(min) > 0) search.minDays = Number(min)
   if (Number(max) >= search.minDays) search.maxDays = Number(max)
+  search.weekends = weekends === '1'
   await runSearch()
 })
 </script>
@@ -102,7 +106,20 @@ onMounted(async () => {
     </header>
     <div class="flex flex-col gap-3 rounded-3xl bg-card p-2 shadow-[0_1px_3px_rgb(0_0_0/0.08),0_8px_24px_rgb(11_87_208/0.08)] sm:p-3">
       <SearchForm :loading="loading" :disabled="!homePlace || !search.destination" @search="runSearch" />
-      <CarSettings :reference-fuel-price="referenceFuelPrice" class="px-1.5 pb-1" />
+      <div class="flex flex-col items-start gap-2 px-1.5 pb-1">
+        <CarSettings :reference-fuel-price="referenceFuelPrice" class="self-stretch" />
+        <button
+          v-if="search.weekends"
+          type="button"
+          class="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-sm transition-colors hover:bg-muted/70"
+          title="Убрать фильтр и искать на любые дни"
+          @click="search.weekends = false; runSearch()"
+        >
+          <CalendarDaysIcon class="size-4 text-muted-foreground" />
+          Только выходные: вылет чт–сб, обратно вс–пн
+          <XIcon class="size-3.5 text-muted-foreground" />
+        </button>
+      </div>
     </div>
   </div>
   </section>

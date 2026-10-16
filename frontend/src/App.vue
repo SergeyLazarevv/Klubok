@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { StarIcon } from '@lucide/vue'
+import { CompassIcon, MapIcon, ShieldIcon, StarIcon } from '@lucide/vue'
 import { useFavoritesStore } from '@/stores/favorites'
 import logoUrl from '@/assets/logo.svg?inline'
 
@@ -17,12 +17,36 @@ onMounted(favorites.load)
           <span class="uppercase tracking-wide text-[#1f3a5f] dark:text-[#9bb7d4]">Клубок</span>
         </RouterLink>
         <RouterLink
-          to="/favorites"
+          to="/explore"
           class="ml-auto flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium hover:bg-muted"
           active-class="bg-muted"
         >
+          <CompassIcon class="size-4" />
+          <span class="hidden sm:inline">Куда угодно</span>
+        </RouterLink>
+        <RouterLink
+          to="/map"
+          class="flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium hover:bg-muted"
+          active-class="bg-muted"
+        >
+          <MapIcon class="size-4" />
+          <span class="hidden sm:inline">Карта</span>
+        </RouterLink>
+        <RouterLink
+          to="/map2"
+          class="flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium hover:bg-muted"
+          active-class="bg-muted"
+        >
+          <ShieldIcon class="size-4" />
+          <span class="hidden sm:inline">Карта 2</span>
+        </RouterLink>
+        <RouterLink
+          to="/favorites"
+          class="flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium hover:bg-muted"
+          active-class="bg-muted"
+        >
           <StarIcon class="size-4" :class="favorites.items.length > 0 && 'fill-amber-400 text-amber-500'" />
-          Избранное
+          <span class="hidden sm:inline">Избранное</span>
           <span v-if="favorites.items.length" class="rounded-full bg-amber-100 px-1.5 text-xs tabular-nums text-amber-900">
             {{ favorites.items.length }}
           </span>

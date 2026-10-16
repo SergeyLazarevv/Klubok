@@ -23,17 +23,9 @@ const maxRangeDays = 60
 
 func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsRequestObject) (apigen.SearchTripsResponseObject, error) {
 	p := req.Params
-	today := time.Now().Truncate(24 * time.Hour).UTC()
 	dateFrom, dateTo := p.DateFrom.Time, p.DateTo.Time
-	switch {
-	case dateFrom.Before(today):
-		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_from", "дата вылета должна быть сегодня или позже")), nil
-	case dateFrom.After(today.Add(searchHorizon)):
-		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_from", "начало поездки — не дальше чем через 3 месяца")), nil
-	case dateTo.Before(dateFrom):
-		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_to", "не может быть раньше даты начала")), nil
-	case dateTo.After(dateFrom.AddDate(0, 0, maxRangeDays)):
-		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("date_to", "диапазон дат — не больше 60 дней")), nil
+	if problem := checkDates(dateFrom, dateTo); problem != nil {
+		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(*problem), nil
 	}
 	q := search.TripsQuery{
 		HomeID:        p.From,
@@ -45,6 +37,7 @@ func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsReques
 		Travelers:     valueOr(p.Travelers, 1),
 		UseCar:        valueOr(p.UseCar, false),
 		Car:           carParams(p.RadiusKm, p.MaxDriveHours, p.ConsumptionL100, p.FuelType, p.FuelPriceRub, p.AllowBorder),
+		Weekends:      valueOr(p.Weekends, false),
 	}
 	if q.MinDays > q.MaxDays {
 		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("min_days", "не может быть больше max_days")), nil
@@ -97,6 +90,25 @@ func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsReques
 		resp.NoData[i] = toAPIPlace(pl)
 	}
 	return resp, nil
+}
+
+// checkDates — диапазон дат поиска в пределах того, что есть в кэше цен; nil — всё в порядке.
+func checkDates(dateFrom, dateTo time.Time) *apigen.Problem {
+	today := time.Now().Truncate(24 * time.Hour).UTC()
+	var p apigen.Problem
+	switch {
+	case dateFrom.Before(today):
+		p = fieldProblem("date_from", "дата вылета должна быть сегодня или позже")
+	case dateFrom.After(today.Add(searchHorizon)):
+		p = fieldProblem("date_from", "начало поездки — не дальше чем через 3 месяца")
+	case dateTo.Before(dateFrom):
+		p = fieldProblem("date_to", "не может быть раньше даты начала")
+	case dateTo.After(dateFrom.AddDate(0, 0, maxRangeDays)):
+		p = fieldProblem("date_to", "диапазон дат — не больше 60 дней")
+	default:
+		return nil
+	}
+	return &p
 }
 
 func toAPITrip(o search.TripOption) apigen.TripOption {

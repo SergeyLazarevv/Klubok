@@ -29,6 +29,48 @@ export default defineConfig({
       workbox: {
         // API не кэшируем service worker'ом: цены должны быть свежими
         navigateFallbackDenylist: [/^\/api\//],
+        // Карта: чем больше в кэше, тем быстрее она открывается и двигается. Гербы и тайлы не меняются под тем же
+        // адресом (тайлы — в папке с версией сборки планеты), поэтому берём из кэша без сети.
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/data/stickers/') || url.pathname.startsWith('/data/arms/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-arms',
+              expiration: { maxEntries: 4000, maxAgeSeconds: 90 * 24 * 3600 },
+            },
+          },
+          {
+            // Справочник городов меняется при пересборке — показываем из кэша и тихо обновляем
+            urlPattern: ({ url }) => url.pathname === '/data/cities.geojson',
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'map-data' },
+          },
+          {
+            urlPattern: ({ url }) => url.host === 'tiles.openfreemap.org' && /^\/planet\/[^/]+\/\d+\/\d+\/\d+\.pbf$/.test(url.pathname),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-tiles',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 20000, maxAgeSeconds: 60 * 24 * 3600, purgeOnQuotaError: true },
+            },
+          },
+          {
+            // Описание тайлов (TileJSON) указывает на текущую сборку планеты — его обновляем
+            urlPattern: ({ url }) => url.host === 'tiles.openfreemap.org' && url.pathname === '/planet',
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'map-tilejson', cacheableResponse: { statuses: [200] } },
+          },
+          {
+            urlPattern: ({ url }) => url.host === 'tiles.openfreemap.org' && url.pathname.startsWith('/fonts/'),
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'map-glyphs',
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 500, maxAgeSeconds: 365 * 24 * 3600 },
+            },
+          },
+        ],
       },
     }),
   ],

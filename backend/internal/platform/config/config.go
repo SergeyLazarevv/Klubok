@@ -10,6 +10,7 @@ import (
 type Config struct {
 	HTTPAddr        string
 	DatabaseURL     string
+	RedisURL        string
 	ShutdownTimeout time.Duration
 	LogFormat       string // text | json
 	OSRMURL         string
@@ -29,12 +30,15 @@ type Config struct {
 	TravelpayoutsToken  string
 	TravelpayoutsMarker string
 	TravelpayoutsTRS    string // ID проекта, к которому подключены программы брендов (Островок)
+
+	CitiesFile string // справочник городов карты (frontend/public/data/cities.geojson) — для цен на жильё
 }
 
 func Load() Config {
 	return Config{
 		HTTPAddr:        env("KLUBOK_HTTP_ADDR", "127.0.0.1:8080"),
 		DatabaseURL:     env("KLUBOK_DATABASE_URL", "postgres://klubok:klubok@127.0.0.1:5432/klubok?sslmode=disable"),
+		RedisURL:        env("KLUBOK_REDIS_URL", "redis://127.0.0.1:6379/0"),
 		ShutdownTimeout: 10 * time.Second,
 		LogFormat:       env("KLUBOK_LOG_FORMAT", "text"),
 		// Публичный демо-сервер OSRM — только для разработки; результаты кэшируются в БД.
@@ -54,6 +58,8 @@ func Load() Config {
 		TravelpayoutsToken:  env("TRAVELPAYOUTS_TOKEN", ""),
 		TravelpayoutsMarker: env("TRAVELPAYOUTS_MARKER", ""),
 		TravelpayoutsTRS:    env("TRAVELPAYOUTS_TRS", ""),
+
+		CitiesFile: env("KLUBOK_CITIES_FILE", "frontend/public/data/cities.geojson"),
 	}
 }
 

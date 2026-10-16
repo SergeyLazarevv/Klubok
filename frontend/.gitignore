@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Кэш скачанных гербов (scripts/build-cities.mjs)
+.cache

@@ -49,6 +49,7 @@ type TripsQuery struct {
 	Travelers     int
 	UseCar        bool
 	Car           CarParams
+	Weekends      bool // только поездки на выходные: вылет чт–сб, возвращение вс–пн
 }
 
 // TripOption — лучший вариант поездки через конкретный аэропорт вылета.
@@ -131,15 +132,8 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 	best := make(map[uuid.UUID]TripOption)
 	for _, r := range hubs {
 		for _, quote := range quotes[r.Hub.Place.IATA] {
-			days := quote.TripDays()
-			depart, ret := quote.DepartAt, quote.ReturnAt
-			departDay := time.Date(depart.Year(), depart.Month(), depart.Day(), 0, 0, 0, 0, time.UTC)
-			returnDay := time.Date(ret.Year(), ret.Month(), ret.Day(), 0, 0, 0, 0, time.UTC)
-			if days < q.MinDays || days > q.MaxDays || !depart.After(time.Now()) {
-				continue
-			}
-			// Вылет и возврат — оба в пределах выбранных дат, а не только вылет
-			if departDay.Before(q.DateFrom) || returnDay.After(q.DateTo) {
+			days, ok := fits(quote, q)
+			if !ok {
 				continue
 			}
 			opt := s.option(r, q, res.FuelPrice, quote, days)
@@ -183,6 +177,28 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 		}
 	}
 	return res, nil
+}
+
+var (
+	weekendStart = map[time.Weekday]bool{time.Thursday: true, time.Friday: true, time.Saturday: true}
+	weekendEnd   = map[time.Weekday]bool{time.Sunday: true, time.Monday: true}
+)
+
+// fits — подходит ли котировка под даты и длительность поездки; days — длительность в днях.
+func fits(quote fares.Quote, q TripsQuery) (days int, ok bool) {
+	days = quote.TripDays()
+	depart, ret := quote.DepartAt, quote.ReturnAt
+	departDay := time.Date(depart.Year(), depart.Month(), depart.Day(), 0, 0, 0, 0, time.UTC)
+	returnDay := time.Date(ret.Year(), ret.Month(), ret.Day(), 0, 0, 0, 0, time.UTC)
+	if days < q.MinDays || days > q.MaxDays || !depart.After(time.Now()) {
+		return days, false
+	}
+	// День недели — по местному времени аэропорта: смещение сохраняется из ответа источника
+	if q.Weekends && (!weekendStart[depart.Weekday()] || !weekendEnd[ret.Weekday()]) {
+		return days, false
+	}
+	// Вылет и возврат — оба в пределах выбранных дат, а не только вылет
+	return days, !departDay.Before(q.DateFrom) && !returnDay.After(q.DateTo)
 }
 
 func (s *Service) option(r reachable, q TripsQuery, fuelPrice carcost.Kop, quote fares.Quote, days int) TripOption {

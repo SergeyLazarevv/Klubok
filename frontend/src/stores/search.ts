@@ -29,6 +29,8 @@ export const useSearchStore = defineStore('search', () => {
   const dateTo = ref(addDays(todayISO(), 37))
   const minDays = ref(5)
   const maxDays = ref(10)
+  // Только выходные (вылет чт–сб, возвращение вс–пн) — приходит из подборки «Куда угодно»
+  const weekends = ref(false)
   // Параметры последнего выполненного поиска — с ними вариант сохраняется в избранное
   const lastQuery = ref<TripSearchParams | null>(null)
 
@@ -38,5 +40,5 @@ export const useSearchStore = defineStore('search', () => {
     else if (dateTo.value > maxRangeEnd(from)) dateTo.value = maxRangeEnd(from)
   })
 
-  return { destination, dateFrom, dateTo, minDays, maxDays, lastQuery }
+  return { destination, dateFrom, dateTo, minDays, maxDays, weekends, lastQuery }
 })

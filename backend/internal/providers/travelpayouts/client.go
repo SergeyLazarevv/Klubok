@@ -17,6 +17,9 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
 )
 
+// Source — имя источника в котировках и снимках цен.
+const Source = source
+
 const (
 	source      = "travelpayouts"
 	apiURL      = "https://api.travelpayouts.com/aviasales/v3/prices_for_dates"
@@ -56,6 +59,7 @@ type response struct {
 	Data    []struct {
 		OriginAirport      string `json:"origin_airport"`
 		DestinationAirport string `json:"destination_airport"`
+		Destination        string `json:"destination"` // код города
 		DepartureAt        string `json:"departure_at"`
 		ReturnAt           string `json:"return_at"`
 		Price              int64  `json:"price"`
@@ -75,12 +79,14 @@ func (c *Client) RoundTrips(ctx context.Context, q fares.RoundTripQuery) ([]fare
 	}
 	params := url.Values{
 		"origin":       {q.Origin},
-		"destination":  {q.Destination},
 		"departure_at": {q.Month.Format("2006-01")},
 		"one_way":      {"false"},
 		"currency":     {"rub"},
 		"sorting":      {"price"},
 		"limit":        {fmt.Sprint(maxResults)},
+	}
+	if q.Destination != "" {
+		params.Set("destination", q.Destination)
 	}
 	key := params.Encode()
 	if quotes, ok := c.fromCache(key); ok {
@@ -120,6 +126,7 @@ func (c *Client) RoundTrips(ctx context.Context, q fares.RoundTripQuery) ([]fare
 			Source:          source,
 			Origin:          d.OriginAirport,
 			Destination:     d.DestinationAirport,
+			DestinationCity: d.Destination,
 			DepartAt:        dep,
 			ReturnAt:        ret,
 			Price:           d.Price * 100,

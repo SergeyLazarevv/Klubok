@@ -50,3 +50,12 @@ func derefSlice[T any](s *[]T) []T {
 	}
 	return *s
 }
+
+func (h *handlers) GetDriveRoute(ctx context.Context, req apigen.GetDriveRouteRequestObject) (apigen.GetDriveRouteResponseObject, error) {
+	p := req.Params
+	route, err := h.road.RouteCoords(ctx, road.Point{Lat: p.FromLat, Lon: p.FromLon}, road.Point{Lat: p.ToLat, Lon: p.ToLon})
+	if err != nil {
+		return nil, err
+	}
+	return apigen.GetDriveRoute200JSONResponse{Road: toAPIRoad(route.Leg), Polyline: route.Polyline}, nil
+}

@@ -53,7 +53,11 @@ REST, JSON, префикс `/api/v1`. Контракт — `api/openapi.yaml` (s
 
 ## 8.5. Поиск — MVP
 
-**Реализовано:** `GET /trips?from&to&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&min_days&max_days&travelers&use_car&<параметры машины>` (начало диапазона — не дальше 3 месяцев вперёд, диапазон — до 60 дней, вылет и возврат внутри него; с машиной в ответе ещё `drive` — поездка целиком на машине, `drive_skipped`, `hidden_flights`, см. 6.1a) — без сохранения поиска; ссылку на результат даёт URL фронтенда (`/?from&to&date_from&date_to&min&max`). Ответ: лучший вариант через каждый аэропорт (билеты на всех + машина, аэропорт прилёта `arrival`), `home_best`, `savings_vs_home`, `no_data`, `partial`, предупреждения. Контракт — `api/openapi.yaml`.
+**Реализовано:** `GET /trips?from&to&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD&min_days&max_days&weekends&travelers&use_car&<параметры машины>` (начало диапазона — не дальше 3 месяцев вперёд, диапазон — до 60 дней, вылет и возврат внутри него; с машиной в ответе ещё `drive` — поездка целиком на машине, `drive_skipped`, `hidden_flights`, см. 6.1a) — без сохранения поиска; ссылку на результат даёт URL фронтенда (`/?from&to&date_from&date_to&min&max`). Ответ: лучший вариант через каждый аэропорт (билеты на всех + машина, аэропорт прилёта `arrival`), `home_best`, `savings_vs_home`, `no_data`, `partial`, предупреждения. Контракт — `api/openapi.yaml`.
+
+**Реализовано:** `GET /explore?from&date_from&date_to&min_days&max_days&weekends&travelers&use_car&<параметры машины>` — «Куда угодно» ([ADR-0020](adr/0020-explore-anywhere.md)): по каждому городу, куда у источника есть цены, лучший вариант по полной стоимости (`best`, с вылетом из соседних аэропортов при `use_car`) и лучший вылет из своего города (`home_best`); `weekends` — вылет чт–сб, возвращение вс–пн. Ограничения дат — как у `/trips`. Поездки целиком на машине здесь не считаются — их оценивает фронтенд.
+
+**Реализовано:** `GET /routes/drive?from_lat&from_lon&to_lat&to_lon` — линия маршрута на машине между точками по координатам (города карты «Куда угодно» не из справочника), кэш Redis на 30 дней; `GET /stay-prices` — цена жилья по городам карты ([ADR-0021](adr/0021-stay-prices.md)); `GET /weather?lat&lon&date_from&date_to` — погода по дням: ближайшие 16 дней — прогноз, дальше — «обычно в эти дни» по 5 прошлым годам ([ADR-0022](adr/0022-weather.md)).
 
 **Реализовано:** `GET /routes/road?from&to` — дорога между двумя точками справочника для мини-карты: `road` (км, минуты, `approximate`) и `polyline` (Encoded Polyline, точность 6).
 
