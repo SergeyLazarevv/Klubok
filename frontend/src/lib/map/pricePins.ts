@@ -1,10 +1,7 @@
 import type {
-  ExpressionSpecification, GeoJSONSource, LayerSpecification, Map as MapLibreMap, MapLayerMouseEvent, StyleSpecification,
+  ExpressionSpecification, GeoJSONSource, LayerSpecification, Map as MapLibreMap, MapLayerMouseEvent,
 } from 'maplibre-gl'
-import interCyr from '@fontsource-variable/inter/files/inter-cyrillic-wght-normal.woff2?url'
-import interLat from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
-import interLatExt from '@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2?url'
-import { CYRILLIC, LATIN } from './expr'
+import { FONT, FONT_BOLD } from './fonts'
 
 /**
  * Плашки-балуны «значок · цена» над гербами — слои WebGL, как у быстрых карт (Wildberries, Яндекс):
@@ -38,18 +35,8 @@ const PRICES = 'price-pins'
 const LOOKUPS = 'lookup-pins'
 const ACTIVE = 'price-active' // выбранная плашка — отдельно, чтобы никогда не пряталась в группу
 
-export const PIN_FONT = 'Inter SemiBold' // шрифт приложения; вес MapLibre берёт из названия
-const LIGHT_FONT = 'Inter Medium' // «от» в группах — светлее цены
-
-/** Шрифт приложения для плашек: вариативный Inter, вес — из названия; ₽ — в наборе latin-ext. */
-export function withPinFonts(style: StyleSpecification): StyleSpecification {
-  const faces = [
-    { url: interCyr, 'unicode-range': CYRILLIC },
-    { url: interLat, 'unicode-range': LATIN },
-    { url: interLatExt, 'unicode-range': ['U+20BD', 'U+2248'] },
-  ]
-  return { ...style, 'font-faces': { ...style['font-faces'], [PIN_FONT]: faces, [LIGHT_FONT]: faces } }
-}
+export const PIN_FONT = FONT_BOLD // шрифт приложения, грузится вместе со стилем карты (fonts.ts)
+const LIGHT_FONT = FONT // «от» в группах — светлее цены
 
 export const RATIO = 2
 const FLIGHT = '#0b57d0'

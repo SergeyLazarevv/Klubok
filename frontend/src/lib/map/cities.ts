@@ -1,4 +1,5 @@
 import type { ExpressionSpecification, Map as MapLibreMap, StyleSpecification } from 'maplibre-gl'
+import { FONT_BOLD } from './fonts'
 
 /**
  * Города России и столицы мира гербами-наклейками. Издалека видны столицы и крупные города,
@@ -67,7 +68,7 @@ export function withCities(style: StyleSpecification, textColor: string, haloCol
           // Сначала столицы, среди них и среди городов — по населению: Париж важнее Монако
           'symbol-sort-key': ['*', -1, ['+', ['get', 'pop'], ['case', ['get', 'capital'], 100_000_000, 0]]],
           'text-field': ['get', 'name'],
-          'text-font': ['Nunito Black'],
+          'text-font': [FONT_BOLD],
           'text-size': ['interpolate', ['linear'], ['zoom'], 2, 10, 8, ['case', big, 15, 12]],
           'text-anchor': 'top',
           'text-offset': ['interpolate', ['linear'], ['zoom'], 2, ['literal', [0, 1.3]], 5, ['literal', [0, 1.9]], 9, ['literal', [0, 2.2]]],

@@ -1,10 +1,7 @@
 import type { SkySpecification, StyleSpecification } from 'maplibre-gl'
-import lobsterCyr from '@fontsource/lobster/files/lobster-cyrillic-400-normal.woff2?url'
-import lobsterLat from '@fontsource/lobster/files/lobster-latin-400-normal.woff2?url'
-import nunitoCyr from '@fontsource/nunito/files/nunito-cyrillic-900-normal.woff2?url'
-import nunitoLat from '@fontsource/nunito/files/nunito-latin-900-normal.woff2?url'
+import { FONT, FONT_BOLD, FONT_FACES, FONT_WATER } from './fonts'
 import { INK } from './patterns'
-import { CYRILLIC, GLYPHS, LATIN, OMT_ATTRIBUTION, TILES, name, placeSize, roadWidth, roads, sights, zoomed } from './expr'
+import { GLYPHS, OMT_ATTRIBUTION, TILES, name, placeSize, roadWidth, roads, sights, zoomed } from './expr'
 
 /**
  * «Мультяшный» стиль в духе диснеевских карт: толстая обводка, жёлтые дороги, волны на воде,
@@ -113,16 +110,7 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
     version: 8,
     name: C.name,
     glyphs: GLYPHS,
-    'font-faces': {
-      Lobster: [
-        { url: lobsterCyr, 'unicode-range': CYRILLIC },
-        { url: lobsterLat, 'unicode-range': LATIN },
-      ],
-      'Nunito Black': [
-        { url: nunitoCyr, 'unicode-range': CYRILLIC },
-        { url: nunitoLat, 'unicode-range': LATIN },
-      ],
-    },
+    'font-faces': FONT_FACES,
     sources: {
       omt: {
         type: 'vector',
@@ -375,13 +363,13 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
         layout: {
           'symbol-placement': 'line',
           'text-field': name,
-          'text-font': ['Lobster'],
-          'text-size': zoomed([10, 16], [16, 30]),
-          'text-letter-spacing': 0.2,
+          'text-font': [FONT_WATER],
+          'text-size': zoomed([10, 12], [16, 18]),
+          'text-letter-spacing': 0.1,
           'symbol-spacing': 400,
           'text-pitch-alignment': 'viewport',
         },
-        paint: { 'text-color': '#ffffff', 'text-halo-color': C.waterDeep, 'text-halo-width': 2.5 },
+        paint: { 'text-color': '#ffffff', 'text-halo-color': C.waterDeep, 'text-halo-width': 1.5 },
       },
       {
         id: 'water-name',
@@ -390,11 +378,11 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
         'source-layer': 'water_name',
         layout: {
           'text-field': name,
-          'text-font': ['Lobster'],
-          'text-size': zoomed([8, 16], [14, 26]),
-          'text-letter-spacing': 0.15,
+          'text-font': [FONT_WATER],
+          'text-size': zoomed([8, 12], [14, 18]),
+          'text-letter-spacing': 0.1,
         },
-        paint: { 'text-color': '#ffffff', 'text-halo-color': C.waterDeep, 'text-halo-width': 2.5 },
+        paint: { 'text-color': '#ffffff', 'text-halo-color': C.waterDeep, 'text-halo-width': 1.5 },
       },
       {
         id: 'road-name',
@@ -406,11 +394,11 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
         layout: {
           'symbol-placement': 'line',
           'text-field': name,
-          'text-font': ['Nunito Black'],
-          'text-size': zoomed([13, 10], [17, 15]),
+          'text-font': [FONT],
+          'text-size': zoomed([13, 10], [17, 14]),
           'text-max-angle': 30,
         },
-        paint: { 'text-color': C.ink, 'text-halo-color': '#fffaf0', 'text-halo-width': 2 },
+        paint: { 'text-color': C.ink, 'text-halo-color': '#fffaf0', 'text-halo-width': 1.5 },
       },
       {
         id: 'poi',
@@ -443,14 +431,14 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
         filter: ['any', sights, ['>=', ['zoom'], 17.5]],
         layout: {
           'text-field': name,
-          'text-font': ['Nunito Black'],
+          'text-font': [FONT],
           'text-size': 12,
           'text-anchor': 'top',
           'text-offset': [0, 0.9],
           'text-max-width': 8,
           'text-optional': true,
         },
-        paint: { 'text-color': '#7a3b1d', 'text-halo-color': '#ffffff', 'text-halo-width': 2 },
+        paint: { 'text-color': '#7a3b1d', 'text-halo-color': '#ffffff', 'text-halo-width': 1.5 },
       },
       {
         id: 'country',
@@ -461,10 +449,10 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
         filter: ['==', ['get', 'class'], 'country'],
         layout: {
           'text-field': name,
-          'text-font': ['Nunito Black'],
-          'text-size': zoomed([1, 10], [6, 17]),
+          'text-font': [FONT_BOLD],
+          'text-size': zoomed([1, 10], [6, 15]),
           'text-transform': 'uppercase',
-          'text-letter-spacing': 0.2,
+          'text-letter-spacing': 0.15,
           'text-max-width': 7,
         },
         paint: { 'text-color': C.title, 'text-opacity': 0.55, 'text-halo-color': C.paper, 'text-halo-width': 1.5 },
@@ -477,11 +465,11 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
         filter: ['match', ['get', 'class'], ['city', 'town', 'village', 'suburb', 'quarter', 'neighbourhood'], true, false],
         layout: {
           'text-field': name,
-          'text-font': ['Lobster'],
+          'text-font': [FONT_BOLD],
           'text-size': zoomed(
-            [5, placeSize(16, 10, 0, 0)],
-            [12, placeSize(34, 22, 14, 12)],
-            [16, placeSize(40, 30, 24, 18)],
+            [5, placeSize(13, 10, 0, 0)],
+            [12, placeSize(22, 16, 12, 11)],
+            [16, placeSize(26, 20, 16, 14)],
           ),
           'text-max-width': 8,
           'text-padding': 6,
@@ -489,7 +477,7 @@ export function cartoonStyle(C: CartoonTheme = CARTOON): StyleSpecification {
         paint: {
           'text-color': ['match', ['get', 'class'], ['city', 'town'], C.title, C.subtitle],
           'text-halo-color': '#ffffff',
-          'text-halo-width': 3,
+          'text-halo-width': 2,
         },
       },
     ],

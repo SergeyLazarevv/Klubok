@@ -8,7 +8,7 @@ import { arrivalOf, at, byCar, label, type Stop, type Trip } from '@/lib/tripMap
 import { PASTEL, cartoonStyle } from './cartoonStyle'
 import { maplibregl } from './maplibre'
 import { provideImages } from './patterns'
-import { PIN_FONT, RATIO, pill, withPinFonts } from './pricePins'
+import { PIN_FONT, RATIO, pill } from './pricePins'
 import { addRouteLayers, setRoute, type RouteSegment } from './routeLine'
 import './tripLayers.css'
 
@@ -57,7 +57,7 @@ export interface TripMapOptions {
 export function createTripMap(container: HTMLElement, t: Trip, opts: TripMapOptions = {}) {
   const map = new maplibregl.Map({
     container,
-    style: withPinFonts(cartoonStyle(PASTEL)),
+    style: cartoonStyle(PASTEL),
     bounds: tripBounds(t),
     fitBoundsOptions: { padding: opts.static ? 14 : FIT_PADDING },
     interactive: !opts.static,

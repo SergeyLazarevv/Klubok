@@ -12,7 +12,7 @@ import { useProfileStore } from '@/stores/profile'
 import { createStyledMap, maplibregl, type MapLibreMap } from '@/lib/map/maplibre'
 import { PASTEL, cartoonStyle } from '@/lib/map/cartoonStyle'
 import { armsUrl, photoUrl, warmStickerCache, withCities, type City } from '@/lib/map/cities'
-import { LOOKUP_LAYER, PRICE_LAYER, addPricePins, setPricePins, withPinFonts } from '@/lib/map/pricePins'
+import { LOOKUP_LAYER, PRICE_LAYER, addPricePins, setPricePins } from '@/lib/map/pricePins'
 import { type RouteSegment, addRouteLayers, fitRoute, setRoute } from '@/lib/map/routeLine'
 import { decodePolyline, greatCircleArc, yandexRouteUrl } from '@/lib/geo'
 import {
@@ -333,7 +333,7 @@ onMounted(() => {
   loadCities()
   loadStayPrices()
   load()
-  const style = withPinFonts(withCities(cartoonStyle(PASTEL), PASTEL.title, '#ffffff'))
+  const style = withCities(cartoonStyle(PASTEL), PASTEL.title, '#ffffff')
   const center: [number, number] = homePlace.value ? [homePlace.value.location.lon, homePlace.value.location.lat] : [50.1, 53.2]
   // На компьютере панель лежит поверх карты слева — центр карты и плашки считаем по видимой части
   const wide = window.matchMedia('(min-width: 1024px)').matches
