@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, watch } from 'vue'
+import { computed, onUnmounted, provide, reactive, watch } from 'vue'
 import {
   ArrowRightIcon, BedDoubleIcon, CalendarIcon, CarIcon, ReceiptIcon, EqualIcon, PlaneIcon, RotateCcwIcon, SearchIcon, StarIcon, TrashIcon, TrendingDownIcon, TrendingUpIcon, UsersIcon,
 } from '@lucide/vue'
 import { api, type Favorite, type FavoriteCurrent } from '@/api/client'
 import { hours, localDay, plural, rub } from '@/lib/format'
 import { useFavoritesStore } from '@/stores/favorites'
+import { stopsEditorKey } from '@/stores/search'
 import { useSheetStore } from '@/stores/sheet'
-import { countedInTotal, sheetExtras } from '@/lib/sheet'
+import { countedInTotal, replacedStopStays, sheetExtras } from '@/lib/sheet'
 import DriveOptionCard from '@/components/DriveOptionCard.vue'
 import TripOptionCard from '@/components/TripOptionCard.vue'
 
@@ -39,13 +40,31 @@ watch(() => favorites.items, (list) => list.forEach((f) => void sheets.load(f.id
 const extras = (f: Favorite) => sheetExtras(sheets.byFavorite[f.id] ?? [])
 const unchosen = (f: Favorite) => (sheets.byFavorite[f.id] ?? []).filter((i) => i.price && !countedInTotal(i)).length
 /** Цена самой поездки: актуальная, а пока не обновилась или источник не ответил — на момент сохранения. */
-const tripTotal = (f: Favorite) => (cur(f)?.total ?? f.snapshot.total).amount
+// Ночёвки в остановках, где выбрано своё жильё, — по цене объявления (оно в extras), а не по оценке
+const tripTotal = (f: Favorite) =>
+  (cur(f)?.total ?? f.snapshot.total).amount - replacedStopStays(sheets.byFavorite[f.id] ?? [], cur(f)?.drive?.stops)
 
 async function undo() {
   const fav = await favorites.undoRemove()
   if (fav) await refresh(fav)
 }
 onUnmounted(() => (favorites.lastRemoved = null)) // «Отменить» — только пока страница открыта
+
+// Остановки по пути в сохранённой поездке: сервер сохраняет их в запись и сразу отдаёт новый вариант
+provide(stopsEditorKey, {
+  via: (f) => f?.params.via ?? [],
+  set: async (via, f) => {
+    if (!f) return 'Поездка не найдена'
+    const { data, error } = await favorites.updateVia(f, via)
+    if (data) {
+      current.set(f.id, data.current)
+      return undefined
+    }
+    return error?.status === 409
+      ? 'Поездка с такими остановками уже есть в избранном.'
+      : 'Не получилось сохранить остановки — они остались как были. Попробуйте ещё раз.'
+  },
+})
 
 const cur = (f: Favorite) => {
   const c = current.get(f.id)

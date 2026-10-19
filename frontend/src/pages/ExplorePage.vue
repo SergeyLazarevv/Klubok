@@ -4,10 +4,10 @@ import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowRightIcon, BedDoubleIcon, CalendarIcon, CarIcon, ChevronDownIcon, ClockIcon, ExternalLinkIcon, FuelIcon,
-  PlaneIcon, RepeatIcon, RouteIcon, SearchXIcon, SparklesIcon, XIcon,
+  MapPinnedIcon, MoonIcon, PlaneIcon, RepeatIcon, RouteIcon, SearchXIcon, SparklesIcon, XIcon,
 } from '@lucide/vue'
 import { useLocalStorage, watchDebounced } from '@vueuse/core'
-import { api, type ExploreItem, type ExploreResponse, type FavoritePick, type FavoriteSnapshot, type Place, type StayPrice, type TripOption, type TripSearchParams } from '@/api/client'
+import { api, type ExploreItem, type ExploreResponse, type FavoritePick, type FavoriteSnapshot, type Place, type StayPrice, type StopSuggestion, type TripOption, type TripSearchParams } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
 import { createStyledMap, maplibregl, type MapLibreMap } from '@/lib/map/maplibre'
 import { PASTEL, cartoonStyle } from '@/lib/map/cartoonStyle'
@@ -132,9 +132,11 @@ async function lookupPrice(d: Destination) {
 }
 
 /** Город карты — из Wikidata, в справочнике backend его ищем по названию и ближайшим координатам. */
+// Город справочника рядом с городом карты: с аэропортом или без (town — только на машине)
 async function findPlace(d: Destination): Promise<Place | undefined> {
-  const { data: places } = await api.GET('/places', { params: { query: { q: d.name, kind: 'city', limit: 5 } } })
+  const { data: places } = await api.GET('/places', { params: { query: { q: d.name, limit: 8 } } })
   return places?.items
+    .filter((p) => p.kind !== 'airport')
     .map((p) => ({ p, km: Math.hypot(p.location.lat - d.lat, (p.location.lon - d.lon) * Math.cos((d.lat * Math.PI) / 180)) * 111 }))
     .filter((x) => x.km < 60)
     .sort((a, b) => a.km - b.km)[0]?.p
@@ -450,21 +452,42 @@ const savings = (d: Destination) => Math.max(0, d.flight?.best.savings_vs_home?.
  * выходные» подборки. Тот же запрос /trips — тот же лучший вариант. Точные даты рейса сюда не годятся: вылет
  * в конце дальнего месяца выходит за горизонт поиска (3 месяца на начало), и поиск молча брал свои даты.
  */
-function searchLink(d: Destination) {
+/** Поиск с параметрами подборки; на машине — сразу открыт вариант на машине, с остановками via. */
+function searchLink(d: Destination, via?: string[]) {
   const q = searchQuery()
+  const to = d.flight?.city.id ?? drivePlaces.value.get(d.key)?.id
   return {
     path: '/',
     query: {
       from: q.from,
-      to: d.flight!.city.id,
+      to,
       date_from: q.date_from,
       date_to: q.date_to,
       min: q.min_days,
       max: q.max_days,
       weekends: q.weekends ? '1' : undefined,
+      via,
+      trip: d.flight ? undefined : 'drive',
     },
   }
 }
+
+// Где остановиться по дороге на машине (ADR-0023): города вдоль дороги, нажатие — план поездки с остановкой
+const driveStops = ref<StopSuggestion[]>()
+watch(
+  () => {
+    const d = selected.value
+    const place = d?.drive && !d.flight ? drivePlaces.value.get(d.key) : undefined
+    return place && homePlace.value ? `${homePlace.value.id}|${place.id}|${profile.maxDriveHours}` : undefined
+  },
+  async (key) => {
+    driveStops.value = undefined
+    if (!key) return
+    const [from, to, hours] = key.split('|') as [string, string, string]
+    const { data } = await api.GET('/trips/stops', { params: { query: { from, to, max_drive_hours: Number(hours) } } })
+    if (selected.value && drivePlaces.value.get(selected.value.key)?.id === to) driveStops.value = data?.items.slice(0, 4) ?? []
+  },
+)
 
 /**
  * Избранное из карточки — с параметрами подборки, как у «Все варианты»: звёздочка совпадает с результатами
@@ -706,6 +729,24 @@ const tabs = computed(() =>
               Оценка по прямой. Точный маршрут — в картах.
             </p>
 
+            <div v-if="selected.drive && driveStops?.length" class="flex flex-col gap-2">
+              <span class="flex items-center gap-1.5 text-sm font-medium">
+                <MapPinnedIcon class="size-4 text-road" /> Можно остановиться по пути
+              </span>
+              <div class="flex flex-wrap gap-2">
+                <RouterLink
+                  v-for="s in driveStops"
+                  :key="s.city.id"
+                  :to="searchLink(selected, [`${s.city.id}:0`])"
+                  class="flex h-9 items-center gap-1.5 rounded-full bg-[#fef3e6] px-3 text-sm text-[#7a3d00] transition-colors hover:bg-[#fde7cc]"
+                >
+                  <MoonIcon v-if="s.overnight" class="size-3.5" />
+                  {{ s.city.name }}
+                  <span class="opacity-70">{{ s.detour.duration_min < 10 ? 'без крюка' : `+${hours(s.detour.duration_min / 60)}` }}</span>
+                </RouterLink>
+              </div>
+            </div>
+
             <div class="flex gap-2">
               <template v-if="selected.flight">
                 <RouterLink :to="searchLink(selected)" class="btn btn--primary flex-1">
@@ -713,6 +754,14 @@ const tabs = computed(() =>
                 </RouterLink>
                 <a v-if="selected.flight.best.booking_url" :href="selected.flight.best.booking_url" target="_blank" rel="noopener" class="btn btn--ghost">
                   Билеты <ExternalLinkIcon class="size-4" />
+                </a>
+              </template>
+              <template v-else-if="drivePlaces.get(selected.key)">
+                <RouterLink :to="searchLink(selected)" class="btn btn--primary flex-1">
+                  План поездки <ArrowRightIcon class="size-4" />
+                </RouterLink>
+                <a :href="routeLink(selected)" target="_blank" rel="noopener" class="btn btn--ghost">
+                  Маршрут <ExternalLinkIcon class="size-4" />
                 </a>
               </template>
               <a v-else :href="routeLink(selected)" target="_blank" rel="noopener" class="btn btn--primary flex-1">

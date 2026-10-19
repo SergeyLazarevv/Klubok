@@ -97,3 +97,23 @@ SELECT DISTINCT c.iata FROM places c
 JOIN places a ON a.kind = 'airport' AND a.city_iata = c.iata AND a.is_active
 WHERE c.kind = 'city' AND c.is_active AND c.country_code = @country_code
 ORDER BY c.iata;
+
+-- name: UpsertTown :one
+-- Город без аэропорта (город карты). Часовой пояс — ближайшего города справочника. Если рядом (30 км)
+-- уже есть город с тем же названием (с аэропортом), не добавляем — направление и так есть. true — записан.
+INSERT INTO places (id, kind, iata, name_ru, country_code, location, timezone, is_active, updated_at)
+SELECT @id, 'town', @iata, @name_ru, 'RU', s.pt,
+       (SELECT n.timezone FROM places n WHERE n.kind = 'city' AND n.country_code = 'RU' ORDER BY n.location <-> s.pt LIMIT 1),
+       true, now()
+FROM (SELECT ST_SetSRID(ST_MakePoint(@lon::float8, @lat::float8), 4326)::geography AS pt) s
+WHERE NOT EXISTS (
+    SELECT 1 FROM places c
+    WHERE c.kind = 'city' AND lower(c.name_ru) = lower(@name_ru) AND ST_DWithin(c.location, s.pt, 30000)
+)
+ON CONFLICT (kind, iata) DO UPDATE SET
+    name_ru    = EXCLUDED.name_ru,
+    location   = EXCLUDED.location,
+    timezone   = EXCLUDED.timezone,
+    is_active  = true,
+    updated_at = now()
+RETURNING true AS written;

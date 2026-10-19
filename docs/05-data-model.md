@@ -51,7 +51,7 @@ erDiagram
     }
     places {
         uuid id PK
-        text kind "city|airport|rail|bus"
+        text kind "city|airport|rail|bus|town"
         text iata
         text city_iata
         text name_ru
@@ -226,6 +226,7 @@ erDiagram
 | price | bigint | Копейки; вводит пользователь, идёт в общий бюджет |
 | lat, lon | double precision | Где место (из лент мест); для карты и дороги через места по пути |
 | image_url, description | text | Превью ссылки со страницы объявления (og-теги) |
+| city | text | Город-остановка по пути (id Wikidata, как в `via`): жильё и дела в нём; пусто — место назначения или дорога ([ADR-0023](adr/0023-stops-along-the-road.md)) |
 | done | boolean | «Сделано»; у ссылок — «выбрано», только тогда цена идёт в итог |
 | created_at | timestamptz | Порядок в этапе |
 

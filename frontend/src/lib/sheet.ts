@@ -1,4 +1,4 @@
-import type { TripItem, TripItemCreate, TripItemStage } from '@/api/client'
+import type { DriveStop, TripItem, TripItemCreate, TripItemStage } from '@/api/client'
 
 /**
  * Путевой лист (ADR-0019): что пользователь добавил к поездке. Ссылки — на чужие сайты, поэтому по адресу
@@ -84,4 +84,17 @@ export function sheetExtras(items: TripItem[]) {
     else other += i.price.amount
   }
   return { stay, other, total: stay + other }
+}
+
+/**
+ * Ночёвки в городах-остановках, для которых выбрано своё жильё с ценой, копейки: оценка Росстата уже в цене
+ * поездки, а теперь вместо неё в итог идёт цена объявления — оценку из итога вычитаем, чтобы не считать дважды.
+ */
+export function replacedStopStays(items: TripItem[], stops: DriveStop[] = []) {
+  let sum = 0
+  for (const s of stops) {
+    const own = items.some((i) => i.city === s.city.id && i.stage === 'stay' && countedInTotal(i) && i.price)
+    if (own && s.stay) sum += s.stay.amount
+  }
+  return sum
 }

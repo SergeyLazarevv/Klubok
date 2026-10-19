@@ -144,8 +144,12 @@ paths:
       parameters:
         - name: place
           in: query
-          required: true
+          description: Город или аэропорт справочника; нужен place или city
           schema: { type: string, format: uuid }
+        - name: city
+          in: query
+          description: Город карты (id Wikidata) — для остановок по пути (ADR-0023); только sutochno и avito
+          schema: { type: string, pattern: '^Q\d+$', example: Q900 }
         - name: check_in
           in: query
           required: true
@@ -177,8 +181,12 @@ paths:
       parameters:
         - name: place
           in: query
-          required: true
+          description: Город или аэропорт справочника; нужен place или city
           schema: { type: string, format: uuid }
+        - name: city
+          in: query
+          description: Город карты (id Wikidata) — для остановок по пути (ADR-0023); только sutochno и avito
+          schema: { type: string, pattern: '^Q\d+$', example: Q900 }
         - name: check_in
           in: query
           required: true
@@ -288,6 +296,7 @@ paths:
         - $ref: '#/components/parameters/FuelTypeParam'
         - $ref: '#/components/parameters/FuelPriceRub'
         - $ref: '#/components/parameters/AllowBorder'
+        - $ref: '#/components/parameters/Via'
       responses:
         '200':
           description: Варианты поездки
@@ -297,6 +306,36 @@ paths:
         '404': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
         '502': { $ref: '#/components/responses/Problem' }
+
+  /trips/stops:
+    get:
+      tags: [search]
+      operationId: suggestStops
+      summary: Города, где можно остановиться по дороге на машине
+      description: |
+        Города карты вдоль дороги от дома до места: небольшой крюк, интересные (население, герб, фото,
+        достопримечательность), с ценой ночёвки. Лучшие сверху. Если дорога длиннее max_drive_hours,
+        выше те, где удобно заночевать: оба участка не длиннее лимита. См. ADR-0023.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Домашний город
+          schema: { type: string, format: uuid }
+        - name: to
+          in: query
+          required: true
+          description: Город назначения
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/MaxDriveHours'
+      responses:
+        '200':
+          description: Предложения, лучшие сверху; пусто — подходящих городов нет
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/StopSuggestions' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
 
   /explore:
     get:
@@ -447,7 +486,6 @@ paths:
           explode: true
           schema:
             type: array
-            maxItems: 10
             items: { type: string, pattern: '^-?\d{1,2}(\.\d+)?,-?\d{1,3}(\.\d+)?$', example: '53.2415,50.2212' }
       responses:
         '200':
@@ -597,6 +635,30 @@ paths:
         '422': { $ref: '#/components/responses/Problem' }
 
   /favorites/{id}:
+    patch:
+      tags: [favorites]
+      operationId: updateFavorite
+      summary: Поменять остановки по пути у сохранённой поездки
+      description: |
+        via заменяет остановки по дороге на машине (как параметр via у GET /trips, ADR-0023). Цена сразу
+        пересчитывается, и снимок цены обновляется: поменять маршрут — не значит «подорожало». 409 — поездка
+        с такими остановками уже есть в избранном.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FavoritePatch' }
+      responses:
+        '200':
+          description: Запись и пересчитанный вариант
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FavoriteUpdated' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
     delete:
       tags: [favorites]
       operationId: deleteFavorite
@@ -721,6 +783,18 @@ paths:
 
 components:
   parameters:
+    Via:
+      name: via
+      in: query
+      required: false
+      description: |
+        Остановки по дороге на машине, по порядку: «<id города карты>:<ночей>», параметр повторяется.
+        0 ночей — заезд на несколько часов. Учитываются только в варианте «целиком на машине».
+      style: form
+      explode: true
+      schema:
+        type: array
+        items: { type: string, pattern: '^Q\d+:[0-3]$', example: 'Q900:1' }
     RadiusKm:
       name: radius_km
       in: query
@@ -769,7 +843,8 @@ components:
   schemas:
     PlaceKind:
       type: string
-      enum: [city, airport]
+      description: town — город без аэропорта (город карты, iata — id Wikidata), туда только на машине
+      enum: [city, airport, town]
 
     Place:
       type: object
@@ -993,8 +1068,10 @@ components:
     DriveTrip:
       type: object
       description: |
-        Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
-        не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+        Поездка целиком на своей машине, туда и обратно. Предлагается, если граница разрешена (allow_border)
+        и дорога в одну сторону не дольше max_drive_hours; длиннее (до 4 дней по лимиту) — тоже, с предупреждением
+        long_drive_day: где заехать и переночевать, пользователь выбирает сам (via, ADR-0023).
+        Даты свободные; парковка на месте не считается.
       required: [road, drive_hours, cost, total, per_person, trip_days, warnings]
       properties:
         road: { $ref: '#/components/schemas/RoadLeg' }
@@ -1006,11 +1083,75 @@ components:
         border: { $ref: '#/components/schemas/BorderInfo' }
         savings_vs_home:
           $ref: '#/components/schemas/Money'
+        stops:
+          type: array
+          description: Остановки по пути (параметр via), по порядку; туда — через них, обратно — напрямую
+          items: { $ref: '#/components/schemas/DriveStop' }
+        via_road:
+          $ref: '#/components/schemas/RoadLeg'
+          description: Дорога туда через остановки; есть, только когда есть остановки
+        stay:
+          $ref: '#/components/schemas/Money'
+          description: Ночёвки в остановках на всех — уже в total
         warnings:
           type: array
           items:
             type: string
-            enum: [border_crossing_by_car, road_approximate]
+            enum: [border_crossing_by_car, road_approximate, long_drive_day]
+            description: long_drive_day — какой-то день за рулём дольше max_drive_hours (дорога длинная, ночёвок не хватает)
+
+    StopCity:
+      type: object
+      description: Город карты (cities.geojson), id — Wikidata
+      required: [id, name, location, population, arms]
+      properties:
+        id: { type: string, example: Q900 }
+        name: { type: string, example: Казань }
+        location: { $ref: '#/components/schemas/Point' }
+        population: { type: integer }
+        arms: { type: boolean, description: Есть герб — /data/arms/<id>.webp }
+        photo: { type: string, description: Файл на Викискладе }
+        landmark: { type: string, example: Казанский кремль }
+
+    DriveStop:
+      type: object
+      required: [city, nights]
+      properties:
+        city: { $ref: '#/components/schemas/StopCity' }
+        nights: { type: integer, minimum: 0, maximum: 3 }
+        stay:
+          $ref: '#/components/schemas/Money'
+          description: Ночёвки на всех; нет — 0 ночей или нет цены
+        stay_per_night:
+          $ref: '#/components/schemas/Money'
+          description: Сутки в гостинице 3* с человека (Росстат)
+
+    StopSuggestion:
+      type: object
+      required: [city, detour, position, drive_to_hours, drive_from_hours, overnight]
+      properties:
+        city: { $ref: '#/components/schemas/StopCity' }
+        detour:
+          $ref: '#/components/schemas/RoadLeg'
+          description: Сколько добавит заезд к прямой дороге
+        position: { type: number, format: double, description: Доля пути до города, 0–1 }
+        drive_to_hours: { type: number, format: double, description: От дома до города }
+        drive_from_hours: { type: number, format: double, description: От города до места }
+        overnight:
+          type: boolean
+          description: Дорога длиннее лимита, и здесь удобно заночевать — оба участка не длиннее лимита
+        stay_per_night:
+          $ref: '#/components/schemas/Money'
+          description: Сутки в гостинице 3* с человека (Росстат)
+
+    StopSuggestions:
+      type: object
+      required: [items, direct]
+      properties:
+        direct: { $ref: '#/components/schemas/RoadLeg' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/StopSuggestion' }
 
     TripOption:
       type: object
@@ -1235,6 +1376,10 @@ components:
         fuel_price_rub: { type: number, format: double, minimum: 1, maximum: 1000 }
         allow_border: { type: boolean }
         weekends: { type: boolean, description: Только вылет чт–сб и возвращение вс–пн }
+        via:
+          type: array
+          description: Остановки по дороге на машине — как параметр via у GET /trips
+          items: { type: string, pattern: '^Q\d+:[0-3]$' }
 
     FavoritePick:
       type: object
@@ -1262,6 +1407,22 @@ components:
         transfers: { type: integer }
         drive_hours: { type: number, format: double }
         found_on: { type: string, format: date }
+
+    FavoritePatch:
+      type: object
+      required: [via]
+      properties:
+        via:
+          type: array
+          description: Остановки по пути — как via у GET /trips; пусто — без остановок
+          items: { type: string, pattern: '^Q\d+:[0-3]$' }
+
+    FavoriteUpdated:
+      type: object
+      required: [favorite, current]
+      properties:
+        favorite: { $ref: '#/components/schemas/Favorite' }
+        current: { $ref: '#/components/schemas/FavoriteCurrent' }
 
     FavoriteCreate:
       type: object
@@ -1339,6 +1500,10 @@ components:
           allOf: [{ $ref: '#/components/schemas/Point' }]
         image_url: { type: string, maxLength: 2000, pattern: '^https://', description: Картинка из превью ссылки }
         description: { type: string, maxLength: 500, description: Описание из превью ссылки }
+        city:
+          type: string
+          pattern: '^Q\d+$'
+          description: Город-остановка по пути (id Wikidata, как в via) — жильё и дела в нём; нет — место назначения или дорога
 
     TripItemPatch:
       type: object
@@ -1363,6 +1528,7 @@ components:
         location: { $ref: '#/components/schemas/Point' }
         image_url: { type: string }
         description: { type: string }
+        city: { type: string, description: Город-остановка по пути (id Wikidata); нет — место назначения или дорога }
         done:
           type: boolean
           description: Для ссылок (жильё, аренда) — «выбрано»; цена ссылки идёт в итог, только когда она выбрана

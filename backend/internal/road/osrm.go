@@ -80,6 +80,10 @@ type osrmRoute struct {
 		Distance float64 `json:"distance"`
 		Duration float64 `json:"duration"`
 		Geometry string  `json:"geometry"`
+		Legs     []struct {
+			Distance float64 `json:"distance"`
+			Duration float64 `json:"duration"`
+		} `json:"legs"`
 	} `json:"routes"`
 }
 
@@ -105,10 +109,16 @@ func (o *OSRM) Route(ctx context.Context, from, to Point, via ...Point) (*Route,
 		return nil, nil
 	}
 	best := r.Routes[0]
-	return &Route{
+	route := &Route{
 		Leg:      Leg{DistanceM: int(best.Distance), DurationS: int(best.Duration)},
 		Polyline: best.Geometry,
-	}, nil
+	}
+	if len(via) > 0 {
+		for _, l := range best.Legs {
+			route.Parts = append(route.Parts, Leg{DistanceM: int(l.Distance), DurationS: int(l.Duration)})
+		}
+	}
+	return route, nil
 }
 
 func lonLat(p Point) string {

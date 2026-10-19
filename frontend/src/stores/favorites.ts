@@ -44,6 +44,15 @@ export const useFavoritesStore = defineStore('favorites', () => {
     else lastRemoved.value = fav
   }
 
+  /** Поменять остановки по пути: сервер сохранит их, пересчитает цену и вернёт новый вариант. */
+  async function updateVia(fav: Favorite, via: string[]) {
+    const { data, error } = await api
+      .PATCH('/favorites/{id}', { params: { path: { id: fav.id } }, body: { via } })
+      .catch(() => ({ data: undefined, error: undefined }))
+    if (data) items.value = items.value.map((f) => (f.id === fav.id ? data.favorite : f))
+    return { data, error }
+  }
+
   /** Вернуть последнее удалённое (кнопка «Отменить»): сервер заведёт запись заново с теми же данными. */
   async function undoRemove() {
     const fav = lastRemoved.value
@@ -52,5 +61,5 @@ export const useFavoritesStore = defineStore('favorites', () => {
     return add(fav.title, fav.params, fav.pick, fav.snapshot)
   }
 
-  return { items, loaded, lastRemoved, load, find, add, remove, undoRemove }
+  return { items, loaded, lastRemoved, load, find, add, remove, undoRemove, updateVia }
 })

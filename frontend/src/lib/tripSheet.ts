@@ -39,7 +39,8 @@ export function useTripSheet(opts: {
     if (fav) return sheets.add(fav.id, body)
   }
 
-  const byStage = (stage: TripItemStage) => items.value.filter((i) => i.stage === stage)
+  /** Пункты этапа; city — в городе-остановке по пути (ADR-0023), без него — у места назначения и в дороге. */
+  const byStage = (stage: TripItemStage, city?: string) => items.value.filter((i) => i.stage === stage && (i.city ?? undefined) === city)
   const toggle = (item: TripItem) => favorite.value && sheets.toggle(favorite.value.id, item)
   const remove = (item: TripItem) => favorite.value && sheets.remove(favorite.value.id, item)
   const extra = computed(() => sheetExtras(items.value).total)

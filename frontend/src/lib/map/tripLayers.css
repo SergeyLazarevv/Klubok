@@ -1,0 +1,111 @@
+/* Карта поездки на MapLibre (tripLayers.ts) */
+.trip-map {
+  background: #d9f0ff; /* небо вокруг глобуса, пока грузятся тайлы — как в «Куда угодно» */
+}
+.trip-map .maplibregl-ctrl-attrib {
+  font-size: 10px;
+}
+
+/* Чипы категорий мест: тот же цвет, что у значков на карте (poiColors) */
+.poi-chip-fuel {
+  --poi: #7c3aed;
+}
+.poi-chip-food {
+  --poi: #e11d48;
+}
+.poi-chip-attraction {
+  --poi: #047857;
+}
+.poi-chip-fuel,
+.poi-chip-food,
+.poi-chip-attraction {
+  color: #fff;
+  background: var(--poi);
+}
+
+/* Карточка места */
+.poi-popup .maplibregl-popup-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  overflow: hidden;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--foreground);
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgb(20 32 46 / 18%);
+}
+.poi-popup .maplibregl-popup-close-button {
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  font-size: 18px;
+  color: var(--foreground);
+  background: rgb(255 255 255 / 85%);
+  border-radius: 0 var(--radius) 0 12px;
+}
+.poi-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.poi-popup.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.poi-popup.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip {
+  border-top-color: var(--card);
+}
+.poi-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--card);
+}
+.poi-popup-title {
+  display: block;
+  font-size: 14px;
+}
+.poi-popup-sub {
+  color: var(--muted-foreground);
+}
+.poi-popup-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 4px;
+}
+.poi-popup-links a {
+  color: var(--primary);
+  font-weight: 500;
+}
+.poi-popup-photo {
+  display: block;
+  width: calc(100% + 28px);
+  max-width: none;
+  height: 140px;
+  margin: -10px -14px 0;
+  object-fit: cover;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--muted);
+}
+.poi-popup-credit {
+  display: block;
+  margin-bottom: 6px;
+  overflow: hidden;
+  font-size: 10px;
+  color: var(--muted-foreground) !important;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.poi-popup-desc {
+  display: -webkit-box;
+  margin: 4px 0 2px;
+  overflow: hidden;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+}
+.poi-popup-loading {
+  margin: 4px 0 2px;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.poi-popup-meta {
+  color: var(--muted-foreground);
+}
+.poi-popup-meta a {
+  color: var(--primary);
+}

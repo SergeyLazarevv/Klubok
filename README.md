@@ -16,6 +16,7 @@
 make up              # PostgreSQL + PostGIS, Redis, Mailpit
 make migrate         # миграции БД
 make import-places   # справочник городов и аэропортов (Travelpayouts, без токена)
+make import-towns    # города без аэропорта — направления только на машине (из cities.geojson)
 cp .env.example .env # и вписать TRAVELPAYOUTS_TOKEN / TRAVELPAYOUTS_MARKER — для цен на билеты
 make api             # API на http://127.0.0.1:8080
 make web             # фронтенд на http://127.0.0.1:5173

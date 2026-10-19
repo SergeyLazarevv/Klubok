@@ -4,7 +4,7 @@ import { XIcon } from '@lucide/vue'
 import { arrivalOf, label, type Trip } from '@/lib/tripMap'
 import TripMapFull from '@/components/TripMapFull.vue'
 
-const props = defineProps<Trip>()
+const props = defineProps<Trip & { pick?: string }>()
 const open = defineModel<boolean>('open', { required: true })
 </script>
 
@@ -31,7 +31,7 @@ const open = defineModel<boolean>('open', { required: true })
             <XIcon class="size-5" />
           </DialogClose>
         </header>
-        <TripMapFull :home="home" :option="option" :drive="drive" :destination="destination" :stops="stops" class="min-h-0 flex-1" />
+        <TripMapFull :home="home" :option="option" :drive="drive" :destination="destination" :stops="stops" :pick="pick" class="min-h-0 flex-1" />
       </DialogContent>
     </DialogPortal>
   </DialogRoot>

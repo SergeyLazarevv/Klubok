@@ -10,6 +10,7 @@ export function favoriteKey(p: TripSearchParams, pick: FavoritePick): string {
     p.from, p.to, p.date_from, p.date_to, p.min_days ?? 3, p.max_days ?? 14, p.travelers ?? 1, p.use_car ? 'car' : 'nocar',
     pick.kind, pick.hub_iata ?? '', pick.depart_date ?? '', pick.return_date ?? '',
     ...(p.weekends ? ['weekends'] : []),
+    ...(p.via?.length ? [`via=${p.via.join(',')}`] : []),
   ].join('|')
 }
 

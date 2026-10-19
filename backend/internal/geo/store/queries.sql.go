@@ -447,3 +447,45 @@ func (q *Queries) UpsertPlace(ctx context.Context, arg UpsertPlaceParams) error 
 	)
 	return err
 }
+
+const upsertTown = `-- name: UpsertTown :one
+INSERT INTO places (id, kind, iata, name_ru, country_code, location, timezone, is_active, updated_at)
+SELECT $1, 'town', $2, $3, 'RU', s.pt,
+       (SELECT n.timezone FROM places n WHERE n.kind = 'city' AND n.country_code = 'RU' ORDER BY n.location <-> s.pt LIMIT 1),
+       true, now()
+FROM (SELECT ST_SetSRID(ST_MakePoint($4::float8, $5::float8), 4326)::geography AS pt) s
+WHERE NOT EXISTS (
+    SELECT 1 FROM places c
+    WHERE c.kind = 'city' AND lower(c.name_ru) = lower($3) AND ST_DWithin(c.location, s.pt, 30000)
+)
+ON CONFLICT (kind, iata) DO UPDATE SET
+    name_ru    = EXCLUDED.name_ru,
+    location   = EXCLUDED.location,
+    timezone   = EXCLUDED.timezone,
+    is_active  = true,
+    updated_at = now()
+RETURNING true AS written
+`
+
+type UpsertTownParams struct {
+	ID     uuid.UUID
+	Iata   string
+	NameRu string
+	Lon    float64
+	Lat    float64
+}
+
+// Город без аэропорта (город карты). Часовой пояс — ближайшего города справочника. Если рядом (30 км)
+// уже есть город с тем же названием (с аэропортом), не добавляем — направление и так есть. true — записан.
+func (q *Queries) UpsertTown(ctx context.Context, arg UpsertTownParams) (bool, error) {
+	row := q.db.QueryRow(ctx, upsertTown,
+		arg.ID,
+		arg.Iata,
+		arg.NameRu,
+		arg.Lon,
+		arg.Lat,
+	)
+	var written bool
+	err := row.Scan(&written)
+	return written, err
+}

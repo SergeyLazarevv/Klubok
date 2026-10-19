@@ -74,7 +74,8 @@ func TestOSRMRouteVia(t *testing.T) {
 		if want := "/route/v1/driving/50.100000,53.200000;50.500000,54.000000;49.100000,55.800000"; r.URL.Path != want {
 			t.Errorf("path = %q, want %q", r.URL.Path, want)
 		}
-		_, _ = w.Write([]byte(`{"code":"Ok","routes":[{"distance":380000,"duration":20000,"geometry":"abc"}]}`))
+		_, _ = w.Write([]byte(`{"code":"Ok","routes":[{"distance":380000,"duration":20000,"geometry":"abc",` +
+			`"legs":[{"distance":100000,"duration":5000},{"distance":280000,"duration":15000}]}]}`))
 	}))
 	defer srv.Close()
 
@@ -82,6 +83,10 @@ func TestOSRMRouteVia(t *testing.T) {
 	route, err := NewOSRM(srv.URL).Route(context.Background(), from, to, via)
 	if err != nil || route == nil || route.DistanceM != 380000 {
 		t.Fatalf("route = %+v, err = %v", route, err)
+	}
+	// Участки — чтобы делить дорогу на дни по остановкам
+	if len(route.Parts) != 2 || route.Parts[0].DurationS != 5000 || route.Parts[1].DistanceM != 280000 {
+		t.Errorf("parts = %+v", route.Parts)
 	}
 }
 

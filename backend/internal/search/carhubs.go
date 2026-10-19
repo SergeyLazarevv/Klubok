@@ -13,6 +13,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/poi"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/stay"
 )
 
 type Service struct {
@@ -22,8 +23,18 @@ type Service struct {
 	fares   fares.Provider
 	history *fares.History
 	pois    *poi.Service
+	stops   StopCities // nil — остановки по пути не учитываются
 	log     *slog.Logger
 }
+
+// StopCities — города карты для остановок по пути и цены ночёвки в них (пакет stops).
+type StopCities interface {
+	City(id string) (stay.MapCity, bool)
+	StayPerNight(ctx context.Context) (map[string]int64, error)
+}
+
+// UseStops включает остановки по пути (параметр via) в варианте «целиком на машине».
+func (s *Service) UseStops(st StopCities) { s.stops = st }
 
 func NewService(g *geo.Service, r *road.Service, c *carcost.Refs, f fares.Provider, h *fares.History, p *poi.Service, log *slog.Logger) *Service {
 	return &Service{geo: g, road: r, costs: c, fares: f, history: h, pois: p, log: log}

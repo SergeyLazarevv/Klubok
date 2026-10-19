@@ -149,12 +149,12 @@ func (q *Queries) InsertFavorite(ctx context.Context, arg InsertFavoriteParams) 
 }
 
 const insertTripItem = `-- name: InsertTripItem :one
-INSERT INTO trip_items (id, favorite_id, stage, kind, title, url, price, lat, lon, image_url, description)
+INSERT INTO trip_items (id, favorite_id, stage, kind, title, url, price, lat, lon, image_url, description, city)
 SELECT $1, f.id, $2, $3, $4, $5, $6, $7, $8,
-       $9, $10
+       $9, $10, $11
 FROM favorites f
-WHERE f.id = $11 AND f.session_id = $12 AND f.deleted_at IS NULL
-RETURNING id, stage, kind, title, url, price, done, created_at, lat, lon, image_url, description
+WHERE f.id = $12 AND f.session_id = $13 AND f.deleted_at IS NULL
+RETURNING id, stage, kind, title, url, price, done, created_at, lat, lon, image_url, description, city
 `
 
 type InsertTripItemParams struct {
@@ -168,6 +168,7 @@ type InsertTripItemParams struct {
 	Lon         pgtype.Float8
 	ImageUrl    pgtype.Text
 	Description pgtype.Text
+	City        pgtype.Text
 	FavoriteID  uuid.UUID
 	SessionID   uuid.UUID
 }
@@ -185,6 +186,7 @@ type InsertTripItemRow struct {
 	Lon         pgtype.Float8
 	ImageUrl    pgtype.Text
 	Description pgtype.Text
+	City        pgtype.Text
 }
 
 func (q *Queries) InsertTripItem(ctx context.Context, arg InsertTripItemParams) (InsertTripItemRow, error) {
@@ -199,6 +201,7 @@ func (q *Queries) InsertTripItem(ctx context.Context, arg InsertTripItemParams) 
 		arg.Lon,
 		arg.ImageUrl,
 		arg.Description,
+		arg.City,
 		arg.FavoriteID,
 		arg.SessionID,
 	)
@@ -216,6 +219,7 @@ func (q *Queries) InsertTripItem(ctx context.Context, arg InsertTripItemParams) 
 		&i.Lon,
 		&i.ImageUrl,
 		&i.Description,
+		&i.City,
 	)
 	return i, err
 }
@@ -265,7 +269,7 @@ func (q *Queries) ListFavorites(ctx context.Context, sessionID uuid.UUID) ([]Lis
 
 const listTripItems = `-- name: ListTripItems :many
 
-SELECT i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description
+SELECT i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description, i.city
 FROM trip_items i
 JOIN favorites f ON f.id = i.favorite_id
 WHERE i.favorite_id = $1 AND f.session_id = $2 AND f.deleted_at IS NULL
@@ -290,6 +294,7 @@ type ListTripItemsRow struct {
 	Lon         pgtype.Float8
 	ImageUrl    pgtype.Text
 	Description pgtype.Text
+	City        pgtype.Text
 }
 
 // Путевой лист. Владелец пункта — владелец сохранённой поездки, поэтому везде проверяем сессию через favorites.
@@ -315,6 +320,7 @@ func (q *Queries) ListTripItems(ctx context.Context, arg ListTripItemsParams) ([
 			&i.Lon,
 			&i.ImageUrl,
 			&i.Description,
+			&i.City,
 		); err != nil {
 			return nil, err
 		}
@@ -375,6 +381,50 @@ func (q *Queries) RestoreFavorite(ctx context.Context, arg RestoreFavoriteParams
 	return i, err
 }
 
+const updateFavorite = `-- name: UpdateFavorite :one
+UPDATE favorites SET params = $1, snapshot = $2, fingerprint = $3
+WHERE id = $4 AND session_id = $5 AND deleted_at IS NULL
+RETURNING id, title, params, pick, snapshot, created_at
+`
+
+type UpdateFavoriteParams struct {
+	Params      json.RawMessage
+	Snapshot    json.RawMessage
+	Fingerprint string
+	ID          uuid.UUID
+	SessionID   uuid.UUID
+}
+
+type UpdateFavoriteRow struct {
+	ID        uuid.UUID
+	Title     string
+	Params    json.RawMessage
+	Pick      json.RawMessage
+	Snapshot  json.RawMessage
+	CreatedAt pgtype.Timestamptz
+}
+
+// Поменялись параметры поездки (остановки по пути) — новый отпечаток и снимок цены.
+func (q *Queries) UpdateFavorite(ctx context.Context, arg UpdateFavoriteParams) (UpdateFavoriteRow, error) {
+	row := q.db.QueryRow(ctx, updateFavorite,
+		arg.Params,
+		arg.Snapshot,
+		arg.Fingerprint,
+		arg.ID,
+		arg.SessionID,
+	)
+	var i UpdateFavoriteRow
+	err := row.Scan(
+		&i.ID,
+		&i.Title,
+		&i.Params,
+		&i.Pick,
+		&i.Snapshot,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateTripItem = `-- name: UpdateTripItem :one
 UPDATE trip_items i SET
     title = COALESCE($1, i.title),
@@ -385,7 +435,7 @@ UPDATE trip_items i SET
 FROM favorites f
 WHERE i.id = $7 AND i.favorite_id = $8
   AND f.id = i.favorite_id AND f.session_id = $9 AND f.deleted_at IS NULL
-RETURNING i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description
+RETURNING i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description, i.city
 `
 
 type UpdateTripItemParams struct {
@@ -413,6 +463,7 @@ type UpdateTripItemRow struct {
 	Lon         pgtype.Float8
 	ImageUrl    pgtype.Text
 	Description pgtype.Text
+	City        pgtype.Text
 }
 
 // Пустое поле — не менять; цену можно сбросить флагом clear_price.
@@ -442,6 +493,7 @@ func (q *Queries) UpdateTripItem(ctx context.Context, arg UpdateTripItemParams) 
 		&i.Lon,
 		&i.ImageUrl,
 		&i.Description,
+		&i.City,
 	)
 	return i, err
 }

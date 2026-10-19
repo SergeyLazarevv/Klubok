@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, provide, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { CalendarDaysIcon, PencilIcon, XIcon } from '@lucide/vue'
-import { api, type TripsResponse } from '@/api/client'
+import { api, type Problem, type TripsResponse } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
-import { maxRangeEnd, maxSearchDate, todayISO, useSearchStore } from '@/stores/search'
+import { maxRangeEnd, maxSearchDate, stopsEditorKey, todayISO, useSearchStore, VIA_RE } from '@/stores/search'
 import { dateRangeLabel, plural } from '@/lib/format'
-import { useIsPhone } from '@/lib/tripOpen'
+import { collapseAll, useIsPhone } from '@/lib/tripOpen'
 import CarSettings from '@/components/CarSettings.vue'
 import SearchLoader from '@/components/SearchLoader.vue'
 import SearchForm from '@/components/SearchForm.vue'
@@ -35,13 +35,24 @@ function editSearch() {
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-/** keepTrip — поиск по ссылке: открытый в ней вариант (?trip=) остаётся открытым. */
-async function runSearch(keepTrip = false) {
-  if (!homePlace.value || !search.destination) return
-  loading.value = true
+/**
+ * keepTrip — открытый вариант (?trip=) остаётся открытым: поиск по ссылке или пересчёт.
+ * quiet — пересчёт без экрана загрузки: поменяли остановки по пути в открытом варианте.
+ */
+async function runSearch(keepTrip = false, quiet = false): Promise<boolean> {
+  if (!homePlace.value || !search.destination) return false
+  // Остановки — для конкретной дороги: поменяли откуда или куда — их больше нет
+  const last = search.lastQuery
+  if (!quiet && last && (last.from !== homePlace.value.id || last.to !== search.destination.id)) search.via = []
+  if (quiet) search.refreshing = true
+  else {
+    loading.value = true
+    collapseAll()
+  }
   error.value = undefined
   const { dateFrom, dateTo } = search
-  router.replace({
+  const via = search.via.length ? [...search.via] : undefined
+  const url = {
     query: {
       from: homePlace.value.id,
       to: search.destination.id,
@@ -50,9 +61,12 @@ async function runSearch(keepTrip = false) {
       min: search.minDays,
       max: search.maxDays,
       weekends: search.weekends ? '1' : undefined,
+      via,
       trip: keepTrip ? route.query.trip : undefined,
     },
-  })
+  }
+  // Пересчёт меняет адрес только после ответа: не вышло — ссылка остаётся на то, что на экране
+  if (!quiet) router.replace(url)
   const query = {
     from: homePlace.value.id,
     to: search.destination.id,
@@ -69,20 +83,26 @@ async function runSearch(keepTrip = false) {
     fuel_type: profile.fuelType,
     fuel_price_rub: profile.fuelPriceRub ?? undefined,
     allow_border: profile.allowBorder,
+    via,
   }
-  const { data, error: problem } = await api.GET('/trips', { params: { query } })
+  const { data, error: problem } = await api.GET('/trips', { params: { query } }).catch(() => ({ data: undefined, error: {} as Problem }))
   loading.value = false
-  if (problem) {
-    error.value = problem.errors?.[0]?.message ?? problem.detail ?? 'Не удалось выполнить поиск'
+  search.refreshing = false
+  if (problem || !data) {
+    // Пересчёт не удался — экран не трогаем: прежний результат остаётся, сообщение — рядом с тем, что меняли
+    if (quiet) return false
+    error.value = problem?.errors?.[0]?.message ?? problem?.detail ?? 'Не удалось выполнить поиск'
     result.value = undefined
-    return
+    return false
   }
+  if (quiet) router.replace(url)
   result.value = data
   searchedDateFrom.value = dateFrom
   searchedDateTo.value = dateTo
   search.lastQuery = query
   editing.value = false
-  if (data?.fuel_price && profile.fuelPriceRub == null) referenceFuelPrice.value = data.fuel_price.amount
+  if (data.fuel_price && profile.fuelPriceRub == null) referenceFuelPrice.value = data.fuel_price.amount
+  return true
 }
 
 // Открыли ссылку с параметрами поиска — восстанавливаем их и сразу ищем
@@ -104,7 +124,23 @@ onMounted(async () => {
   if (Number(min) > 0) search.minDays = Number(min)
   if (Number(max) >= search.minDays) search.maxDays = Number(max)
   search.weekends = weekends === '1'
+  const via = route.query.via
+  search.via = (Array.isArray(via) ? via : [via]).filter((v): v is string => typeof v === 'string' && VIA_RE.test(v))
+  search.lastQuery = null // остановки из ссылки — для её маршрута, а не прошлого поиска
   await runSearch(true)
+})
+
+// Остановки в результатах поиска — в параметрах: меняем их и пересчитываем без экрана загрузки;
+// не вышло — остановки как были
+provide(stopsEditorKey, {
+  via: () => search.via,
+  set: async (via) => {
+    const before = search.via
+    search.via = via
+    if (await runSearch(true, true)) return undefined
+    search.via = before
+    return 'Не получилось пересчитать поездку — остановки остались как были. Попробуйте ещё раз.'
+  },
 })
 </script>
 

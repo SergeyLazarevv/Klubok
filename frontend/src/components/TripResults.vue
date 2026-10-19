@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { Place, TripsResponse } from '@/api/client'
 import { dateRangeLabel, hours, plural, rub } from '@/lib/format'
-import { highlights } from '@/lib/trip'
+import { highlights, type Choice, type Highlight } from '@/lib/trip'
 import DriveOptionCard from '@/components/DriveOptionCard.vue'
 import TripOptionCard from '@/components/TripOptionCard.vue'
 
@@ -13,14 +13,25 @@ const view = computed(() => highlights(props.result))
 const picks = computed(() => view.value.picks)
 const homeName = computed(() => props.result.home.name)
 
+type Row =
+  | { kind: 'heading'; key: string }
+  | { kind: 'choice'; key: string; choice: Choice; tags?: Highlight[]; tradeoff?: (typeof picks.value)[number]['tradeoff'] }
+const rows = computed<Row[]>(() => [
+  ...picks.value.map((p): Row => ({ kind: 'choice', key: p.choice.key, choice: p.choice, tags: p.tags, tradeoff: p.tradeoff })),
+  ...(view.value.rest.length ? [{ kind: 'heading', key: '__rest' } as Row] : []),
+  ...view.value.rest.map((c): Row => ({ kind: 'choice', key: c.key, choice: c })),
+])
+
 // Заголовок: что выгоднее всего — машина, соседний аэропорт или вылет из своего города
 const headline = computed(() => {
   const cheapest = picks.value.find((p) => p.tags.includes('cheapest'))?.choice
   if (!cheapest) return null
   if (cheapest.kind === 'drive') {
     const d = cheapest.drive
-    if (!props.result.options.length) return `Билетов нет — доехать на машине: ${rub(d.total)}, ${hours(d.drive_hours)} в одну сторону`
-    return `Дешевле всего на машине — ${rub(d.total)}, ${hours(d.drive_hours)} в одну сторону`
+    // С остановками по пути — через какие города, а не время напрямую
+    const how = d.stops?.length ? `через ${d.stops.map((s) => s.city.name).join(', ')}` : `${hours(d.drive_hours)} в одну сторону`
+    if (!props.result.options.length) return `Билетов нет — доехать на машине: ${rub(d.total)}, ${how}`
+    return `Дешевле всего на машине — ${rub(d.total)}, ${how}`
   }
   const b = cheapest.option
   const save = b.savings_vs_home?.amount ?? 0
@@ -46,53 +57,32 @@ const cityOf = (p: Place) => p.city_name ?? p.name
       На эти даты цен нет ни из одного доступного аэропорта. Попробуйте другие даты или длительность.
     </p>
 
-    <template v-for="p in picks" :key="p.choice.key">
+    <!-- Лучшие и остальные — одним списком с ключом варианта: при пересчёте (поменяли остановки) вариант
+         может перейти из лучших в остальные, а его карточка с раскрытым планом остаётся той же и не прыгает -->
+    <template v-for="row in rows" :key="row.key">
+      <h3 v-if="row.kind === 'heading'" class="mt-2 text-sm font-medium text-muted-foreground">Остальные варианты</h3>
       <DriveOptionCard
-        v-if="p.choice.kind === 'drive'"
-        :drive="p.choice.drive"
-        :tags="p.tags"
-        :tradeoff="p.tradeoff"
+        v-else-if="row.choice.kind === 'drive'"
+        :drive="row.choice.drive"
+        :tags="row.tags"
+        :tradeoff="row.tradeoff"
         :home="result.home"
         :destination="result.destination"
         :travelers="travelers"
         :date-from="dateFrom"
-        :open-key="p.choice.key"
+        :open-key="row.key"
       />
       <TripOptionCard
         v-else
-        :option="p.choice.option"
-        :tags="p.tags"
-        :tradeoff="p.tradeoff"
+        :option="row.choice.option"
+        :tags="row.tags"
+        :tradeoff="row.tradeoff"
         :home="result.home"
         :destination="result.destination"
         :travelers="travelers"
         :date-from="dateFrom"
-        :open-key="p.choice.key"
+        :open-key="row.key"
       />
-    </template>
-
-    <template v-if="view.rest.length">
-      <h3 class="mt-2 text-sm font-medium text-muted-foreground">Остальные варианты</h3>
-      <template v-for="c in view.rest" :key="c.key">
-        <DriveOptionCard
-          v-if="c.kind === 'drive'"
-          :drive="c.drive"
-          :home="result.home"
-          :destination="result.destination"
-          :travelers="travelers"
-          :date-from="dateFrom"
-          :open-key="c.key"
-        />
-        <TripOptionCard
-          v-else
-          :option="c.option"
-          :home="result.home"
-          :destination="result.destination"
-          :travelers="travelers"
-          :date-from="dateFrom"
-          :open-key="c.key"
-        />
-      </template>
     </template>
 
     <p v-if="result.hidden_flights" class="text-sm text-muted-foreground">

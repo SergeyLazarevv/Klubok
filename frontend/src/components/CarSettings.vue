@@ -68,7 +68,7 @@ const fuelPriceInput = computed({
           <span class="font-semibold tabular-nums">до {{ hours(maxDriveHours) }}</span>
         </div>
         <Slider v-model="driveHours" :min="1" :max="16" :step="0.5" />
-        <span class="text-xs text-muted-foreground">Дальше не предлагаем ни поездку на машине, ни дорогу до аэропорта.</span>
+        <span class="text-xs text-muted-foreground">Дальше не ищем аэропорты вылета; поездку целиком на машине покажем с городами по пути, где можно переночевать.</span>
       </div>
 
       <div class="flex flex-col gap-3">

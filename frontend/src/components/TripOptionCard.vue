@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted, useTemplateRef } from 'vue'
 import { CarIcon, ChevronDownIcon, ExternalLinkIcon, PlaneTakeoffIcon } from '@lucide/vue'
 import type { Favorite, Place, TripOption, TripSearchParams } from '@/api/client'
 import { daysThere, hours, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
@@ -24,7 +24,10 @@ const props = defineProps<{
   favorite?: Favorite // открыто из избранного: путевой лист этой записи
   openKey?: string // ключ варианта в адресе (?trip=), чтобы на телефоне открыть подробности отдельным экраном
 }>()
-const { open, screen } = useTripOpen(() => props.openKey)
+const { open, screen, linked } = useTripOpen(() => props.openKey)
+// Открыли ссылкой на этот вариант — показываем его, а не начало списка
+const root = useTemplateRef<HTMLElement>('root')
+onMounted(() => linked && root.value?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
 
 const tagLabels: Record<Highlight, string> = {
   cheapest: 'Самый дешёвый',
@@ -46,7 +49,7 @@ const weather = computed(() => ({
 </script>
 
 <template>
-  <article class="overflow-hidden rounded-3xl bg-card ring-1 ring-border" :class="open && !screen && 'ring-primary/40'">
+  <article ref="root" class="scroll-mt-4 overflow-hidden rounded-3xl bg-card ring-1 ring-border" :class="open && !screen && 'ring-primary/40'">
     <div class="flex flex-col gap-3 p-4 sm:p-5">
       <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div class="flex min-w-0 flex-col gap-1.5">

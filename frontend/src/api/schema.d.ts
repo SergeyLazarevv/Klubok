@@ -189,6 +189,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/trips/stops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Города, где можно остановиться по дороге на машине
+         * @description Города карты вдоль дороги от дома до места: небольшой крюк, интересные (население, герб, фото,
+         *     достопримечательность), с ценой ночёвки. Лучшие сверху. Если дорога длиннее max_drive_hours,
+         *     выше те, где удобно заночевать: оба участка не длиннее лимита. См. ADR-0023.
+         */
+        get: operations["suggestStops"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/explore": {
         parameters: {
             query?: never;
@@ -407,7 +429,13 @@ export interface paths {
         delete: operations["deleteFavorite"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Поменять остановки по пути у сохранённой поездки
+         * @description via заменяет остановки по дороге на машине (как параметр via у GET /trips, ADR-0023). Цена сразу
+         *     пересчитывается, и снимок цены обновляется: поменять маршрут — не значит «подорожало». 409 — поездка
+         *     с такими остановками уже есть в избранном.
+         */
+        patch: operations["updateFavorite"];
         trace?: never;
     };
     "/favorites/{id}/current": {
@@ -503,8 +531,11 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** @enum {string} */
-        PlaceKind: "city" | "airport";
+        /**
+         * @description town — город без аэропорта (город карты, iata — id Wikidata), туда только на машине
+         * @enum {string}
+         */
+        PlaceKind: "city" | "airport" | "town";
         Place: {
             /** Format: uuid */
             id: string;
@@ -711,8 +742,10 @@ export interface components {
             hidden_flights: number;
         };
         /**
-         * @description Поездка целиком на своей машине, туда и обратно. Предлагается, если дорога в одну сторону
-         *     не дольше max_drive_hours и граница разрешена (allow_border). Даты свободные; парковка на месте не считается.
+         * @description Поездка целиком на своей машине, туда и обратно. Предлагается, если граница разрешена (allow_border)
+         *     и дорога в одну сторону не дольше max_drive_hours; длиннее (до 4 дней по лимиту) — тоже, с предупреждением
+         *     long_drive_day: где заехать и переночевать, пользователь выбирает сам (via, ADR-0023).
+         *     Даты свободные; парковка на месте не считается.
          */
         DriveTrip: {
             road: components["schemas"]["RoadLeg"];
@@ -728,7 +761,64 @@ export interface components {
             trip_days: number;
             border?: components["schemas"]["BorderInfo"];
             savings_vs_home?: components["schemas"]["Money"];
-            warnings: ("border_crossing_by_car" | "road_approximate")[];
+            /** @description Остановки по пути (параметр via), по порядку; туда — через них, обратно — напрямую */
+            stops?: components["schemas"]["DriveStop"][];
+            /** @description Дорога туда через остановки; есть, только когда есть остановки */
+            via_road?: components["schemas"]["RoadLeg"];
+            /** @description Ночёвки в остановках на всех — уже в total */
+            stay?: components["schemas"]["Money"];
+            warnings: ("border_crossing_by_car" | "road_approximate" | "long_drive_day")[];
+        };
+        /** @description Город карты (cities.geojson), id — Wikidata */
+        StopCity: {
+            /** @example Q900 */
+            id: string;
+            /** @example Казань */
+            name: string;
+            location: components["schemas"]["Point"];
+            population: number;
+            /** @description Есть герб — /data/arms/<id>.webp */
+            arms: boolean;
+            /** @description Файл на Викискладе */
+            photo?: string;
+            /** @example Казанский кремль */
+            landmark?: string;
+        };
+        DriveStop: {
+            city: components["schemas"]["StopCity"];
+            nights: number;
+            /** @description Ночёвки на всех; нет — 0 ночей или нет цены */
+            stay?: components["schemas"]["Money"];
+            /** @description Сутки в гостинице 3* с человека (Росстат) */
+            stay_per_night?: components["schemas"]["Money"];
+        };
+        StopSuggestion: {
+            city: components["schemas"]["StopCity"];
+            /** @description Сколько добавит заезд к прямой дороге */
+            detour: components["schemas"]["RoadLeg"];
+            /**
+             * Format: double
+             * @description Доля пути до города
+             */
+            position: number;
+            /**
+             * Format: double
+             * @description От дома до города
+             */
+            drive_to_hours: number;
+            /**
+             * Format: double
+             * @description От города до места
+             */
+            drive_from_hours: number;
+            /** @description Дорога длиннее лимита, и здесь удобно заночевать — оба участка не длиннее лимита */
+            overnight: boolean;
+            /** @description Сутки в гостинице 3* с человека (Росстат) */
+            stay_per_night?: components["schemas"]["Money"];
+        };
+        StopSuggestions: {
+            direct: components["schemas"]["RoadLeg"];
+            items: components["schemas"]["StopSuggestion"][];
         };
         TripOption: {
             hub: components["schemas"]["Place"];
@@ -937,6 +1027,8 @@ export interface components {
             allow_border?: boolean;
             /** @description Только вылет чт–сб и возвращение вс–пн */
             weekends?: boolean;
+            /** @description Остановки по дороге на машине — как параметр via у GET /trips */
+            via?: string[];
         };
         /** @description Какой вариант выбран в результатах */
         FavoritePick: {
@@ -967,6 +1059,14 @@ export interface components {
             drive_hours?: number;
             /** Format: date */
             found_on?: string;
+        };
+        FavoritePatch: {
+            /** @description Остановки по пути — как via у GET /trips; пусто — без остановок */
+            via: string[];
+        };
+        FavoriteUpdated: {
+            favorite: components["schemas"]["Favorite"];
+            current: components["schemas"]["FavoriteCurrent"];
         };
         FavoriteCreate: {
             /** @example Самара → Алматы, ноябрь */
@@ -1028,6 +1128,8 @@ export interface components {
             image_url?: string;
             /** @description Описание из превью ссылки */
             description?: string;
+            /** @description Город-остановка по пути (id Wikidata, как в via) — жильё и дела в нём; нет — место назначения или дорога */
+            city?: string;
         };
         TripItemPatch: {
             title?: string;
@@ -1050,6 +1152,8 @@ export interface components {
             location?: components["schemas"]["Point"];
             image_url?: string;
             description?: string;
+            /** @description Город-остановка по пути (id Wikidata); нет — место назначения или дорога */
+            city?: string;
             /** @description Для ссылок (жильё, аренда) — «выбрано»; цена ссылки идёт в итог, только когда она выбрана */
             done: boolean;
             /** Format: date-time */
@@ -1085,6 +1189,11 @@ export interface components {
         };
     };
     parameters: {
+        /**
+         * @description Остановки по дороге на машине, по порядку: «<id города карты>:<ночей>», параметр повторяется.
+         *     0 ночей — заезд на несколько часов. Учитываются только в варианте «целиком на машине».
+         */
+        Via: string[];
         RadiusKm: number;
         /** @description Максимум часов за рулём в одну сторону; 0 — без ограничения */
         MaxDriveHours: number;
@@ -1230,7 +1339,10 @@ export interface operations {
     getHotelsLink: {
         parameters: {
             query: {
-                place: string;
+                /** @description Город или аэропорт справочника; нужен place или city */
+                place?: string;
+                /** @description Город карты (id Wikidata) — для остановок по пути (ADR-0023); только sutochno и avito */
+                city?: string;
                 check_in: string;
                 check_out: string;
                 /** @description Где искать: ostrovok — отели, sutochno — квартиры, дома и гостевые дома (Россия и СНГ, с датами), avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
@@ -1259,7 +1371,10 @@ export interface operations {
     goToHotels: {
         parameters: {
             query: {
-                place: string;
+                /** @description Город или аэропорт справочника; нужен place или city */
+                place?: string;
+                /** @description Город карты (id Wikidata) — для остановок по пути (ADR-0023); только sutochno и avito */
+                city?: string;
                 check_in: string;
                 check_out: string;
                 /** @description Где искать: ostrovok — отели, sutochno — квартиры, дома и гостевые дома (Россия и СНГ, с датами), avito — квартиры посуточно (только Россия, без дат — их выбирают на Авито) */
@@ -1350,6 +1465,11 @@ export interface operations {
                 fuel_price_rub?: components["parameters"]["FuelPriceRub"];
                 /** @description Учитывать аэропорты в другой стране */
                 allow_border?: components["parameters"]["AllowBorder"];
+                /**
+                 * @description Остановки по дороге на машине, по порядку: «<id города карты>:<ночей>», параметр повторяется.
+                 *     0 ночей — заезд на несколько часов. Учитываются только в варианте «целиком на машине».
+                 */
+                via?: components["parameters"]["Via"];
             };
             header?: never;
             path?: never;
@@ -1369,6 +1489,35 @@ export interface operations {
             404: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
+        };
+    };
+    suggestStops: {
+        parameters: {
+            query: {
+                /** @description Домашний город */
+                from: string;
+                /** @description Город назначения */
+                to: string;
+                /** @description Максимум часов за рулём в одну сторону; 0 — без ограничения */
+                max_drive_hours?: components["parameters"]["MaxDriveHours"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Предложения, лучшие сверху; пусто — подходящих городов нет */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StopSuggestions"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
     exploreDestinations: {
@@ -1678,6 +1827,35 @@ export interface operations {
                 content?: never;
             };
             404: components["responses"]["Problem"];
+        };
+    };
+    updateFavorite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FavoritePatch"];
+            };
+        };
+        responses: {
+            /** @description Запись и пересчитанный вариант */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FavoriteUpdated"];
+                };
+            };
+            404: components["responses"]["Problem"];
+            409: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
     getFavoriteCurrent: {

@@ -213,4 +213,5 @@ type TripItem struct {
 	Lon         pgtype.Float8
 	ImageUrl    pgtype.Text
 	Description pgtype.Text
+	City        pgtype.Text
 }

@@ -19,11 +19,13 @@ const props = defineProps<{
   prompt?: boolean
   hint?: string // подсказка, пока список пуст
   nights?: number // для жилья: цену за сутки из объявления умножаем на ночи
+  city?: string // город-остановка по пути (id Wikidata): свои жильё и дела, отдельно от места назначения
+  moreLabel?: string // кнопка, когда пункты уже есть: два списка рядом — чтобы было понятно, куда добавляем
 }>()
 const emit = defineEmits<{ prompted: [] }>()
 
 const sheet = inject(tripSheetKey)!
-const items = computed(() => sheet.byStage(props.stage))
+const items = computed(() => sheet.byStage(props.stage, props.city))
 const links = computed(() => items.value.filter((i) => i.kind === 'link'))
 const others = computed(() => items.value.filter((i) => i.kind !== 'link'))
 // Несколько вариантов и ни один не выбран — подсказываем, что в итог они не входят
@@ -95,6 +97,7 @@ async function submit() {
     const p = preview.value
     const saved = await sheet.add({
       stage: props.stage,
+      city: props.city,
       ...e,
       title: !ownText && p?.title ? p.title.slice(0, 300) : e.title,
       image_url: p?.image_url,
@@ -279,7 +282,7 @@ async function submit() {
       class="flex w-fit items-center gap-1.5 rounded-full px-1 text-sm font-medium text-primary hover:underline"
       @click="start"
     >
-      <PlusIcon class="size-4" /> {{ items.length ? 'Добавить ещё' : addLabel }}
+      <PlusIcon class="size-4" /> {{ items.length ? (moreLabel ?? 'Добавить ещё') : addLabel }}
     </button>
   </div>
 </template>

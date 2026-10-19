@@ -33,6 +33,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stay"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/stops"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/weather"
 )
@@ -44,6 +45,8 @@ const usage = `Использование: klubok <команда>
   migrate [up|down|status]
                       миграции БД (по умолчанию up)
   import-places       загрузить справочник городов и аэропортов
+  import-towns        добавить в справочник города карты без аэропорта — направления только на машине;
+                      после import-places и при обновлении cities.geojson
   osm-update [--regions r1,r2] [--full]
                       обновить места на карте из выгрузок OpenStreetMap (Geofabrik): скачать новые
                       дифы, применить, загрузить изменившееся; для крона — раз в неделю
@@ -100,6 +103,8 @@ func run(ctx context.Context, cfg config.Config, log *slog.Logger, cmd string, a
 		log.Info("places imported", slog.Int("cities", stats.Cities), slog.Int("airports", stats.Airports),
 			slog.Int("skipped", stats.Skipped), slog.Duration("took", time.Since(start)))
 		return nil
+	case "import-towns":
+		return importTowns(ctx, cfg, log, pool)
 	case "osm-update":
 		return osmUpdate(ctx, cfg, log, pool, args)
 	case "poi-enrich":
@@ -129,12 +134,23 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pg
 	if cfg.TravelpayoutsTRS != "" {
 		ostrovokLinker = tp.Linker(cfg.TravelpayoutsTRS)
 	}
+	stayPrices := stay.NewService(pool, cache, log)
+	searchSvc := search.NewService(geoSvc, roadSvc, carcost.NewRefs(pool), prices, fares.NewHistory(pool),
+		poi.NewService(pool, poi.NewOverpass(cfg.OverpassURL), poi.NewWiki(), log), log)
+	// Остановки по пути — из справочника городов карты; нет файла — работаем без них
+	var stopsSvc *stops.Service
+	if cities, err := stay.LoadCities(cfg.CitiesFile); err != nil {
+		log.Warn("map cities unavailable, stops along the road disabled", slog.Any("err", err))
+	} else {
+		stopsSvc = stops.NewService(cities, road.NewOSRM(cfg.OSRMURL), stayPrices, log)
+		stopsSvc.UseCache(cache)
+		searchSvc.UseStops(stopsSvc)
+	}
 	handler, err := httpapi.NewRouter(httpapi.Deps{
-		Log:  log,
-		Pool: pool,
-		Geo:  geoSvc,
-		Search: search.NewService(geoSvc, roadSvc, carcost.NewRefs(pool), prices, fares.NewHistory(pool),
-			poi.NewService(pool, poi.NewOverpass(cfg.OverpassURL), poi.NewWiki(), log), log),
+		Log:    log,
+		Pool:   pool,
+		Geo:    geoSvc,
+		Search: searchSvc,
 		Hotels: hotels.NewOstrovok(ostrovokLinker, log),
 		Guides: guides.NewService(pool, guides.NewWikivoyage(), log),
 
@@ -143,8 +159,9 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pg
 
 		Sessions:  session.NewManager(pool, log),
 		Favorites: favorites.NewService(pool),
-		Stay:      stay.NewService(pool, cache, log),
+		Stay:      stayPrices,
 		Road:      roadSvc,
+		Stops:     stopsSvc,
 		Weather:   weather.NewService(weather.NewOpenMeteo(), weather.NewRedisCache(cache), log),
 	})
 	if err != nil {
@@ -310,4 +327,26 @@ func newLogger(format string) *slog.Logger {
 		return slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	}
 	return slog.New(slog.NewTextHandler(os.Stdout, nil))
+}
+
+// importTowns — города карты в России, у которых нет своего аэропорта, становятся направлениями
+// «только на машине»: их можно найти в поиске, сохранить в избранное и ехать с остановками (ADR-0023).
+func importTowns(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pgxpool.Pool) error {
+	cities, err := stay.LoadCities(cfg.CitiesFile)
+	if err != nil {
+		return err
+	}
+	var towns []geo.Town
+	for _, c := range cities {
+		if c.Country == "" {
+			towns = append(towns, geo.Town{WikidataID: c.ID, Name: c.Name, Lat: c.Lat, Lon: c.Lon})
+		}
+	}
+	start := time.Now()
+	written, skipped, err := geo.NewService(pool).UpsertTowns(ctx, towns)
+	if err != nil {
+		return err
+	}
+	log.Info("towns imported", slog.Int("written", written), slog.Int("with_airport", skipped), slog.Duration("took", time.Since(start)))
+	return nil
 }

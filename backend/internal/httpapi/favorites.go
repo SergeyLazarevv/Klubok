@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -89,6 +90,16 @@ func (h *handlers) GetFavoriteCurrent(ctx context.Context, req apigen.GetFavorit
 	if err != nil {
 		return nil, err
 	}
+	cur, err := h.favoriteCurrent(ctx, fav)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.GetFavoriteCurrent200JSONResponse(cur), nil
+}
+
+// favoriteCurrent повторяет сохранённый поиск с сохранёнными параметрами и ищет тот же вариант;
+// diff — разница с ценой на момент сохранения.
+func (h *handlers) favoriteCurrent(ctx context.Context, fav favorites.Favorite) (apigen.FavoriteCurrent, error) {
 	var (
 		params   apigen.SearchTripsParams
 		pick     apigen.FavoritePick
@@ -100,20 +111,20 @@ func (h *handlers) GetFavoriteCurrent(ctx context.Context, req apigen.GetFavorit
 		dst any
 	}{{fav.Params, &params}, {fav.Pick, &pick}, {fav.Snapshot, &snapshot}} {
 		if err := json.Unmarshal(x.raw, x.dst); err != nil {
-			return nil, fmt.Errorf("favorite %s: %w", fav.ID, err)
+			return apigen.FavoriteCurrent{}, fmt.Errorf("favorite %s: %w", fav.ID, err)
 		}
 	}
 
 	if datePassed(params.DateTo, time.Now()) {
-		return apigen.GetFavoriteCurrent200JSONResponse{Status: apigen.Past}, nil
+		return apigen.FavoriteCurrent{Status: apigen.Past}, nil
 	}
 	resp, err := h.SearchTrips(ctx, apigen.SearchTripsRequestObject{Params: params})
 	if err != nil {
-		return nil, err
+		return apigen.FavoriteCurrent{}, err
 	}
 	res, ok := resp.(apigen.SearchTrips200JSONResponse)
 	if !ok {
-		return apigen.GetFavoriteCurrent200JSONResponse{Status: apigen.Unavailable}, nil
+		return apigen.FavoriteCurrent{Status: apigen.Unavailable}, nil
 	}
 	trips := apigen.TripsResponse(res)
 	cur := matchFavorite(trips, pick)
@@ -122,7 +133,72 @@ func (h *handlers) GetFavoriteCurrent(ctx context.Context, req apigen.GetFavorit
 		diff := rub(cur.Total.Amount - snapshot.Total.Amount)
 		cur.Diff = &diff
 	}
-	return apigen.GetFavoriteCurrent200JSONResponse(cur), nil
+	return cur, nil
+}
+
+// UpdateFavorite меняет остановки по пути у сохранённой поездки: новые параметры, сразу пересчёт цены и новый
+// снимок — смена маршрута не должна выглядеть как «подорожало».
+func (h *handlers) UpdateFavorite(ctx context.Context, req apigen.UpdateFavoriteRequestObject) (apigen.UpdateFavoriteResponseObject, error) {
+	sid, _ := session.FromContext(ctx)
+	fav, err := h.favorites.Get(ctx, sid, req.Id)
+	if errors.Is(err, favorites.ErrNotFound) {
+		return apigen.UpdateFavorite404ApplicationProblemPlusJSONResponse{ProblemApplicationProblemPlusJSONResponse: notFound("favorite")}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Остальные параметры — как были, поэтому правим JSON записи, а не собираем его заново
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(fav.Params, &params); err != nil {
+		return nil, fmt.Errorf("favorite %s: %w", fav.ID, err)
+	}
+	if len(req.Body.Via) == 0 {
+		delete(params, "via")
+	} else if params["via"], err = json.Marshal(req.Body.Via); err != nil {
+		return nil, err
+	}
+	if fav.Params, err = json.Marshal(params); err != nil {
+		return nil, err
+	}
+
+	cur, err := h.favoriteCurrent(ctx, fav)
+	if err != nil {
+		return nil, err
+	}
+	if cur.Total != nil {
+		var snapshot apigen.FavoriteSnapshot
+		if err := json.Unmarshal(fav.Snapshot, &snapshot); err != nil {
+			return nil, fmt.Errorf("favorite %s: %w", fav.ID, err)
+		}
+		snapshot.Total = *cur.Total
+		if cur.Drive != nil {
+			snapshot.PerPerson = cur.Drive.PerPerson
+			snapshot.DriveHours = &cur.Drive.DriveHours
+		} else if cur.Option != nil {
+			snapshot.PerPerson = cur.Option.PerPerson
+		}
+		if fav.Snapshot, err = json.Marshal(snapshot); err != nil {
+			return nil, err
+		}
+		zero := rub(0)
+		cur.Diff = &zero
+	}
+
+	saved, err := h.favorites.Update(ctx, sid, fav.ID, fav.Params, fav.Snapshot)
+	switch {
+	case errors.Is(err, favorites.ErrDuplicate):
+		detail := "поездка с такими остановками уже есть в избранном"
+		return apigen.UpdateFavorite409ApplicationProblemPlusJSONResponse{Status: http.StatusConflict, Title: "Conflict", Detail: &detail}, nil
+	case errors.Is(err, favorites.ErrNotFound):
+		return apigen.UpdateFavorite404ApplicationProblemPlusJSONResponse{ProblemApplicationProblemPlusJSONResponse: notFound("favorite")}, nil
+	case err != nil:
+		return nil, err
+	}
+	out, err := toAPIFavorite(saved)
+	if err != nil {
+		return nil, err
+	}
+	return apigen.UpdateFavorite200JSONResponse{Favorite: out, Current: cur}, nil
 }
 
 // matchFavorite ищет в свежей выдаче сохранённый вариант; нет его — самый дешёвый из выдачи.

@@ -22,6 +22,8 @@ type Kind string
 const (
 	KindCity    Kind = "city"
 	KindAirport Kind = "airport"
+	// KindTown — город без аэропорта (город карты): направление только на машине, iata — id Wikidata
+	KindTown Kind = "town"
 )
 
 type Place struct {
@@ -79,6 +81,29 @@ func (s *Service) Search(ctx context.Context, query string, kind Kind, limit int
 		places[i] = placeFromRow(r)
 	}
 	return places, nil
+}
+
+// Town — город карты без аэропорта.
+type Town struct {
+	WikidataID, Name string
+	Lat, Lon         float64
+}
+
+// UpsertTowns добавляет города без аэропорта; skipped — те, у которых рядом уже есть город справочника
+// с тем же названием (с аэропортом).
+func (s *Service) UpsertTowns(ctx context.Context, towns []Town) (written, skipped int, err error) {
+	for _, t := range towns {
+		_, err := s.q.UpsertTown(ctx, store.UpsertTownParams{ID: uuid.New(), Iata: t.WikidataID, NameRu: t.Name, Lat: t.Lat, Lon: t.Lon})
+		switch {
+		case errors.Is(err, pgx.ErrNoRows):
+			skipped++
+		case err != nil:
+			return written, skipped, fmt.Errorf("upsert town %s: %w", t.WikidataID, err)
+		default:
+			written++
+		}
+	}
+	return written, skipped, nil
 }
 
 // City — город точки: для аэропорта — его город, для города — он сам.

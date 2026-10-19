@@ -15,7 +15,7 @@ import (
 func (h *handlers) GetHotelsLink(ctx context.Context, req apigen.GetHotelsLinkRequestObject) (apigen.GetHotelsLinkResponseObject, error) {
 	p := req.Params
 	provider := valueOr(p.Provider, apigen.Ostrovok)
-	url, partner, problem, err := h.hotelsLink(ctx, provider, p.Place, p.CheckIn, p.CheckOut, p.Travelers)
+	url, partner, problem, err := h.hotelsLink(ctx, provider, p.Place, p.City, p.CheckIn, p.CheckOut, p.Travelers)
 	switch {
 	case err != nil:
 		return nil, err
@@ -31,7 +31,7 @@ func (h *handlers) GetHotelsLink(ctx context.Context, req apigen.GetHotelsLinkRe
 
 func (h *handlers) GoToHotels(ctx context.Context, req apigen.GoToHotelsRequestObject) (apigen.GoToHotelsResponseObject, error) {
 	p := req.Params
-	url, _, problem, err := h.hotelsLink(ctx, valueOr(p.Provider, apigen.Ostrovok), p.Place, p.CheckIn, p.CheckOut, p.Travelers)
+	url, _, problem, err := h.hotelsLink(ctx, valueOr(p.Provider, apigen.Ostrovok), p.Place, p.City, p.CheckIn, p.CheckOut, p.Travelers)
 	switch {
 	case err != nil:
 		return nil, err
@@ -54,25 +54,41 @@ const (
 	errBadProvider
 )
 
-// hotelsLink — ссылка на жильё в городе точки (для аэропорта — в его городе) на даты поездки:
-// отели Островка, жильё на Суточно.ру (Россия и СНГ) или квартиры посуточно на Авито (только Россия).
-func (h *handlers) hotelsLink(ctx context.Context, provider apigen.HotelsProvider, placeID openapi_types.UUID, checkIn, checkOut openapi_types.Date, travelers *int) (string, bool, linkProblem, error) {
+// hotelsLink — ссылка на жильё в городе точки (для аэропорта — в его городе) или в городе карты
+// (остановка по пути) на даты поездки: отели Островка, жильё на Суточно.ру (Россия и СНГ)
+// или квартиры посуточно на Авито (только Россия).
+func (h *handlers) hotelsLink(ctx context.Context, provider apigen.HotelsProvider, placeID *openapi_types.UUID, cityID *string, checkIn, checkOut openapi_types.Date, travelers *int) (string, bool, linkProblem, error) {
 	if !provider.Valid() {
 		return "", false, errBadProvider, nil
 	}
 	if !checkOut.After(checkIn.Time) {
 		return "", false, errBadDates, nil
 	}
-	place, err := h.geo.Get(ctx, placeID)
-	if errors.Is(err, geo.ErrNotFound) {
+	var city geo.Place
+	switch {
+	case placeID != nil:
+		place, err := h.geo.Get(ctx, *placeID)
+		if errors.Is(err, geo.ErrNotFound) {
+			return "", false, errNotFound, nil
+		}
+		if err != nil {
+			return "", false, noProblem, err
+		}
+		if city, err = h.geo.City(ctx, place); err != nil {
+			return "", false, noProblem, err
+		}
+	case cityID != nil && h.stops != nil:
+		// У городов карты нет английского названия, по которому Островок ищет город, — только Суточно и Авито
+		if provider == apigen.Ostrovok {
+			return "", false, errBadProvider, nil
+		}
+		c, ok := h.stops.City(*cityID)
+		if !ok || c.Country != "" { // остановки — только в России
+			return "", false, errNotFound, nil
+		}
+		city = geo.Place{Name: c.Name, CountryCode: "RU"}
+	default:
 		return "", false, errNotFound, nil
-	}
-	if err != nil {
-		return "", false, noProblem, err
-	}
-	city, err := h.geo.City(ctx, place)
-	if err != nil {
-		return "", false, noProblem, err
 	}
 	switch provider {
 	case apigen.Avito:

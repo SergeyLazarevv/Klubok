@@ -37,6 +37,8 @@ type Leg struct {
 type Route struct {
 	Leg
 	Polyline string // Encoded Polyline, точность 6 знаков
+	// Parts — участки между точками по порядку (от from до первой via, …, от последней via до to); только с via.
+	Parts []Leg `json:",omitempty"`
 }
 
 // Router строит маршруты. nil в ответе — проезда нет.
@@ -206,13 +208,15 @@ func (s *Service) routeVia(ctx context.Context, from, to Point, via []Point) (Ro
 	// Ломаная через все точки, оценка — сумма участков
 	points := append(append([]Point{from}, via...), to)
 	var leg Leg
+	parts := make([]Leg, 0, len(points)-1)
 	for i := 1; i < len(points); i++ {
 		e := Estimate(points[i-1], points[i])
+		parts = append(parts, e)
 		leg.DistanceM += e.DistanceM
 		leg.DurationS += e.DurationS
 	}
 	leg.Approximate = true
-	return Route{Leg: leg, Polyline: EncodePolyline(points)}, nil
+	return Route{Leg: leg, Polyline: EncodePolyline(points), Parts: parts}, nil
 }
 
 // Estimate — грубая оценка пути, когда маршрутизатор недоступен. В кэш не пишется.
@@ -224,6 +228,9 @@ func Estimate(from, to Point) Leg {
 		Approximate: true,
 	}
 }
+
+// StraightKm — расстояние по прямой (дуга большого круга).
+func StraightKm(a, b Point) float64 { return haversineKm(a, b) }
 
 func haversineKm(a, b Point) float64 {
 	const r = 6371.0

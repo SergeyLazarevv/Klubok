@@ -39,6 +39,7 @@ func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsReques
 		UseCar:        valueOr(p.UseCar, false),
 		Car:           carParams(p.RadiusKm, p.MaxDriveHours, p.ConsumptionL100, p.FuelType, p.FuelPriceRub, p.AllowBorder),
 		Weekends:      valueOr(p.Weekends, false),
+		Via:           parseVia(p.Via),
 	}
 	if q.MinDays > q.MaxDays {
 		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("min_days", "не может быть больше max_days")), nil
@@ -170,6 +171,7 @@ func toAPIDrive(d search.DriveOption, homeBest *search.TripOption) apigen.DriveT
 	for i, w := range d.Warnings {
 		t.Warnings[i] = apigen.DriveTripWarnings(w)
 	}
+	toAPIDriveStops(d, &t)
 	// Сравнение с лучшим перелётом из своего города — как у вариантов с самолётом
 	if homeBest != nil {
 		s := rub(homeBest.Total - d.Total)

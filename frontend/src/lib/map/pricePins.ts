@@ -51,7 +51,7 @@ export function withPinFonts(style: StyleSpecification): StyleSpecification {
   return { ...style, 'font-faces': { ...style['font-faces'], [PIN_FONT]: faces, [LIGHT_FONT]: faces } }
 }
 
-const RATIO = 2
+export const RATIO = 2
 const FLIGHT = '#0b57d0'
 const ROAD = '#e37400'
 const INK = '#1f1f1f'
@@ -62,7 +62,7 @@ const PLANE = 'M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 
 const CAR = ['M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2', 'M9 17h6']
 const CAR_WHEELS: [number, number][] = [[7, 17], [17, 17]]
 
-function canvas(w: number, h: number) {
+export function canvas(w: number, h: number) {
   const c = document.createElement('canvas')
   c.width = w * RATIO
   c.height = h * RATIO
@@ -101,7 +101,7 @@ function badge(color: string, by: 'fly' | 'car', size = 18, iconColor = '#fff') 
  * Плашка-балун: скругление и хвостик снизу по центру. Растягиваются две одинаковые зоны по бокам от хвостика,
  * поэтому хвостик всегда под серединой плашки — то есть под городом.
  */
-function pill(fill: string) {
+export function pill(fill: string) {
   const R = 14 // скругление и неподвижные края
   const T = 12 // ширина хвостика
   const H = 28

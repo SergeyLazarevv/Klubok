@@ -29,4 +29,8 @@ func TestKey(t *testing.T) {
 	if want := "a|b|2026-11-16|2026-11-23|3|14|1|nocar|drive||||weekends"; got != want {
 		t.Errorf("weekends: Key = %q, want %q", got, want)
 	}
+	got, _ = Key([]byte(`{"from":"a","to":"b","date_from":"2026-11-16","date_to":"2026-11-23","via":["Q900:1","Q5470:0"]}`), []byte(`{"kind":"drive"}`))
+	if want := "a|b|2026-11-16|2026-11-23|3|14|1|nocar|drive||||via=Q900:1,Q5470:0"; got != want {
+		t.Errorf("via: Key = %q, want %q", got, want)
+	}
 }

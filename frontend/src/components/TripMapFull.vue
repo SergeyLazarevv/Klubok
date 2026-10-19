@@ -1,24 +1,54 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, reactive, ref, useTemplateRef, watch } from 'vue'
-import type L from 'leaflet'
-import { useResizeObserver } from '@vueuse/core'
-import { LoaderCircleIcon } from '@lucide/vue'
-import { api, type Poi } from '@/api/client'
-import { byCar, createMap, drawRoad, drawStops, drawTrip, roadEnd, type Trip } from '@/lib/tripMap'
-import { categories, poiCluster, poiMarker, type PoiCategory } from '@/lib/poiLayer'
+import { computed, inject, onBeforeUnmount, onMounted, reactive, ref, useTemplateRef, watch } from 'vue'
+import { CheckIcon, LoaderCircleIcon, MapPinnedIcon, MoonIcon, PlusIcon, XIcon } from '@lucide/vue'
+import { api, type Poi, type StopSuggestion } from '@/api/client'
+import { hours, rub } from '@/lib/format'
+import type { MapLibreMap } from '@/lib/map/maplibre'
+import {
+  FIT_PADDING, createTripMap, onCityClick, setCities, setOfferedVisible, setPoiVisible, setPois, setStops, setTripPoints, setTripRoute, tripBounds,
+} from '@/lib/map/tripLayers'
+import { categories, type PoiCategory } from '@/lib/poiLayer'
+import { detourLabel, stopPickerKey } from '@/lib/stopPicker'
+import { byCar, loadRoad, roadEnd, roadStops, type Trip } from '@/lib/tripMap'
 
-const props = defineProps<Trip>()
+const props = defineProps<Trip & { pick?: string }>()
 
-const el = useTemplateRef<HTMLDivElement>('map')
+const el = useTemplateRef<HTMLDivElement>('mapEl')
 const loading = ref(true)
 const failed = ref(false)
 const counts = reactive<Record<PoiCategory, number>>({ fuel: 0, food: 0, attraction: 0 })
 const visible = reactive<Record<PoiCategory, boolean>>({ fuel: true, food: true, attraction: true })
-let map: L.Map | undefined
-const clusters = new Map<PoiCategory, L.MarkerClusterGroup>()
+let map: MapLibreMap | undefined
+let ready: Promise<void> | undefined
 
-// Карта открывается с анимацией — Leaflet должен пересчитать размер, когда контейнер его получит
-useResizeObserver(el, () => map?.invalidateSize())
+// Города для остановки (ADR-0023): точки с плашкой «Казань · +15 мин» вдоль дороги, нажатие — карточка снизу
+const picker = inject(stopPickerKey, undefined)
+const showCities = ref(true)
+const picked = ref<StopSuggestion>()
+const cityCount = computed(() => picker?.suggestions.value?.length ?? 0)
+const pickById = (id?: string) => (picked.value = picker?.suggestions.value?.find((s) => s.city.id === id))
+
+async function renderMarks() {
+  await ready
+  if (!map) return
+  setStops(map, props.stops)
+  setCities(map, picker?.suggestions.value, picker?.chosen.value, props.stops)
+  setOfferedVisible(map, showCities.value)
+}
+watch(() => [props.stops, picker?.suggestions.value, picker?.chosen.value, showCities.value], renderMarks, { deep: true })
+// Нажали город на маленькой карте — карточка открыта сразу; предложения могли догрузиться позже
+watch(() => [props.pick, picker?.suggestions.value], () => props.pick && pickById(props.pick), { immediate: true })
+
+// Поменялись места по пути — перерисовываем дорогу через них; последний запрос побеждает
+let roadVersion = 0
+async function renderRoad() {
+  const version = ++roadVersion
+  const [drawn] = await Promise.all([loadRoad(props), ready])
+  if (!map || version !== roadVersion) return
+  setTripRoute(map, props, drawn?.line)
+  if (version === 1 && drawn) map.fitBounds(tripBounds(props, drawn.line), { padding: FIT_PADDING, duration: 0 })
+}
+watch(() => roadStops(props).join(';'), () => void renderRoad())
 
 async function loadPois(): Promise<Poi[]> {
   const requests = [api.GET('/places/{id}/pois', { params: { path: { id: props.destination.id } } })]
@@ -33,35 +63,33 @@ async function loadPois(): Promise<Poi[]> {
 }
 
 onMounted(async () => {
-  map = createMap(el.value!, { scrollWheelZoom: true })
-  map.fitBounds(drawTrip(map, props), { padding: [40, 40] })
-  void drawRoad(map, props)
-  if (props.stops?.length) drawStops(map, props.stops)
+  const created = createTripMap(el.value!, props, { pois: true })
+  map = created.map
+  ready = created.ready.then(() => {
+    if (!map) return
+    setTripPoints(map, props)
+    onCityClick(map, pickById)
+  })
+  void renderMarks()
+  void renderRoad()
 
-  const pois = await loadPois()
+  const [pois] = await Promise.all([loadPois(), ready])
   loading.value = false
   if (!map) return
-  for (const c of categories) {
-    const items = pois.filter((p) => p.category === c.id)
-    counts[c.id] = items.length
-    const cluster = poiCluster(c.id).addLayers(items.map(poiMarker))
-    clusters.set(c.id, cluster)
-    if (visible[c.id]) cluster.addTo(map)
-  }
+  for (const c of categories) counts[c.id] = pois.filter((p) => p.category === c.id).length
+  setPois(map, pois)
 })
 
 watch(visible, () => {
-  if (!map) return
-  for (const [id, cluster] of clusters) {
-    if (visible[id]) cluster.addTo(map)
-    else cluster.remove()
-  }
+  if (map) for (const c of categories) setPoiVisible(map, c.id, visible[c.id])
 })
 
+// Карта открывается с анимацией — размер контейнера меняется, MapLibre следит за ним сам
 onBeforeUnmount(() => {
   map?.remove()
   map = undefined
 })
+
 </script>
 
 <template>
@@ -80,6 +108,17 @@ onBeforeUnmount(() => {
         {{ c.label }}
         <span v-if="!loading" class="tabular-nums opacity-75">{{ counts[c.id] }}</span>
       </button>
+      <button
+        v-if="cityCount"
+        type="button"
+        :aria-pressed="showCities"
+        class="flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors"
+        :class="showCities ? 'border-transparent bg-[#fde7cc] text-[#7a3d00]' : 'bg-card text-muted-foreground hover:bg-accent'"
+        @click="showCities = !showCities"
+      >
+        <MapPinnedIcon class="size-3.5" /> Остановиться в городе
+        <span class="tabular-nums opacity-75">{{ cityCount }}</span>
+      </button>
       <span v-if="loading" class="flex items-center gap-1.5 text-xs text-muted-foreground">
         <LoaderCircleIcon class="size-3.5 animate-spin" /> Ищем места на OpenStreetMap…
       </span>
@@ -87,6 +126,53 @@ onBeforeUnmount(() => {
         Часть мест не загрузилась — OpenStreetMap сейчас перегружен, попробуйте позже.
       </span>
     </div>
-    <div ref="map" class="trip-map isolate min-h-0 flex-1" />
+    <div class="relative min-h-0 flex-1">
+      <div ref="mapEl" class="trip-map isolate size-full" />
+      <!-- Карточка выбранного на карте города -->
+      <article
+        v-if="picker && picked"
+        class="absolute inset-x-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[1000] flex flex-col gap-3 rounded-2xl bg-card p-4 shadow-xl ring-1 ring-black/5 sm:right-auto sm:w-96"
+      >
+        <div class="flex items-start gap-3">
+          <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-[#fef3e6] text-road">
+            <MapPinnedIcon class="size-5" />
+          </span>
+          <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span class="font-semibold">{{ picked.city.name }}</span>
+            <span v-if="picked.city.landmark" class="line-clamp-1 text-sm text-muted-foreground">{{ picked.city.landmark }}</span>
+            <span class="text-sm">
+              {{ detourLabel(picked) }}{{ picked.detour.duration_min < 10 ? '' : ' к дороге' }} · {{ hours(picked.drive_to_hours) }} от дома
+            </span>
+            <span v-if="picked.stay_per_night" class="text-xs text-muted-foreground">гостиница ≈ {{ rub(picked.stay_per_night) }} / чел.</span>
+            <span v-if="picked.overnight" class="flex items-center gap-1 text-xs font-medium text-[#0d4f22]">
+              <MoonIcon class="size-3" /> удобно заночевать: оба дня за рулём в вашем лимите
+            </span>
+          </div>
+          <button
+            type="button"
+            class="-mt-2 -mr-2 flex size-11 shrink-0 items-center justify-center rounded-full hover:bg-muted"
+            aria-label="Закрыть"
+            @click="picked = undefined"
+          >
+            <XIcon class="size-4" />
+          </button>
+        </div>
+        <button
+          type="button"
+          class="flex h-11 items-center justify-center gap-1.5 rounded-full text-sm font-semibold transition-colors disabled:opacity-60"
+          :class="picker.chosen.value.includes(picked.city.id) ? 'text-foreground ring-1 ring-input hover:bg-muted' : 'bg-cta text-cta-foreground hover:bg-cta-hover'"
+          :disabled="!!picker.busy.value"
+          @click="picker.toggle(picked)"
+        >
+          <LoaderCircleIcon v-if="picker.busy.value === picked.city.id" class="size-4 animate-spin" />
+          <CheckIcon v-else-if="picker.chosen.value.includes(picked.city.id)" class="size-4" />
+          <PlusIcon v-else class="size-4" />
+          {{ picker.chosen.value.includes(picked.city.id) ? 'В маршруте — убрать' : 'Заехать' }}
+        </button>
+        <p v-if="picker.error.value === picked.city.id" class="text-sm text-destructive" role="alert">
+          Не получилось пересчитать поездку — попробуйте ещё раз.
+        </p>
+      </article>
+    </div>
   </div>
 </template>

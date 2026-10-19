@@ -36,6 +36,7 @@ const (
 	WarnStalePrice       Warning = "stale_price"
 	WarnParkingEstimated Warning = "parking_estimated"
 	WarnRoadApproximate  Warning = "road_approximate"
+	WarnLongDriveDay     Warning = "long_drive_day" // с остановками какой-то день за рулём дольше лимита
 )
 
 // TripsQuery — поиск поездки туда и обратно: направление, диапазон дат вылета, длительность.
@@ -49,7 +50,14 @@ type TripsQuery struct {
 	Travelers     int
 	UseCar        bool
 	Car           CarParams
-	Weekends      bool // только поездки на выходные: вылет чт–сб, возвращение вс–пн
+	Weekends      bool      // только поездки на выходные: вылет чт–сб, возвращение вс–пн
+	Via           []ViaStop // остановки по дороге на машине, по порядку
+}
+
+// ViaStop — остановка по пути: город карты (id Wikidata) и сколько ночей в нём; 0 — заезд на несколько часов.
+type ViaStop struct {
+	CityID string
+	Nights int
 }
 
 // TripOption — лучший вариант поездки через конкретный аэропорт вылета.
@@ -111,6 +119,9 @@ func (s *Service) Trips(ctx context.Context, q TripsQuery) (TripsResult, error) 
 		}
 	}
 	hubs = filter(hubs, func(r reachable) bool { return cityCode(r.Hub.Place) != destCity })
+	if dest.Kind == geo.KindTown {
+		hubs = nil // аэропорта нет — только на машине
+	}
 
 	if q.UseCar {
 		if res.Drive, res.DriveSkip, err = s.drive(ctx, home, dest, q, res.FuelPrice); err != nil {

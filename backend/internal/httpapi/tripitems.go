@@ -48,6 +48,9 @@ func (h *handlers) AddTripItem(ctx context.Context, req apigen.AddTripItemReques
 	if b.Description != nil {
 		it.Desc = strings.TrimSpace(*b.Description)
 	}
+	if b.City != nil {
+		it.City = *b.City
+	}
 	if l := b.Location; l != nil {
 		if l.Lat < -90 || l.Lat > 90 || l.Lon < -180 || l.Lon > 180 {
 			return apigen.AddTripItem422ApplicationProblemPlusJSONResponse(fieldProblem("location", "координаты вне диапазона")), nil
@@ -130,7 +133,7 @@ func toAPITripItem(it favorites.Item) apigen.TripItem {
 	out := apigen.TripItem{
 		Id: it.ID, Stage: apigen.TripItemStage(it.Stage), Kind: apigen.TripItemKind(it.Kind),
 		Title: it.Title, Url: optional(it.URL), Done: it.Done, CreatedAt: it.CreatedAt,
-		ImageUrl: optional(it.ImageURL), Description: optional(it.Desc),
+		ImageUrl: optional(it.ImageURL), Description: optional(it.Desc), City: optional(it.City),
 	}
 	if it.Price != nil {
 		out.Price = &apigen.Money{Amount: *it.Price, Currency: apigen.RUB}

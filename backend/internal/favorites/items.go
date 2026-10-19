@@ -25,6 +25,7 @@ type Item struct {
 	Location  *Point // где место — для карты и дороги через места «по пути»
 	ImageURL  string // превью ссылки: картинка и описание со страницы
 	Desc      string
+	City      string // город-остановка по пути (id Wikidata); пусто — место назначения или дорога
 	Done      bool
 	CreatedAt time.Time
 }
@@ -65,6 +66,7 @@ func (s *Service) AddItem(ctx context.Context, sessionID, favoriteID uuid.UUID, 
 		Lon:         coord(it.Location, func(p *Point) float64 { return p.Lon }),
 		ImageUrl:    pgtype.Text{String: it.ImageURL, Valid: it.ImageURL != ""},
 		Description: pgtype.Text{String: it.Desc, Valid: it.Desc != ""},
+		City:        pgtype.Text{String: it.City, Valid: it.City != ""},
 		FavoriteID:  favoriteID, SessionID: sessionID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -116,7 +118,7 @@ func (s *Service) DeleteItem(ctx context.Context, sessionID, favoriteID, id uuid
 func item(r store.InsertTripItemRow) Item {
 	it := Item{
 		ID: r.ID, Stage: r.Stage, Kind: r.Kind, Title: r.Title, URL: r.Url.String, Done: r.Done, CreatedAt: r.CreatedAt.Time,
-		ImageURL: r.ImageUrl.String, Desc: r.Description.String,
+		ImageURL: r.ImageUrl.String, Desc: r.Description.String, City: r.City.String,
 	}
 	if r.Price.Valid {
 		it.Price = &r.Price.Int64

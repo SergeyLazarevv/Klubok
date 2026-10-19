@@ -1,7 +1,4 @@
 import { h, render, type Component } from 'vue'
-import L from 'leaflet'
-import 'leaflet.markercluster'
-import 'leaflet.markercluster/dist/MarkerCluster.css'
 import { FuelIcon, LandmarkIcon, UtensilsIcon } from '@lucide/vue'
 import { api, type Poi } from '@/api/client'
 
@@ -50,10 +47,17 @@ export const kindLabels: Record<string, string> = {
   stadium: 'Стадион',
 }
 
+// Свой цвет у каждой категории, отличный от дороги (оранжевая) и перелёта (синий)
+export const poiColors: Record<PoiCategory, string> = {
+  fuel: '#7c3aed', // violet-600
+  food: '#e11d48', // rose-600
+  attraction: '#047857', // emerald-700
+}
+
 const iconHtml = new Map<PoiCategory, string>()
 
-/** SVG иконки Lucide строкой — для divIcon Leaflet. */
-function svg(category: PoiCategory) {
+/** SVG значка категории (Lucide) строкой. */
+export function poiSvg(category: PoiCategory) {
   let html = iconHtml.get(category)
   if (!html) {
     const el = document.createElement('div')
@@ -64,48 +68,10 @@ function svg(category: PoiCategory) {
   return html
 }
 
-function poiIcon(category: PoiCategory) {
-  return L.divIcon({
-    html: svg(category),
-    className: `poi-marker poi-${category}`,
-    iconSize: [26, 26],
-    iconAnchor: [13, 13],
-    popupAnchor: [0, -12],
-  })
-}
-
-/** Группа маркеров одной категории: близкие точки собираются в кружок с числом. */
-export function poiCluster(category: PoiCategory) {
-  return L.markerClusterGroup({
-    maxClusterRadius: 45,
-    showCoverageOnHover: false,
-    spiderfyOnMaxZoom: true,
-    iconCreateFunction: (cluster) =>
-      L.divIcon({
-        html: `${svg(category)}<span>${cluster.getChildCount()}</span>`,
-        className: `poi-cluster poi-${category}`,
-        iconSize: [44, 26],
-        iconAnchor: [22, 13],
-      }),
-  })
-}
-
-export function poiMarker(p: Poi) {
-  const m = L.marker([p.location.lat, p.location.lon], { icon: poiIcon(p.category), title: title(p) })
-  m.bindPopup(() => popup(p, p.details_pending), { className: 'poi-popup', maxWidth: 280, minWidth: 220 })
-  // Описание и фото подгружаются при первом открытии карточки и дальше лежат на сервере
-  if (p.details_pending) {
-    m.on('popupopen', async () => {
-      const full = await fetchDetails(p.id)
-      if (full) m.setPopupContent(popup(full, false))
-    })
-  }
-  return m
-}
-
 const detailsCache = new Map<string, Promise<Poi | undefined>>()
 
-function fetchDetails(id: string) {
+/** Описание и фото места: подгружаются при первом открытии карточки и дальше лежат на сервере. */
+export function fetchDetails(id: string) {
   let details = detailsCache.get(id)
   if (!details) {
     const [type, osmId] = id.split('/') as ['node' | 'way' | 'relation', string]
@@ -156,7 +122,7 @@ function fee(v: string) {
 }
 
 // Карточка места. Тексты из OSM и Википедии — только через textContent, без HTML-строк.
-function popup(p: Poi, loading: boolean) {
+export function poiPopup(p: Poi, loading: boolean) {
   const root = document.createElement('div')
   const add = (tag: string, className: string, text: string, parent: HTMLElement = root) => {
     const el = document.createElement(tag)

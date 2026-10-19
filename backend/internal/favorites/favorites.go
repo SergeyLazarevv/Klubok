@@ -14,12 +14,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites/store"
 )
 
-var ErrNotFound = errors.New("favorite not found")
+var (
+	ErrNotFound  = errors.New("favorite not found")
+	ErrDuplicate = errors.New("the same trip is already in favorites")
+)
 
 // Favorite — запись избранного; params, pick и snapshot хранятся как JSON в формате API.
 type Favorite struct {
@@ -88,6 +92,30 @@ func (s *Service) Get(ctx context.Context, sessionID, id uuid.UUID) (Favorite, e
 	return Favorite{r.ID, r.Title, r.Params, r.Pick, r.Snapshot, r.CreatedAt.Time}, nil
 }
 
+// Update меняет параметры поездки и снимок цены (остановки по пути); ErrDuplicate — такая поездка
+// с теми же параметрами уже есть в избранном этой сессии.
+func (s *Service) Update(ctx context.Context, sessionID, id uuid.UUID, params, snapshot json.RawMessage) (Favorite, error) {
+	f, err := s.Get(ctx, sessionID, id)
+	if err != nil {
+		return Favorite{}, err
+	}
+	fp, err := Fingerprint(params, f.Pick)
+	if err != nil {
+		return Favorite{}, err
+	}
+	r, err := s.q.UpdateFavorite(ctx, store.UpdateFavoriteParams{Params: params, Snapshot: snapshot, Fingerprint: fp, ID: id, SessionID: sessionID})
+	var pgErr *pgconn.PgError
+	switch {
+	case errors.As(err, &pgErr) && pgErr.Code == "23505":
+		return Favorite{}, ErrDuplicate
+	case errors.Is(err, pgx.ErrNoRows):
+		return Favorite{}, ErrNotFound
+	case err != nil:
+		return Favorite{}, fmt.Errorf("update favorite: %w", err)
+	}
+	return Favorite{r.ID, r.Title, r.Params, r.Pick, r.Snapshot, r.CreatedAt.Time}, nil
+}
+
 // Delete убирает из избранного (мягко: запись остаётся с deleted_at).
 func (s *Service) Delete(ctx context.Context, sessionID, id uuid.UUID) error {
 	n, err := s.q.DeleteFavorite(ctx, store.DeleteFavoriteParams{ID: id, SessionID: sessionID})
@@ -103,15 +131,16 @@ func (s *Service) Delete(ctx context.Context, sessionID, id uuid.UUID) error {
 // fingerprintParams — по каким параметрам вариант считается «тем же самым». Настройки машины не входят:
 // поменял расход — это всё ещё тот же маршрут. Та же строка считается во фронтенде (lib/favorites.ts).
 type fingerprintParams struct {
-	From      string `json:"from"`
-	To        string `json:"to"`
-	DateFrom  string `json:"date_from"`
-	DateTo    string `json:"date_to"`
-	MinDays   *int   `json:"min_days"`
-	MaxDays   *int   `json:"max_days"`
-	Travelers *int   `json:"travelers"`
-	UseCar    *bool  `json:"use_car"`
-	Weekends  bool   `json:"weekends"`
+	From      string   `json:"from"`
+	To        string   `json:"to"`
+	DateFrom  string   `json:"date_from"`
+	DateTo    string   `json:"date_to"`
+	MinDays   *int     `json:"min_days"`
+	MaxDays   *int     `json:"max_days"`
+	Travelers *int     `json:"travelers"`
+	UseCar    *bool    `json:"use_car"`
+	Weekends  bool     `json:"weekends"`
+	Via       []string `json:"via"`
 }
 
 type fingerprintPick struct {
@@ -138,6 +167,10 @@ func Key(params, pick json.RawMessage) (string, error) {
 	// Только выходные — другая выдача; в конце и только когда включено, чтобы ключи старых записей не поменялись
 	if p.Weekends {
 		parts = append(parts, "weekends")
+	}
+	// Остановки по пути — тоже другой маршрут; так же только когда есть
+	if len(p.Via) > 0 {
+		parts = append(parts, "via="+strings.Join(p.Via, ","))
 	}
 	return strings.Join(parts, "|"), nil
 }

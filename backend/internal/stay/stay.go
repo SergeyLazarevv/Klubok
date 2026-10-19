@@ -134,6 +134,8 @@ type MapCity struct {
 	ID, Name, Country string
 	Pop               int
 	Lat, Lon          float64
+	Arms              bool   // есть герб: /data/arms/<id>.webp
+	Photo, Landmark   string // фото на Викискладе и главная достопримечательность; могут быть пустыми
 }
 
 // LoadCities читает справочник городов карты (frontend/public/data/cities.geojson).
@@ -148,10 +150,13 @@ func LoadCities(path string) ([]MapCity, error) {
 				Coordinates [2]float64 `json:"coordinates"`
 			} `json:"geometry"`
 			Properties struct {
-				ID      string `json:"id"`
-				Name    string `json:"name"`
-				Pop     int    `json:"pop"`
-				Country string `json:"country"`
+				ID       string `json:"id"`
+				Name     string `json:"name"`
+				Pop      int    `json:"pop"`
+				Country  string `json:"country"`
+				Arms     bool   `json:"arms"`
+				Photo    string `json:"photo"`
+				Landmark string `json:"landmark"`
 			} `json:"properties"`
 		} `json:"features"`
 	}
@@ -161,7 +166,8 @@ func LoadCities(path string) ([]MapCity, error) {
 	out := make([]MapCity, 0, len(fc.Features))
 	for _, f := range fc.Features {
 		p := f.Properties
-		out = append(out, MapCity{ID: p.ID, Name: p.Name, Country: p.Country, Pop: p.Pop, Lon: f.Geometry.Coordinates[0], Lat: f.Geometry.Coordinates[1]})
+		out = append(out, MapCity{ID: p.ID, Name: p.Name, Country: p.Country, Pop: p.Pop, Lon: f.Geometry.Coordinates[0], Lat: f.Geometry.Coordinates[1],
+			Arms: p.Arms, Photo: p.Photo, Landmark: p.Landmark})
 	}
 	return out, nil
 }

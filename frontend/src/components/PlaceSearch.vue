@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useDebounceFn } from '@vueuse/core'
-import { MapPinIcon, PlaneIcon } from '@lucide/vue'
+import { CarIcon, MapPinIcon, PlaneIcon } from '@lucide/vue'
 import { api, type Place } from '@/api/client'
 import {
   Combobox,
@@ -37,7 +37,8 @@ const load = useDebounceFn(async (q: string) => {
   loading.value = false
 }, 200)
 
-const label = (p: Place | null) => (p ? `${p.name}, ${p.iata}` : '')
+// У города без аэропорта (town) в iata — id Wikidata: его не показываем
+const label = (p: Place | null) => (p ? (p.kind === 'town' ? p.name : `${p.name}, ${p.iata}`) : '')
 
 // После выбора в поле подставляется подпись точки — искать по ней не нужно
 watch(term, (q) => q !== label(model.value) && load(q))
@@ -64,9 +65,11 @@ watch(term, (q) => q !== label(model.value) && load(q))
       </ComboboxEmpty>
       <ComboboxItem v-for="p in items" :key="p.id" :value="p" class="py-2">
         <PlaneIcon v-if="p.kind === 'airport'" class="text-muted-foreground" />
+        <CarIcon v-else-if="p.kind === 'town'" class="text-road" />
         <MapPinIcon v-else class="text-muted-foreground" />
         <span class="truncate">{{ p.name }}</span>
-        <span class="ml-auto font-mono text-xs text-muted-foreground">{{ p.iata }} · {{ p.country_code }}</span>
+        <span v-if="p.kind === 'town'" class="ml-auto text-xs text-muted-foreground">на машине</span>
+        <span v-else class="ml-auto font-mono text-xs text-muted-foreground">{{ p.iata }} · {{ p.country_code }}</span>
       </ComboboxItem>
     </ComboboxList>
   </Combobox>

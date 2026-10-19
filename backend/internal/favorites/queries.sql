@@ -25,6 +25,12 @@ SELECT id, title, params, pick, snapshot, created_at
 FROM favorites
 WHERE id = @id AND session_id = @session_id AND deleted_at IS NULL;
 
+-- name: UpdateFavorite :one
+-- Поменялись параметры поездки (остановки по пути) — новый отпечаток и снимок цены.
+UPDATE favorites SET params = @params, snapshot = @snapshot, fingerprint = @fingerprint
+WHERE id = @id AND session_id = @session_id AND deleted_at IS NULL
+RETURNING id, title, params, pick, snapshot, created_at;
+
 -- name: DeleteFavorite :execrows
 UPDATE favorites SET deleted_at = now()
 WHERE id = @id AND session_id = @session_id AND deleted_at IS NULL;
@@ -45,19 +51,19 @@ RETURNING id, title, params, pick, snapshot, created_at;
 -- Путевой лист. Владелец пункта — владелец сохранённой поездки, поэтому везде проверяем сессию через favorites.
 
 -- name: ListTripItems :many
-SELECT i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description
+SELECT i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description, i.city
 FROM trip_items i
 JOIN favorites f ON f.id = i.favorite_id
 WHERE i.favorite_id = @favorite_id AND f.session_id = @session_id AND f.deleted_at IS NULL
 ORDER BY i.created_at;
 
 -- name: InsertTripItem :one
-INSERT INTO trip_items (id, favorite_id, stage, kind, title, url, price, lat, lon, image_url, description)
+INSERT INTO trip_items (id, favorite_id, stage, kind, title, url, price, lat, lon, image_url, description, city)
 SELECT @id, f.id, @stage, @kind, @title, sqlc.narg('url'), sqlc.narg('price'), sqlc.narg('lat'), sqlc.narg('lon'),
-       sqlc.narg('image_url'), sqlc.narg('description')
+       sqlc.narg('image_url'), sqlc.narg('description'), sqlc.narg('city')
 FROM favorites f
 WHERE f.id = @favorite_id AND f.session_id = @session_id AND f.deleted_at IS NULL
-RETURNING id, stage, kind, title, url, price, done, created_at, lat, lon, image_url, description;
+RETURNING id, stage, kind, title, url, price, done, created_at, lat, lon, image_url, description, city;
 
 -- name: UpdateTripItem :one
 -- Пустое поле — не менять; цену можно сбросить флагом clear_price.
@@ -70,7 +76,7 @@ UPDATE trip_items i SET
 FROM favorites f
 WHERE i.id = @id AND i.favorite_id = @favorite_id
   AND f.id = i.favorite_id AND f.session_id = @session_id AND f.deleted_at IS NULL
-RETURNING i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description;
+RETURNING i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description, i.city;
 
 -- name: DeleteTripItem :execrows
 DELETE FROM trip_items i
