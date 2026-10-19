@@ -39,20 +39,27 @@ function fetchWeather(q: WeatherQuery) {
   return req
 }
 
-/** Погода для компонента: пересчитывается при смене точки и дат; нет данных — undefined, без ошибок в интерфейсе. */
+/**
+ * Погода для компонента: пересчитывается при смене точки и дат. loading — запрос идёт; ответа нет (источник
+ * недоступен, ошибка) — weather остаётся undefined, а loading снимается, чтобы блок не висел скелетоном.
+ */
 export function useWeather(query: MaybeRefOrGetter<WeatherQuery | undefined>) {
   const weather = shallowRef<WeatherResponse>()
+  const loading = shallowRef(false)
   let seq = 0
   watchEffect(() => {
     const q = toValue(query)
     const current = ++seq
     weather.value = undefined
+    loading.value = !!q
     if (!q) return
     fetchWeather(q).then((data) => {
-      if (current === seq) weather.value = data
+      if (current !== seq) return
+      weather.value = data
+      loading.value = false
     })
   })
-  return weather
+  return { weather, loading }
 }
 
 // --- Подписи и значки ---
@@ -60,18 +67,18 @@ export function useWeather(query: MaybeRefOrGetter<WeatherQuery | undefined>) {
 interface Kind {
   label: string
   icon: typeof SunIcon
-  tone: string // цвет значка
+  tone: string // цвет контура и заливка: контурный светлый значок на сером фоне выглядел пустым
 }
 
 export function weatherKind(code: number): Kind {
-  if (code <= 1) return { label: 'Ясно', icon: SunIcon, tone: 'text-amber-500' }
-  if (code === 2) return { label: 'Переменная облачность', icon: CloudSunIcon, tone: 'text-amber-500' }
-  if (code === 3) return { label: 'Облачно', icon: CloudIcon, tone: 'text-slate-400' }
-  if (code === 45 || code === 48) return { label: 'Туман', icon: CloudFogIcon, tone: 'text-slate-400' }
-  if (code >= 95) return { label: 'Гроза', icon: CloudLightningIcon, tone: 'text-violet-500' }
-  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { label: 'Снег', icon: CloudSnowIcon, tone: 'text-sky-400' }
-  if (code >= 51 && code <= 57) return { label: 'Морось', icon: CloudDrizzleIcon, tone: 'text-sky-500' }
-  return { label: 'Дождь', icon: CloudRainIcon, tone: 'text-sky-500' }
+  if (code <= 1) return { label: 'Ясно', icon: SunIcon, tone: 'text-amber-500 fill-amber-300' }
+  if (code === 2) return { label: 'Переменная облачность', icon: CloudSunIcon, tone: 'text-slate-500 fill-amber-200' }
+  if (code === 3) return { label: 'Облачно', icon: CloudIcon, tone: 'text-slate-500 fill-slate-300' }
+  if (code === 45 || code === 48) return { label: 'Туман', icon: CloudFogIcon, tone: 'text-slate-500 fill-slate-200' }
+  if (code >= 95) return { label: 'Гроза', icon: CloudLightningIcon, tone: 'text-violet-600 fill-violet-200' }
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return { label: 'Снег', icon: CloudSnowIcon, tone: 'text-sky-500 fill-sky-100' }
+  if (code >= 51 && code <= 57) return { label: 'Морось', icon: CloudDrizzleIcon, tone: 'text-sky-600 fill-sky-200' }
+  return { label: 'Дождь', icon: CloudRainIcon, tone: 'text-sky-600 fill-sky-200' }
 }
 
 /** «+12°», «−3°», «0°» — со знаком, как в прогнозах */

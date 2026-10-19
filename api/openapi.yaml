@@ -1014,7 +1014,7 @@ components:
 
     TripOption:
       type: object
-      required: [hub, depart_at, return_at, trip_days, airline, transfers, return_transfers,
+      required: [hub, depart_at, return_at, trip_days, days_there, airline, transfers, return_transfers,
                  duration_to_min, duration_back_min, ticket_per_person, tickets, total, per_person, warnings]
       properties:
         hub: { $ref: '#/components/schemas/Place' }
@@ -1023,6 +1023,14 @@ components:
         depart_at: { type: string, format: date-time }
         return_at: { type: string, format: date-time }
         trip_days: { type: integer }
+        days_there:
+          type: number
+          format: double
+          description: |
+            Сколько дней на месте по светлому времени (8:00–22:00 местного): от прилёта плюс 1,5 ч на дорогу
+            из аэропорта до вылета обратно минус 2,5 ч; 14 ч = день, округлено до половины. Прилёт в полночь
+            и вылет в 8 утра — 0, хотя trip_days = 2. Варианты, где на месте меньше 40% светлого времени
+            min_days, в выдачу не попадают.
         airline: { type: string, example: FS }
         transfers: { type: integer }
         return_transfers: { type: integer }

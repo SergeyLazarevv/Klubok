@@ -2,6 +2,7 @@ import { computed, ref, watch, type InjectionKey, type Ref } from 'vue'
 import type { Favorite, FavoritePick, FavoriteSnapshot, TripItem, TripItemCreate, TripItemStage, TripSearchParams } from '@/api/client'
 import { useFavoritesStore } from '@/stores/favorites'
 import { useSheetStore } from '@/stores/sheet'
+import { countedInTotal, sheetExtras } from '@/lib/sheet'
 
 /**
  * Путевой лист поездки. Это не отдельная сущность, а продолжение избранного: пункты привязаны к сохранённой
@@ -41,11 +42,9 @@ export function useTripSheet(opts: {
   const byStage = (stage: TripItemStage) => items.value.filter((i) => i.stage === stage)
   const toggle = (item: TripItem) => favorite.value && sheets.toggle(favorite.value.id, item)
   const remove = (item: TripItem) => favorite.value && sheets.remove(favorite.value.id, item)
-  // Ссылки — варианты (жильё, аренда): в итог идёт только выбранный. Дела и места с ценой — всегда
-  const counted = (i: TripItem) => i.kind !== 'link' || i.done
-  const extra = computed(() => items.value.reduce((sum, i) => sum + (counted(i) ? (i.price?.amount ?? 0) : 0), 0))
+  const extra = computed(() => sheetExtras(items.value).total)
   /** Варианты с ценой, которые не выбраны и в итог не вошли. */
-  const unchosen = computed(() => items.value.filter((i) => !counted(i) && i.price).length)
+  const unchosen = computed(() => items.value.filter((i) => !countedInTotal(i) && i.price).length)
 
   return { favorite, enabled, items, justSaved, add, byStage, toggle, remove, extra, unchosen }
 }

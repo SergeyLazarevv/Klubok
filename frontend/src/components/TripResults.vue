@@ -56,6 +56,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
         :destination="result.destination"
         :travelers="travelers"
         :date-from="dateFrom"
+        :open-key="p.choice.key"
       />
       <TripOptionCard
         v-else
@@ -66,6 +67,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
         :destination="result.destination"
         :travelers="travelers"
         :date-from="dateFrom"
+        :open-key="p.choice.key"
       />
     </template>
 
@@ -79,6 +81,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
           :destination="result.destination"
           :travelers="travelers"
           :date-from="dateFrom"
+          :open-key="c.key"
         />
         <TripOptionCard
           v-else
@@ -87,6 +90,7 @@ const cityOf = (p: Place) => p.city_name ?? p.name
           :destination="result.destination"
           :travelers="travelers"
           :date-from="dateFrom"
+          :open-key="c.key"
         />
       </template>
     </template>

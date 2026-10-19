@@ -10,6 +10,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
@@ -117,6 +118,7 @@ func toAPITrip(o search.TripOption) apigen.TripOption {
 		DepartAt:        o.Quote.DepartAt,
 		ReturnAt:        o.Quote.ReturnAt,
 		TripDays:        o.TripDays,
+		DaysThere:       math.Round(o.Quote.DaytimeHours()/fares.FullDayHours*2) / 2, // до половины дня
 		Airline:         o.Quote.Airline,
 		Transfers:       o.Quote.Transfers,
 		ReturnTransfers: o.Quote.ReturnTransfers,

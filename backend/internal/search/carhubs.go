@@ -122,6 +122,7 @@ func (s *Service) reachableByCar(ctx context.Context, home geo.Place, car CarPar
 	if err != nil {
 		return nil, err
 	}
+	hubs = filter(hubs, func(h geo.Hub) bool { return sellable(h.Place) })
 	if !car.AllowBorder {
 		hubs = filter(hubs, func(h geo.Hub) bool { return !h.CrossesBorder })
 	}
@@ -175,6 +176,21 @@ func (s *Service) reachableByCar(ctx context.Context, home geo.Place, car CarPar
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].DriveHours < out[j].DriveHours })
 	return out, nil
+}
+
+// sellable — продаются ли билеты из аэропорта: у него международный код IATA из трёх латинских букв. У ~70 малых
+// аэропортов в справочнике только внутренний код («ВЛМ» — Владимир, «СОЛ» — Старый Оскол): Aviasales их не знает,
+// запрос цен по ним всегда пуст, а в выдаче они попадали в «нет цен на эти даты», будто дело в датах.
+func sellable(p geo.Place) bool {
+	if len(p.IATA) != 3 {
+		return false
+	}
+	for _, c := range []byte(p.IATA) {
+		if c < 'A' || c > 'Z' {
+			return false
+		}
+	}
+	return true
 }
 
 func filter[T any](in []T, keep func(T) bool) []T {

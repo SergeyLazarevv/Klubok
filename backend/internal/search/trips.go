@@ -184,6 +184,11 @@ var (
 	weekendEnd   = map[time.Weekday]bool{time.Sunday: true, time.Monday: true}
 )
 
+// minDaylightShare — какую долю светлого времени заказанных дней (min_days × 14 ч) надо провести на месте, чтобы
+// вариант считался поездкой на эти дни. Прилёт в полночь и вылет в 8 утра — «2 дня» по календарю, но 0 часов
+// в городе. При 40% проходят однодневная поездка с 6 часами в городе и выходные «суббота утром — воскресенье вечером».
+const minDaylightShare = 0.4
+
 // fits — подходит ли котировка под даты и длительность поездки; days — длительность в днях.
 func fits(quote fares.Quote, q TripsQuery) (days int, ok bool) {
 	days = quote.TripDays()
@@ -195,6 +200,10 @@ func fits(quote fares.Quote, q TripsQuery) (days int, ok bool) {
 	}
 	// День недели — по местному времени аэропорта: смещение сохраняется из ответа источника
 	if q.Weekends && (!weekendStart[depart.Weekday()] || !weekendEnd[ret.Weekday()]) {
+		return days, false
+	}
+	// По календарю дней хватает, а в городе — почти ничего: ночной прилёт и ранний вылет обратно
+	if quote.DaytimeHours() < minDaylightShare*fares.FullDayHours*float64(q.MinDays) {
 		return days, false
 	}
 	// Вылет и возврат — оба в пределах выбранных дат, а не только вылет
@@ -271,7 +280,7 @@ func (s *Service) homeAirports(ctx context.Context, home geo.Place) ([]reachable
 	}
 	var out []reachable
 	for _, h := range hubs {
-		if cityCode(h.Place) == cityCode(home) {
+		if cityCode(h.Place) == cityCode(home) && sellable(h.Place) {
 			out = append(out, reachable{Hub: h})
 		}
 	}

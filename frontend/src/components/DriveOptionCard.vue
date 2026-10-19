@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { CarIcon, ChevronDownIcon, InfoIcon } from '@lucide/vue'
+import { CarIcon, ChevronDownIcon, ExternalLinkIcon, InfoIcon } from '@lucide/vue'
 import type { DriveTrip, Favorite, Place, TripSearchParams } from '@/api/client'
 import { hours, km, rub } from '@/lib/format'
+import { yandexRouteUrl } from '@/lib/geo'
 import type { Highlight } from '@/lib/trip'
 import TripPlan from '@/components/TripPlan.vue'
 import FavoriteButton from '@/components/FavoriteButton.vue'
 import WeatherChip from '@/components/WeatherChip.vue'
 import WeatherDays from '@/components/WeatherDays.vue'
 import { addDays, todayISO } from '@/stores/search'
+import TripScreen from '@/components/TripScreen.vue'
 import { drivePick, driveSnapshot } from '@/lib/favorites'
+import { useTripOpen } from '@/lib/tripOpen'
 
 const props = defineProps<{
   drive: DriveTrip
@@ -21,8 +24,11 @@ const props = defineProps<{
   tradeoff?: { slowerHours?: number; pricierKop?: number }
   searchParams?: TripSearchParams // для избранного: параметры поиска, в котором найден вариант
   favorite?: Favorite // открыто из избранного: путевой лист этой записи
+  openKey?: string // ключ варианта в адресе (?trip=), чтобы на телефоне открыть подробности отдельным экраном
 }>()
-const open = defineModel<boolean>('open', { default: false })
+const { open, screen } = useTripOpen(() => props.openKey)
+const destName = computed(() => props.destination.city_name ?? props.destination.name)
+const routeUrl = computed(() => yandexRouteUrl(props.home.location, props.destination.location))
 
 // Даты у машины свободные — погода на те же дни, что в плане поездки (TripPlan): с начала периода, но не раньше
 // завтрашнего дня, на trip_days
@@ -45,7 +51,7 @@ const tagLabels: Record<Highlight, string> = {
 </script>
 
 <template>
-  <article class="overflow-hidden rounded-3xl bg-card ring-1 ring-border" :class="open && 'ring-primary/40'">
+  <article class="overflow-hidden rounded-3xl bg-card ring-1 ring-border" :class="open && !screen && 'ring-primary/40'">
     <div class="flex flex-col gap-3 p-4 sm:p-5">
       <div class="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div class="flex min-w-0 flex-col gap-1.5">
@@ -62,7 +68,7 @@ const tagLabels: Record<Highlight, string> = {
           <h3 class="text-xl font-semibold tracking-tight">На своей машине</h3>
           <span class="text-sm text-muted-foreground">без самолёта · в любые даты · туда и обратно</span>
         </div>
-        <div class="flex flex-col items-end">
+        <div class="flex flex-col items-start sm:items-end">
           <span class="text-3xl font-semibold tracking-tight tabular-nums">{{ rub(drive.total) }}</span>
           <span class="text-xs text-muted-foreground">
             бензин и страховка
@@ -95,8 +101,9 @@ const tagLabels: Record<Highlight, string> = {
           :aria-expanded="open"
           @click="open = !open"
         >
-          {{ open ? 'Свернуть' : 'Подробнее: дорога, что по пути, где остановиться' }}
-          <ChevronDownIcon class="size-4 transition-transform" :class="open && 'rotate-180'" />
+          <template v-if="open && !screen">Свернуть</template>
+          <template v-else>Подробнее<span class="max-sm:hidden">: дорога, что по пути, где остановиться</span></template>
+          <ChevronDownIcon class="size-4 transition-transform max-sm:-rotate-90" :class="open && !screen && 'rotate-180'" />
         </button>
         <FavoriteButton
           :pick="drivePick"
@@ -108,8 +115,41 @@ const tagLabels: Record<Highlight, string> = {
       </div>
     </div>
 
-    <div v-if="open" class="flex flex-col gap-5 border-t bg-[#f8fafd] p-4 sm:p-5">
-      <WeatherDays :query="weather" :title="`Погода в г. ${destination.city_name ?? destination.name}`" />
+    <TripScreen
+      v-if="screen"
+      :title="`На машине → ${destName}`"
+      :subtitle="`${km(drive.road.distance_km)} · ${hours(drive.drive_hours)} в одну сторону`"
+      @close="open = false"
+    >
+      <div class="flex flex-col gap-5 bg-[#f8fafd] p-4">
+        <WeatherDays :query="weather" :title="`Погода в г. ${destName}`" />
+        <TripPlan :home="home" :drive="drive" :destination="destination" :travelers="travelers" :date-from="dateFrom" :search-params="searchParams" :favorite="favorite" />
+      </div>
+      <template #footer>
+        <div class="flex min-w-0 flex-1 flex-col">
+          <span class="text-xl leading-tight font-semibold tracking-tight tabular-nums">{{ rub(drive.total) }}</span>
+          <span class="truncate text-xs text-muted-foreground">бензин и страховка на всех</span>
+        </div>
+        <a
+          :href="routeUrl"
+          target="_blank"
+          rel="noopener"
+          class="flex h-11 items-center gap-1.5 rounded-full bg-cta px-5 text-sm font-medium text-cta-foreground transition-colors hover:bg-cta-hover active:bg-cta-hover"
+        >
+          Маршрут <ExternalLinkIcon class="size-3.5" />
+        </a>
+        <FavoriteButton
+          :pick="drivePick"
+          :snapshot="driveSnapshot(drive)"
+          :home="home"
+          :destination="destination"
+          :params="searchParams"
+          class="size-11!"
+        />
+      </template>
+    </TripScreen>
+    <div v-else-if="open" class="flex flex-col gap-5 border-t bg-[#f8fafd] p-4 sm:p-5">
+      <WeatherDays :query="weather" :title="`Погода в г. ${destName}`" />
       <TripPlan :home="home" :drive="drive" :destination="destination" :travelers="travelers" :date-from="dateFrom" :search-params="searchParams" :favorite="favorite" />
     </div>
   </article>

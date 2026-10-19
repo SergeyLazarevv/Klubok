@@ -46,7 +46,7 @@ onUnmounted(() => map?.remove())
 
 <template>
   <!-- Вокруг глобуса — светлое небо -->
-  <div class="h-[calc(100dvh-3.5rem-1px)] w-full bg-gradient-to-b from-[#d9f0ff] to-[#fdf6e9]">
+  <div class="h-[calc(100dvh-3.5rem-1px-var(--tabbar-h))] w-full bg-gradient-to-b from-[#d9f0ff] to-[#fdf6e9]">
     <div ref="el" class="h-full w-full" />
   </div>
 </template>

@@ -738,6 +738,14 @@ export interface components {
             /** Format: date-time */
             return_at: string;
             trip_days: number;
+            /**
+             * Format: double
+             * @description Сколько дней на месте по светлому времени (8:00–22:00 местного): от прилёта плюс 1,5 ч на дорогу
+             *     из аэропорта до вылета обратно минус 2,5 ч; 14 ч = день, округлено до половины. Прилёт в полночь
+             *     и вылет в 8 утра — 0, хотя trip_days = 2. Варианты, где на месте меньше 40% светлого времени
+             *     min_days, в выдачу не попадают.
+             */
+            days_there: number;
             /** @example FS */
             airline: string;
             transfers: number;

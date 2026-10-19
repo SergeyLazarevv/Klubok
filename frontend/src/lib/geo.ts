@@ -67,3 +67,7 @@ export function greatCircleArc(from: LatLon, to: LatLon, segments = 64): LatLon[
   }
   return points
 }
+
+/** Маршрут на машине в Яндекс Картах — точный путь и пробки там. */
+export const yandexRouteUrl = (from: { lat: number; lon: number }, to: { lat: number; lon: number }) =>
+  `https://yandex.ru/maps/?rtext=${from.lat},${from.lon}~${to.lat},${to.lon}&rtt=auto`

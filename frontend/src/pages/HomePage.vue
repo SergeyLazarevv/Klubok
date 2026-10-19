@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { CalendarDaysIcon, XIcon } from '@lucide/vue'
+import { CalendarDaysIcon, PencilIcon, XIcon } from '@lucide/vue'
 import { api, type TripsResponse } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
 import { maxRangeEnd, maxSearchDate, todayISO, useSearchStore } from '@/stores/search'
+import { dateRangeLabel, plural } from '@/lib/format'
+import { useIsPhone } from '@/lib/tripOpen'
 import CarSettings from '@/components/CarSettings.vue'
 import SearchLoader from '@/components/SearchLoader.vue'
 import SearchForm from '@/components/SearchForm.vue'
@@ -23,8 +25,18 @@ const searchedDateTo = ref('')
 const loading = ref(false)
 const error = ref<string>()
 const referenceFuelPrice = ref<number>()
+// На телефоне после поиска форма сворачивается в строку с параметрами — результаты сразу на первом экране
+const phone = useIsPhone()
+const editing = ref(true)
+const collapsed = computed(() => phone.value && !!result.value && !editing.value)
 
-async function runSearch() {
+function editSearch() {
+  editing.value = true
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+/** keepTrip — поиск по ссылке: открытый в ней вариант (?trip=) остаётся открытым. */
+async function runSearch(keepTrip = false) {
   if (!homePlace.value || !search.destination) return
   loading.value = true
   error.value = undefined
@@ -38,6 +50,7 @@ async function runSearch() {
       min: search.minDays,
       max: search.maxDays,
       weekends: search.weekends ? '1' : undefined,
+      trip: keepTrip ? route.query.trip : undefined,
     },
   })
   const query = {
@@ -68,6 +81,7 @@ async function runSearch() {
   searchedDateFrom.value = dateFrom
   searchedDateTo.value = dateTo
   search.lastQuery = query
+  editing.value = false
   if (data?.fuel_price && profile.fuelPriceRub == null) referenceFuelPrice.value = data.fuel_price.amount
 }
 
@@ -90,17 +104,37 @@ onMounted(async () => {
   if (Number(min) > 0) search.minDays = Number(min)
   if (Number(max) >= search.minDays) search.maxDays = Number(max)
   search.weekends = weekends === '1'
-  await runSearch()
+  await runSearch(true)
 })
 </script>
 
 <template>
   <SearchLoader v-if="loading" />
-  <section class="bg-linear-to-b from-[#eef3fb] to-background">
-  <div class="mx-auto flex max-w-6xl flex-col gap-5 px-4 pt-6 pb-2 sm:pt-12">
+  <!-- Свёрнутый поиск: что ищем, по нажатию — снова форма -->
+  <div v-if="collapsed" class="sticky top-0 z-30 bg-background/95 px-4 py-2 backdrop-blur">
+    <button
+      type="button"
+      class="flex w-full items-center gap-3 rounded-2xl bg-card px-4 py-2.5 text-left shadow-[0_1px_3px_rgb(0_0_0/0.08),0_4px_16px_rgb(11_87_208/0.08)] ring-1 ring-border active:bg-muted"
+      aria-label="Изменить параметры поиска"
+      @click="editSearch"
+    >
+      <span class="flex min-w-0 flex-1 flex-col">
+        <span class="truncate font-semibold">{{ homePlace?.name }} → {{ search.destination?.name }}</span>
+        <span class="truncate text-xs text-muted-foreground">
+          {{ dateRangeLabel(search.dateFrom, search.dateTo) }} · {{ search.minDays }}–{{ search.maxDays }}
+          {{ plural(search.maxDays, 'день', 'дня', 'дней') }} · {{ travelers }} {{ plural(travelers, 'человек', 'человека', 'человек') }}
+        </span>
+      </span>
+      <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-primary">
+        <PencilIcon class="size-4" />
+      </span>
+    </button>
+  </div>
+  <section v-else class="bg-linear-to-b from-[#eef3fb] to-background">
+  <div class="mx-auto flex max-w-6xl flex-col gap-4 px-4 pt-4 pb-2 sm:gap-5 sm:pt-12">
     <header class="flex flex-col gap-1.5">
-      <h1 class="text-3xl font-bold tracking-tight sm:text-5xl">Куда поедем?</h1>
-      <p class="text-muted-foreground sm:text-lg">
+      <h1 class="text-2xl font-bold tracking-tight sm:text-5xl">Куда поедем?</h1>
+      <p class="text-muted-foreground max-sm:hidden sm:text-lg">
         Считаем всю дорогу: билеты из вашего и соседних городов, бензин и парковку.
       </p>
     </header>
@@ -124,7 +158,7 @@ onMounted(async () => {
   </div>
   </section>
 
-  <section class="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-8">
+  <section class="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-6 sm:py-8">
     <p v-if="error" class="rounded-xl border border-destructive/30 bg-card p-3 text-sm text-destructive">
       {{ error }}
     </p>

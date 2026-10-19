@@ -1,4 +1,4 @@
-import type { TripItemCreate, TripItemStage } from '@/api/client'
+import type { TripItem, TripItemCreate, TripItemStage } from '@/api/client'
 
 /**
  * Путевой лист (ADR-0019): что пользователь добавил к поездке. Ссылки — на чужие сайты, поэтому по адресу
@@ -69,4 +69,19 @@ export function parseEntry(text: string, stage: TripItemStage): Pick<TripItemCre
 export function parseRub(text: string): number | undefined {
   const n = Number(text.replace(/[\s ₽]/g, '').replace(',', '.'))
   return text.trim() && Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : undefined
+}
+
+/** Идёт ли пункт в итог: ссылки — это варианты (жильё, аренда), в итог только выбранная; дела и места с ценой — всегда. */
+export const countedInTotal = (i: TripItem) => i.kind !== 'link' || i.done
+
+/** Добавления путевого листа к цене поездки, копейки: жильё (этап «где остановиться») и остальные траты. */
+export function sheetExtras(items: TripItem[]) {
+  let stay = 0
+  let other = 0
+  for (const i of items) {
+    if (!countedInTotal(i) || !i.price) continue
+    if (i.stage === 'stay') stay += i.price.amount
+    else other += i.price.amount
+  }
+  return { stay, other, total: stay + other }
 }

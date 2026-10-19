@@ -4,7 +4,7 @@ import { summarize, useWeather, type WeatherQuery } from '@/lib/weather'
 
 /** Погода на даты поездки одной плашкой: значок, «+4…+10°», осадки. Пока грузится или нет данных — ничего. */
 const props = defineProps<{ query?: WeatherQuery }>()
-const weather = useWeather(() => props.query)
+const { weather } = useWeather(() => props.query)
 const s = computed(() => weather.value && summarize(weather.value.days))
 </script>
 

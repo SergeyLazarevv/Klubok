@@ -6,7 +6,7 @@ import {
   ArrowRightIcon, BedDoubleIcon, CalendarIcon, CarIcon, ChevronDownIcon, ClockIcon, ExternalLinkIcon, FuelIcon,
   PlaneIcon, RepeatIcon, RouteIcon, SearchXIcon, SparklesIcon, XIcon,
 } from '@lucide/vue'
-import { useLocalStorage } from '@vueuse/core'
+import { useLocalStorage, watchDebounced } from '@vueuse/core'
 import { api, type ExploreItem, type ExploreResponse, type FavoritePick, type FavoriteSnapshot, type Place, type StayPrice, type TripOption, type TripSearchParams } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
 import { createStyledMap, maplibregl, type MapLibreMap } from '@/lib/map/maplibre'
@@ -14,14 +14,15 @@ import { PASTEL, cartoonStyle } from '@/lib/map/cartoonStyle'
 import { armsUrl, photoUrl, warmStickerCache, withCities, type City } from '@/lib/map/cities'
 import { LOOKUP_LAYER, PRICE_LAYER, addPricePins, setPricePins, withPinFonts } from '@/lib/map/pricePins'
 import { type RouteSegment, addRouteLayers, fitRoute, setRoute } from '@/lib/map/routeLine'
-import { decodePolyline, greatCircleArc } from '@/lib/geo'
+import { decodePolyline, greatCircleArc, yandexRouteUrl } from '@/lib/geo'
 import {
   cheapestByCity, distanceKm, driveDestinations, durations, estimateDrive, flightDestinations, lookupDestinations, periods, withStay, worthFlying,
   type CityFeature, type Destination, type Mode,
 } from '@/lib/explore'
-import { hours, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
+import { daysThere, hours, km, localDay, plural, rub, transfersLabel } from '@/lib/format'
 import { drivePick, flightPick, flightSnapshot } from '@/lib/favorites'
 import FavoriteButton from '@/components/FavoriteButton.vue'
+import CarSettings from '@/components/CarSettings.vue'
 import PlaceSearch from '@/components/PlaceSearch.vue'
 import WeatherDays from '@/components/WeatherDays.vue'
 import { Slider } from '@/components/ui/slider'
@@ -168,6 +169,10 @@ async function load() {
   result.value = data
 }
 watch([homePlace, periodKey, durationKey, travelers, hasCar], load)
+// Настройки машины меняют соседние аэропорты и дорогу до них — подборку пересчитываем, но не на каждый шаг ползунка.
+// Поездки целиком на машине считаются на клиенте и обновляются сразу.
+const { radiusKm, maxDriveHours, consumptionL100, fuelType, fuelPriceRub, allowBorder } = storeToRefs(profile)
+watchDebounced([radiusKm, maxDriveHours, consumptionL100, fuelType, fuelPriceRub, allowBorder], load, { debounce: 500 })
 
 // Справочник городов карты: гербы, фото и небольшие города для поездок на машине
 const cities = shallowRef<CityFeature[]>([])
@@ -264,7 +269,7 @@ function reasons(d: Destination) {
   const drive = d.unreachable?.drive
   if (!hasCar.value) out.push('Своя машина в настройках выключена.')
   else if (drive && profile.maxDriveHours > 0 && drive.hours > profile.maxDriveHours)
-    out.push(`На машине ≈ ${hours(drive.hours)} в одну сторону (≈ ${km(drive.roadKm)}) — больше вашего лимита ${hours(profile.maxDriveHours)} за рулём. Его можно поменять в настройках машины на главной.`)
+    out.push(`На машине ≈ ${hours(drive.hours)} в одну сторону (≈ ${km(drive.roadKm)}) — больше вашего лимита ${hours(profile.maxDriveHours)} за рулём. Его можно поменять в настройках машины выше.`)
   else if (drive) out.push(`Небольшой город — в подборку на машине не берём. Дорога ≈ ${hours(drive.hours)}, бензин ≈ ${rub(drive.fuel)}.`)
   return out
 }
@@ -505,8 +510,7 @@ const favorite = computed(() => {
 })
 
 function routeLink(d: Destination) {
-  const h = homePlace.value!.location
-  return `https://yandex.ru/maps/?rtext=${h.lat},${h.lon}~${d.lat},${d.lon}&rtt=auto`
+  return yandexRouteUrl(homePlace.value!.location, d)
 }
 
 const editHome = ref(false)
@@ -558,6 +562,8 @@ const tabs = computed(() =>
       <div v-if="!homePlace || editHome" class="rounded-2xl ring-1 ring-border">
         <PlaceSearch v-model="homePlace" kind="city" placeholder="Ваш город" />
       </div>
+
+      <CarSettings narrow :reference-fuel-price="result?.fuel_price?.amount" />
 
       <!-- Самолёт / машина -->
       <div class="segmented" :style="{ '--count': tabs.length, '--index': tabs.findIndex((t) => t.mode === activeMode) }">
@@ -631,7 +637,7 @@ const tabs = computed(() =>
               <span>
                 На эти даты цен на перелёт нет — попробуйте другой месяц или длительность.
                 <template v-if="selected.city?.cc && hasCar && !profile.allowBorder">
-                  На машине тоже не считаем: поездки в другие страны выключены в настройках машины на главной.
+                  На машине тоже не считаем: поездки в другие страны выключены в настройках машины выше.
                 </template>
               </span>
             </template>
@@ -654,7 +660,7 @@ const tabs = computed(() =>
 
             <dl v-if="selected.flight" class="grid grid-cols-3 gap-2">
               <div class="tile"><CalendarIcon class="tile__icon" /><dt>Даты</dt><dd>{{ localDay(selected.flight.best.depart_at) }} – {{ localDay(selected.flight.best.return_at) }}</dd></div>
-              <div class="tile"><ClockIcon class="tile__icon" /><dt>Поездка</dt><dd>{{ selected.flight.best.trip_days }} {{ plural(selected.flight.best.trip_days, 'день', 'дня', 'дней') }}</dd></div>
+              <div class="tile"><ClockIcon class="tile__icon" /><dt>Поездка</dt><dd>{{ selected.flight.best.trip_days }} {{ plural(selected.flight.best.trip_days, 'день', 'дня', 'дней') }}<span class="block text-[11px] font-normal text-muted-foreground">на месте {{ daysThere(selected.flight.best.days_there) }}</span></dd></div>
               <div class="tile"><RepeatIcon class="tile__icon" /><dt>Рейс</dt><dd>{{ transfersLabel(selected.flight.best.transfers) }}</dd></div>
             </dl>
             <dl v-else-if="selected.drive" class="grid grid-cols-3 gap-2">
@@ -947,17 +953,7 @@ const tabs = computed(() =>
   background: var(--muted);
 }
 
-.skeleton {
-  border-radius: 8px;
-  background: linear-gradient(90deg, var(--muted) 25%, #e4e9f0 50%, var(--muted) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.4s linear infinite;
-}
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
-  }
-}
+/* .skeleton — глобальный, в style.css */
 
 .loader-dot {
   width: 8px;
@@ -1018,7 +1014,6 @@ const tabs = computed(() =>
   .card-enter-active,
   .card-leave-active,
   .segmented__thumb,
-  .skeleton,
   .loader-dot {
     transition: none;
     animation: none;

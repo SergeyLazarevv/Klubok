@@ -12,7 +12,8 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-defineProps<{ referenceFuelPrice?: number }>()
+// narrow — узкая панель (карта «Куда угодно»): настройки в одну колонку
+defineProps<{ referenceFuelPrice?: number; narrow?: boolean }>()
 
 const { hasCar, radiusKm, maxDriveHours, consumptionL100, fuelType, fuelPriceRub, allowBorder } =
   storeToRefs(useProfileStore())
@@ -51,30 +52,32 @@ const fuelPriceInput = computed({
       <button
         v-if="hasCar"
         type="button"
-        class="flex items-center gap-1 rounded-md px-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        class="flex items-center gap-1 rounded-md px-1 text-left text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
         :aria-expanded="open"
         @click="open = !open"
       >
-        до {{ radiusKm }} км · до {{ hours(maxDriveHours) }} за рулём · {{ consumptionL100 }} л/100 км · {{ fuelLabel }}
+        до {{ hours(maxDriveHours) }} за рулём · аэропорты до {{ radiusKm }} км · {{ consumptionL100 }} л/100 км · {{ fuelLabel }}
         <ChevronDownIcon class="size-4 transition-transform" :class="open && 'rotate-180'" />
       </button>
     </div>
 
-    <div v-if="hasCar && open" class="grid gap-x-8 gap-y-5 rounded-xl bg-muted p-4 sm:grid-cols-2 lg:grid-cols-3">
-      <div class="flex flex-col gap-3">
-        <div class="flex items-center justify-between text-sm">
-          <Label>Радиус поиска</Label>
-          <span class="font-semibold tabular-nums">до {{ radiusKm }} км</span>
-        </div>
-        <Slider v-model="radius" :min="25" :max="1000" :step="25" />
-      </div>
-
+    <div v-if="hasCar && open" class="grid gap-x-8 gap-y-5 rounded-xl bg-muted p-4" :class="!narrow && 'sm:grid-cols-2 lg:grid-cols-3'">
       <div class="flex flex-col gap-3">
         <div class="flex items-center justify-between text-sm">
           <Label>За рулём в одну сторону</Label>
           <span class="font-semibold tabular-nums">до {{ hours(maxDriveHours) }}</span>
         </div>
         <Slider v-model="driveHours" :min="1" :max="16" :step="0.5" />
+        <span class="text-xs text-muted-foreground">Дальше не предлагаем ни поездку на машине, ни дорогу до аэропорта.</span>
+      </div>
+
+      <div class="flex flex-col gap-3">
+        <div class="flex items-center justify-between text-sm">
+          <Label>Соседние аэропорты</Label>
+          <span class="font-semibold tabular-nums">до {{ radiusKm }} км</span>
+        </div>
+        <Slider v-model="radius" :min="25" :max="1000" :step="25" />
+        <span class="text-xs text-muted-foreground">Где искать вылет, если из своего города дорого. По прямой от дома.</span>
       </div>
 
       <div class="flex items-center justify-between gap-3 text-sm">

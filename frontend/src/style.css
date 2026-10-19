@@ -1,6 +1,3 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 @import '@fontsource-variable/inter';
 
 @import "tailwindcss";
@@ -102,6 +99,13 @@
   --sidebar-accent-foreground: #041e49;
   --sidebar-border: #e1e3e1;
   --sidebar-ring: #a8c7fa;
+  /* Нижняя панель вкладок на телефоне; на планшете и шире навигация — в шапке */
+  --tabbar-h: calc(4rem + env(safe-area-inset-bottom));
+}
+@media (min-width: 40rem) {
+  :root {
+    --tabbar-h: 0px;
+  }
 }
 
 @layer base {
@@ -110,5 +114,33 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* Зона касания не меньше 44×44, даже если сама кнопка мельче: невидимая подложка вокруг */
+@utility hit {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: min(0px, calc((100% - 44px) / 2));
+  }
+}
+
+/* Скелетон загрузки: по серой подложке бежит светлый отблеск. Один на всё приложение — карта, избранное */
+.skeleton {
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--muted) 25%, #e4e9f0 50%, var(--muted) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s linear infinite;
+}
+@keyframes skeleton-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
   }
 }

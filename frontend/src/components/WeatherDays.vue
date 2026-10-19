@@ -8,11 +8,10 @@ import { summarize, temp, useWeather, weatherKind, wetChance, type WeatherQuery 
  * одной сводкой: по дням на месяц вперёд это шум. Пока грузится — скелетон, нет данных — ничего.
  */
 const props = defineProps<{ query?: WeatherQuery; title?: string }>()
-const weather = useWeather(() => props.query)
+const { weather, loading } = useWeather(() => props.query)
 const days = computed(() => weather.value?.days ?? [])
 const s = computed(() => summarize(days.value))
 const long = computed(() => days.value.length > 14)
-const loading = computed(() => !!props.query && !weather.value)
 </script>
 
 <template>

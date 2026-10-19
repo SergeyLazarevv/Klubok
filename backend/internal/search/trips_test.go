@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 )
 
 func TestFits(t *testing.T) {
@@ -54,6 +55,42 @@ func TestFitsWeekends(t *testing.T) {
 	for _, c := range cases {
 		if _, ok := fits(fares.Quote{DepartAt: at(c.dep), ReturnAt: at(c.ret)}, q); ok != c.want {
 			t.Errorf("%s: got %v, want %v", c.name, ok, c.want)
+		}
+	}
+}
+
+func TestFitsDaylight(t *testing.T) {
+	moscow := time.FixedZone("UTC+3", 3*3600)
+	samara := time.FixedZone("UTC+4", 4*3600)
+	at := func(loc *time.Location, s string) time.Time {
+		v, _ := time.ParseInLocation("2006-01-02 15:04", s, loc)
+		return v
+	}
+	q := TripsQuery{DateFrom: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC), DateTo: time.Date(2100, 1, 1, 0, 0, 0, 0, time.UTC),
+		MinDays: 2, MaxDays: 4}
+	cases := []struct {
+		name     string
+		dep, ret string
+		want     bool
+	}{
+		// Ульяновск → Москва: прилёт в полночь, обратно в 8 утра — «2 дня» по календарю, в городе ничего
+		{"ночь в городе", "2099-10-24 22:30", "2099-10-25 08:00", false},
+		// Прилёт вечером, обратно днём: 2,5 ч + 2,5 ч светлого времени — мало для 2 дней
+		{"вечер и утро", "2099-10-24 16:30", "2099-10-25 13:00", false},
+		{"суббота утром — воскресенье вечером", "2099-10-24 09:30", "2099-10-25 20:00", true},
+	}
+	for _, c := range cases {
+		quote := fares.Quote{DepartAt: at(samara, c.dep), ReturnAt: at(moscow, c.ret), DurationTo: 90 * time.Minute}
+		if _, ok := fits(quote, q); ok != c.want {
+			t.Errorf("%s: got %v (на месте %.1f ч), want %v", c.name, ok, quote.DaytimeHours(), c.want)
+		}
+	}
+}
+
+func TestSellable(t *testing.T) {
+	for iata, want := range map[string]bool{"KUF": true, "NQZ": true, "ВЛМ": false, "СОЛ": false, "": false, "KU": false} {
+		if got := sellable(geo.Place{IATA: iata}); got != want {
+			t.Errorf("sellable(%q) = %v, want %v", iata, got, want)
 		}
 	}
 }

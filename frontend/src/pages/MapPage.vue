@@ -17,5 +17,5 @@ onUnmounted(() => map?.remove())
 </script>
 
 <template>
-  <div ref="el" class="h-[calc(100dvh-3.5rem-1px)] w-full" />
+  <div ref="el" class="h-[calc(100dvh-3.5rem-1px-var(--tabbar-h))] w-full" />
 </template>

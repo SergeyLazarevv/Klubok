@@ -101,7 +101,7 @@ onBeforeUnmount(() => {
       <div ref="map" class="trip-map isolate h-56 overflow-hidden rounded-lg border sm:h-64" />
       <button
         type="button"
-        class="absolute top-2 right-2 z-10 flex size-8 items-center justify-center rounded-md border bg-card text-foreground shadow-sm hover:bg-accent"
+        class="absolute top-2 right-2 z-10 flex size-10 items-center justify-center rounded-md border bg-card text-foreground shadow-sm hover:bg-accent"
         aria-label="Развернуть карту"
         @click="expanded = true"
       >

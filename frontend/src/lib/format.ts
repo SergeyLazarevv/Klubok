@@ -42,3 +42,10 @@ export const localDayWeek = (iso: string) => dayWeekFmt.format(new Date(iso.slic
 
 /** «2026-11-23T06:40:00+04:00» → «06:40» — местное время аэропорта из строки */
 export const localTime = (iso: string) => iso.slice(11, 16)
+
+/** Дни на месте по светлому времени (days_there): «~2 дня», «~1,5 дня», «меньше полдня» */
+export function daysThere(n: number) {
+  if (n < 0.5) return 'меньше полдня'
+  if (!Number.isInteger(n)) return `~${String(n).replace('.', ',')} дня`
+  return `~${n} ${plural(n, 'день', 'дня', 'дней')}`
+}

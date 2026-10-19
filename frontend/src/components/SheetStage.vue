@@ -136,7 +136,7 @@ async function submit() {
             </a>
             <button
               type="button"
-              class="-mt-1 -mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+              class="hit -mt-1 -mr-1 flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
               aria-label="Удалить из путевого листа"
               title="Удалить"
               @click="sheet.remove(i)"
@@ -154,7 +154,7 @@ async function submit() {
             </span>
             <button
               type="button"
-              class="flex h-8 items-center gap-1 rounded-full px-3 text-xs font-medium whitespace-nowrap transition-colors"
+              class="hit flex h-8 items-center gap-1 rounded-full px-3 text-xs font-medium whitespace-nowrap transition-colors"
               :class="i.done ? 'bg-primary text-primary-foreground' : 'text-primary ring-1 ring-input hover:bg-accent'"
               :aria-pressed="i.done"
               :title="i.done ? 'Выбрано — цена входит в итог поездки' : 'Выбрать этот вариант — его цена войдёт в итог'"
@@ -174,7 +174,7 @@ async function submit() {
       <li v-for="i in others" :key="i.id" class="group flex items-center gap-3 px-4 py-3">
         <button
           type="button"
-          class="flex size-5 shrink-0 items-center justify-center rounded-md ring-1 ring-input transition-colors"
+          class="hit flex size-5 shrink-0 items-center justify-center rounded-md ring-1 ring-input transition-colors"
           :class="i.done ? 'bg-primary text-primary-foreground ring-primary' : 'hover:bg-muted'"
           :aria-pressed="i.done"
           :aria-label="i.done ? 'Отметить как не сделанное' : 'Отметить как сделанное'"
@@ -203,7 +203,7 @@ async function submit() {
         <span v-if="i.price" class="shrink-0 text-sm font-semibold tabular-nums max-sm:hidden">{{ rub(i.price) }}</span>
         <button
           type="button"
-          class="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+          class="hit flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
           aria-label="Удалить из путевого листа"
           title="Удалить"
           @click="sheet.remove(i)"

@@ -40,6 +40,40 @@ func (q Quote) TripDays() int {
 	return int(ret.Sub(dep).Hours()/24) + 1
 }
 
+const (
+	DayStartHour = 8  // светлое время на месте — с 8:00
+	DayEndHour   = 22 // до 22:00 по местному времени
+	FullDayHours = DayEndHour - DayStartHour
+
+	afterArrival = 90 * time.Minute  // из аэропорта в город
+	beforeReturn = 150 * time.Minute // в аэропорт и регистрация
+)
+
+// DaytimeHours — сколько светлого времени (8:00–22:00 по местному) остаётся на месте: от прилёта плюс дорога
+// из аэропорта до вылета обратно минус дорога в аэропорт и регистрация. Прилёт в полночь и вылет в 8 утра —
+// 0 часов, хотя по календарю это «2 дня». Часовой пояс места — из времени вылета обратно. Длительность
+// перелёта неизвестна — считаем от вылета: лучше не отсечь вариант, чем отсечь по догадке.
+func (q Quote) DaytimeHours() float64 {
+	loc := q.ReturnAt.Location()
+	start := q.DepartAt.Add(q.DurationTo).Add(afterArrival).In(loc)
+	end := q.ReturnAt.Add(-beforeReturn).In(loc)
+	var hours float64
+	for d := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, loc); d.Before(end); d = d.AddDate(0, 0, 1) {
+		from := d.Add(DayStartHour * time.Hour)
+		to := d.Add(DayEndHour * time.Hour)
+		if start.After(from) {
+			from = start
+		}
+		if end.Before(to) {
+			to = end
+		}
+		if to.After(from) {
+			hours += to.Sub(from).Hours()
+		}
+	}
+	return hours
+}
+
 // RoundTripQuery — направление и месяц вылета; дата возвращения любая.
 type RoundTripQuery struct {
 	Origin      string    // IATA города или аэропорта

@@ -2,8 +2,9 @@
 import { storeToRefs } from 'pinia'
 import { plural } from '@/lib/format'
 import { useProfileStore } from '@/stores/profile'
-import { maxRangeEnd, maxSearchDate, todayISO, useSearchStore } from '@/stores/search'
+import { useSearchStore } from '@/stores/search'
 import CompactStepper from '@/components/CompactStepper.vue'
+import DateRangeField from '@/components/DateRangeField.vue'
 import PlaceSearch from '@/components/PlaceSearch.vue'
 
 defineProps<{ loading: boolean; disabled: boolean }>()
@@ -11,8 +12,6 @@ const emit = defineEmits<{ search: [] }>()
 
 const { homePlace, travelers } = storeToRefs(useProfileStore())
 const { destination, dateFrom, dateTo, minDays, maxDays } = storeToRefs(useSearchStore())
-const minDate = todayISO()
-const maxDate = maxSearchDate()
 </script>
 
 <template>
@@ -31,25 +30,7 @@ const maxDate = maxSearchDate()
       </div>
       <div class="search-cell">
         <label for="search-date-from" class="search-label">Когда</label>
-        <div class="flex items-center gap-1">
-          <input
-            id="search-date-from"
-            v-model="dateFrom"
-            type="date"
-            :min="minDate"
-            :max="maxDate"
-            class="h-7 w-full min-w-0 cursor-pointer bg-transparent text-base font-semibold outline-none"
-          />
-          <span class="text-muted-foreground">–</span>
-          <input
-            v-model="dateTo"
-            type="date"
-            :min="dateFrom"
-            :max="maxRangeEnd(dateFrom)"
-            aria-label="Дата окончания диапазона поиска"
-            class="h-7 w-full min-w-0 cursor-pointer bg-transparent text-base font-semibold outline-none"
-          />
-        </div>
+        <DateRangeField v-model:from="dateFrom" v-model:to="dateTo" input-id="search-date-from" />
       </div>
       <!-- На телефоне дни — во всю ширину последней строкой, рядом с «Когда» — путешественники -->
       <div class="search-cell col-span-2 max-lg:order-last lg:col-span-1">
