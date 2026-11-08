@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import { ChevronRightIcon, LogOutIcon, StarIcon, UserRoundIcon } from '@lucide/vue'
 import type { AuthProvider } from '@/api/client'
 import { plural } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth'
 import { useFavoritesStore } from '@/stores/favorites'
+import { useProfileStore } from '@/stores/profile'
+import PlaceSearch from '@/components/PlaceSearch.vue'
 
 const auth = useAuthStore()
 const favorites = useFavoritesStore()
+const profile = useProfileStore()
+const { homePlace } = storeToRefs(profile)
 const router = useRouter()
 
 const providerName: Record<AuthProvider, string> = { yandex: 'Яндекс ID', vk: 'VK ID' }
@@ -52,6 +57,19 @@ async function logout() {
           </span>
         </div>
       </div>
+
+      <section class="flex flex-col gap-3 rounded-xl border bg-card p-4">
+        <div>
+          <h2 class="font-semibold">Ваш город</h2>
+          <p class="mt-1 text-sm text-muted-foreground">Он будет подставляться в поиск и подборку «Куда угодно».</p>
+        </div>
+        <PlaceSearch v-model="homePlace" kind="city" placeholder="Выберите город" />
+        <p v-if="auth.homePlaceSaving" class="text-sm text-muted-foreground" aria-live="polite">Сохраняем город…</p>
+        <div v-else-if="auth.homePlaceSaveError" class="flex items-center justify-between gap-3 text-sm text-destructive">
+          <p role="alert">Не удалось сохранить город в аккаунте.</p>
+          <button v-if="homePlace" type="button" class="shrink-0 underline" @click="auth.saveHomePlace(homePlace)">Повторить</button>
+        </div>
+      </section>
 
       <RouterLink to="/favorites" class="flex h-14 items-center gap-3 rounded-xl border bg-card px-4 hover:bg-muted">
         <StarIcon class="size-5 text-amber-500" :stroke-width="1.75" aria-hidden="true" />

@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/combobox'
 
 const props = withDefaults(
-  defineProps<{ placeholder?: string; kind?: 'city' | 'airport'; bare?: boolean; inputId?: string }>(),
+  defineProps<{ placeholder?: string; kind?: 'city' | 'airport'; bare?: boolean; inputId?: string; listPortalTo?: string }>(),
   { placeholder: 'Город или код аэропорта' },
 )
 const model = defineModel<Place | null>({ default: null })
@@ -40,6 +40,10 @@ const load = useDebounceFn(async (q: string) => {
 // У города без аэропорта (town) в iata — id Wikidata: его не показываем
 const label = (p: Place | null) => (p ? (p.kind === 'town' ? p.name : `${p.name}, ${p.iata}`) : '')
 
+function selectPlace(place: Place) {
+  model.value = place
+}
+
 // После выбора в поле подставляется подпись точки — искать по ней не нужно
 watch(term, (q) => q !== label(model.value) && load(q))
 </script>
@@ -59,11 +63,11 @@ watch(term, (q) => q !== label(model.value) && load(q))
         :class="bare ? 'h-7 min-w-0 truncate p-0! text-base font-semibold placeholder:font-normal' : 'h-10 text-base'"
       />
     </ComboboxAnchor>
-    <ComboboxList>
+    <ComboboxList :portal-to="listPortalTo">
       <ComboboxEmpty class="p-3 text-sm text-muted-foreground">
         {{ term.trim().length < 2 ? 'Введите хотя бы две буквы' : loading ? 'Ищем…' : 'Ничего не нашли' }}
       </ComboboxEmpty>
-      <ComboboxItem v-for="p in items" :key="p.id" :value="p" class="py-2">
+      <ComboboxItem v-for="p in items" :key="p.id" :value="p" class="py-2" @select="selectPlace(p)">
         <PlaneIcon v-if="p.kind === 'airport'" class="text-muted-foreground" />
         <CarIcon v-else-if="p.kind === 'town'" class="text-road" />
         <MapPinIcon v-else class="text-muted-foreground" />

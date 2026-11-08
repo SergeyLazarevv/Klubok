@@ -33,11 +33,12 @@ var (
 
 // User — пользователь для шапки и личного кабинета.
 type User struct {
-	ID        uuid.UUID
-	Name      string
-	AvatarURL string
-	Email     string
-	Providers []string
+	ID          uuid.UUID
+	Name        string
+	AvatarURL   string
+	Email       string
+	HomePlaceID *uuid.UUID
+	Providers   []string
 }
 
 type Service struct {
@@ -192,7 +193,23 @@ func (s *Service) User(ctx context.Context, id uuid.UUID) (User, error) {
 	if err != nil {
 		return User{}, fmt.Errorf("get user: %w", err)
 	}
-	return User{ID: r.ID, Name: r.Name, AvatarURL: r.AvatarUrl.String, Email: r.Email.String, Providers: r.Providers}, nil
+	var homePlaceID *uuid.UUID
+	if r.HomePlaceID.Valid {
+		id := uuid.UUID(r.HomePlaceID.Bytes)
+		homePlaceID = &id
+	}
+	return User{ID: r.ID, Name: r.Name, AvatarURL: r.AvatarUrl.String, Email: r.Email.String,
+		HomePlaceID: homePlaceID, Providers: r.Providers}, nil
+}
+
+func (s *Service) SetHomePlace(ctx context.Context, userID, placeID uuid.UUID) error {
+	err := s.q.UpdateUserHomePlace(ctx, store.UpdateUserHomePlaceParams{
+		ID: userID, HomePlaceID: pgtype.UUID{Bytes: [16]byte(placeID), Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("set home place: %w", err)
+	}
+	return nil
 }
 
 func text(s string) pgtype.Text { return pgtype.Text{String: s, Valid: s != ""} }

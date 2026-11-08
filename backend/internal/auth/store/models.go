@@ -223,6 +223,7 @@ type User struct {
 	Email       pgtype.Text
 	CreatedAt   pgtype.Timestamptz
 	LastLoginAt pgtype.Timestamptz
+	HomePlaceID pgtype.UUID
 }
 
 type UserIdentity struct {

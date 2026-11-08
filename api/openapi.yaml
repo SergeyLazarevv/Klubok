@@ -17,6 +17,8 @@ tags:
     description: Места на карте из OpenStreetMap
   - name: transfers
     description: Как добраться внутри города — из аэропорта или с вокзала до жилья
+  - name: offers
+    description: Предложения об отдыхе — горящие туры (ADR-0027)
   - name: favorites
     description: Избранные маршруты; до авторизации — по анонимной сессии
   - name: auth
@@ -213,6 +215,54 @@ paths:
               schema: { type: string }
         '404': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
+
+  /tours/hot:
+    get:
+      tags: [offers]
+      operationId: listHotTours
+      summary: Горящие туры из ближайшего к городу пользователя города вылета
+      description: |
+        Город вылета — ближайший к from из городов вылета Level.Travel. Пока API Level.Travel не подключён
+        (ADR-0027), это направления сезона со ссылками на поиск туров с вылетом через несколько дней, без цен
+        (price не приходит). Переход — через /tours/go: там ссылка становится партнёрской.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: Город пользователя (город или аэропорт справочника)
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Travelers'
+      responses:
+        '200':
+          description: Горящие туры
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HotToursResponse' }
+        '404': { $ref: '#/components/responses/Problem' }
+
+  /tours/go:
+    get:
+      tags: [offers]
+      operationId: goToTours
+      summary: Переход на туры Level.Travel — партнёрской ссылкой, перенаправлением
+      description: С country — поиск туров в страну из /tours/hot, без него — все горящие туры из города вылета.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: country
+          in: query
+          description: Код страны направления из /tours/hot
+          schema: { type: string, pattern: '^[A-Z]{2}$', example: EG }
+        - $ref: '#/components/parameters/Travelers'
+      responses:
+        '302':
+          description: Перенаправление на Level.Travel
+          headers:
+            Location:
+              schema: { type: string }
+        '404': { $ref: '#/components/responses/Problem' }
 
   /car-hubs:
     get:
@@ -845,6 +895,26 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Me' }
 
+  /me/home-place:
+    put:
+      tags: [auth]
+      operationId: setHomePlace
+      summary: Сохранить город пользователя
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [place_id]
+              properties:
+                place_id: { type: string, format: uuid }
+      responses:
+        '204': { description: Город сохранён }
+        '401': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+
 components:
   parameters:
     Via:
@@ -1277,6 +1347,35 @@ components:
         cost: { $ref: '#/components/schemas/CarCost' }
         border: { $ref: '#/components/schemas/BorderInfo' }
 
+    HotToursResponse:
+      type: object
+      required: [departure, all_url, items]
+      properties:
+        departure: { $ref: '#/components/schemas/TourDeparture' }
+        all_url: { type: string, description: 'Все горящие туры из города вылета — адрес /tours/go без country' }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/HotTour' }
+
+    TourDeparture:
+      type: object
+      required: [name, name_from, distance_km]
+      properties:
+        name: { type: string, example: Казань }
+        name_from: { type: string, example: из Казани }
+        distance_km: { type: number, format: double, description: От города пользователя по прямой }
+
+    HotTour:
+      type: object
+      required: [country, name, nights, departure_date, url]
+      properties:
+        country: { type: string, example: EG }
+        name: { type: string, example: Египет }
+        nights: { type: integer, example: 7 }
+        departure_date: { type: string, format: date }
+        url: { type: string, description: Переход — адрес /tours/go }
+        price: { $ref: '#/components/schemas/Money' }
+
     HotelsProvider:
       type: string
       enum: [ostrovok, sutochno, avito]
@@ -1650,6 +1749,7 @@ components:
         name: { type: string }
         avatar_url: { type: string, format: uri }
         email: { type: string }
+        home_place: { $ref: '#/components/schemas/Place' }
         providers:
           type: array
           description: Через какие способы входа привязан аккаунт

@@ -1,18 +1,27 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
 import { CompassIcon, SearchIcon, StarIcon } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFavoritesStore } from '@/stores/favorites'
+import { useProfileStore } from '@/stores/profile'
 import AccountButton from '@/components/AccountButton.vue'
 import LoginSheet from '@/components/LoginSheet.vue'
 import logoUrl from '@/assets/logo.svg?inline'
 
 const favorites = useFavoritesStore()
 const auth = useAuthStore()
+const profile = useProfileStore()
+const { homePlace } = storeToRefs(profile)
 onMounted(() => {
   favorites.load()
   auth.load()
+})
+
+watch(homePlace, (place) => {
+  if (!place || !auth.loaded || !auth.user) return
+  void auth.saveHomePlace(place)
 })
 
 // Сервер вернул с ?login=failed — снова открываем вход с сообщением и убираем метку из адреса

@@ -18,6 +18,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stay"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stops"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/tours"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/weather"
 )
@@ -38,6 +39,7 @@ type handlers struct {
 	road      *road.Service
 	weather   *weather.Service
 	stops     *stops.Service // nil — справочник городов карты не загружен, остановок не предлагаем
+	tours     *tours.Service
 	log       *slog.Logger
 }
 

@@ -71,17 +71,18 @@ func (q *Queries) FindIdentity(ctx context.Context, arg FindIdentityParams) (uui
 }
 
 const getUser = `-- name: GetUser :one
-SELECT u.id, u.name, u.avatar_url, u.email,
+SELECT u.id, u.name, u.avatar_url, u.email, u.home_place_id,
        COALESCE((SELECT array_agg(i.provider ORDER BY i.created_at) FROM user_identities i WHERE i.user_id = u.id), '{}')::text[] AS providers
 FROM users u WHERE u.id = $1
 `
 
 type GetUserRow struct {
-	ID        uuid.UUID
-	Name      string
-	AvatarUrl pgtype.Text
-	Email     pgtype.Text
-	Providers []string
+	ID          uuid.UUID
+	Name        string
+	AvatarUrl   pgtype.Text
+	Email       pgtype.Text
+	HomePlaceID pgtype.UUID
+	Providers   []string
 }
 
 func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (GetUserRow, error) {
@@ -92,6 +93,7 @@ func (q *Queries) GetUser(ctx context.Context, id uuid.UUID) (GetUserRow, error)
 		&i.Name,
 		&i.AvatarUrl,
 		&i.Email,
+		&i.HomePlaceID,
 		&i.Providers,
 	)
 	return i, err
@@ -114,5 +116,19 @@ type TouchUserLoginParams struct {
 // его можно будет поменять в личном кабинете.
 func (q *Queries) TouchUserLogin(ctx context.Context, arg TouchUserLoginParams) error {
 	_, err := q.db.Exec(ctx, touchUserLogin, arg.AvatarUrl, arg.Email, arg.ID)
+	return err
+}
+
+const updateUserHomePlace = `-- name: UpdateUserHomePlace :exec
+UPDATE users SET home_place_id = $1 WHERE id = $2
+`
+
+type UpdateUserHomePlaceParams struct {
+	HomePlaceID pgtype.UUID
+	ID          uuid.UUID
+}
+
+func (q *Queries) UpdateUserHomePlace(ctx context.Context, arg UpdateUserHomePlaceParams) error {
+	_, err := q.db.Exec(ctx, updateUserHomePlace, arg.HomePlaceID, arg.ID)
 	return err
 }

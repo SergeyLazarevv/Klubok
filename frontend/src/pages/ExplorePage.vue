@@ -2,12 +2,14 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
+import { DialogClose, DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import {
   ArrowRightIcon, BedDoubleIcon, CalendarIcon, CarIcon, ChevronDownIcon, ClockIcon, ExternalLinkIcon, FuelIcon,
   MapPinnedIcon, MoonIcon, PlaneIcon, RepeatIcon, RouteIcon, SearchXIcon, SparklesIcon, XIcon,
 } from '@lucide/vue'
 import { useLocalStorage, watchDebounced } from '@vueuse/core'
 import { api, type ExploreItem, type ExploreResponse, type FavoritePick, type FavoriteSnapshot, type Place, type StayPrice, type StopSuggestion, type TripOption, type TripSearchParams } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
 import { useProfileStore } from '@/stores/profile'
 import MapSearch from '@/components/MapSearch.vue'
 import { createStyledMap, maplibregl, type MapLibreMap } from '@/lib/map/maplibre'
@@ -31,6 +33,8 @@ import { Switch } from '@/components/ui/switch'
 
 const profile = useProfileStore()
 const { homePlace, travelers, hasCar } = storeToRefs(profile)
+const auth = useAuthStore()
+const homePromptOpen = ref(false)
 const route = useRoute()
 const router = useRouter()
 
@@ -366,8 +370,12 @@ onUnmounted(() => map?.remove())
 
 watch(homePlace, (p) => {
   placeHome(p)
+  if (p) homePromptOpen.value = false
   if (p && map) map.easeTo({ center: [p.location.lon, p.location.lat], zoom: 4.3 })
 })
+watch([homePlace, () => auth.loaded], ([place, loaded]) => {
+  if (loaded) homePromptOpen.value = !place
+}, { immediate: true })
 
 watch([shown, lookups, selectedKey, mapReady], () => {
   if (!map || !mapReady.value) return
@@ -592,6 +600,33 @@ const tabs = computed(() =>
       <div v-if="!homePlace || editHome" class="rounded-2xl ring-1 ring-border">
         <PlaceSearch v-model="homePlace" kind="city" placeholder="Ваш город" />
       </div>
+      <div v-if="!homePlace" class="flex items-center justify-between gap-3 rounded-xl bg-muted p-3">
+        <p class="text-sm text-muted-foreground">Укажите город, чтобы увидеть цены и направления.</p>
+        <button type="button" class="shrink-0 text-sm font-medium text-primary" @click="homePromptOpen = true">Выбрать</button>
+      </div>
+
+      <DialogRoot v-model:open="homePromptOpen">
+        <DialogPortal>
+          <DialogOverlay class="fixed inset-0 z-50 bg-foreground/30 data-[state=open]:animate-in data-[state=open]:fade-in-0" />
+          <DialogContent id="home-city-dialog" class="fixed inset-x-4 top-1/2 z-50 flex -translate-y-1/2 flex-col gap-5 rounded-2xl border bg-card p-5 shadow-xl outline-none sm:left-1/2 sm:w-[min(28rem,calc(100vw-2rem))] sm:-translate-x-1/2">
+            <div class="flex items-start gap-3">
+              <div class="flex min-w-0 flex-1 flex-col gap-1">
+                <DialogTitle class="text-lg font-semibold">Укажите ваш город</DialogTitle>
+                <DialogDescription class="text-sm text-muted-foreground">
+                  Подберём цены на билеты и поездки из ближайших аэропортов.
+                </DialogDescription>
+              </div>
+              <DialogClose class="-mt-1 -mr-2 flex size-10 shrink-0 items-center justify-center rounded-full hover:bg-accent" aria-label="Закрыть">
+                <XIcon class="size-5" />
+              </DialogClose>
+            </div>
+            <PlaceSearch v-model="homePlace" kind="city" placeholder="Например, Самара" list-portal-to="#home-city-dialog" />
+            <button type="button" class="self-end text-sm font-medium text-muted-foreground hover:text-foreground" @click="homePromptOpen = false">
+              Позже
+            </button>
+          </DialogContent>
+        </DialogPortal>
+      </DialogRoot>
 
       <CarSettings narrow :reference-fuel-price="result?.fuel_price?.amount" />
 

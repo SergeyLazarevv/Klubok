@@ -15,7 +15,10 @@ UPDATE users SET last_login_at = now(),
     email = COALESCE(email, sqlc.narg('email'))
 WHERE id = @id;
 
+-- name: UpdateUserHomePlace :exec
+UPDATE users SET home_place_id = @home_place_id WHERE id = @id;
+
 -- name: GetUser :one
-SELECT u.id, u.name, u.avatar_url, u.email,
+SELECT u.id, u.name, u.avatar_url, u.email, u.home_place_id,
        COALESCE((SELECT array_agg(i.provider ORDER BY i.created_at) FROM user_identities i WHERE i.user_id = u.id), '{}')::text[] AS providers
 FROM users u WHERE u.id = @id;

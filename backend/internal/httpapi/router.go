@@ -30,6 +30,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stay"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stops"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/tours"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/weather"
 )
@@ -55,6 +56,7 @@ type Deps struct {
 	Road      *road.Service
 	Weather   *weather.Service
 	Stops     *stops.Service // остановки по пути; nil — выключены
+	Tours     *tours.Service
 }
 
 func NewRouter(d Deps) (http.Handler, error) {
@@ -91,7 +93,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 			ErrorHandlerWithOpts: validationError,
 		}))
 		strict := apigen.NewStrictHandlerWithOptions(&handlers{geo: d.Geo, search: d.Search, hotels: d.Hotels, guides: d.Guides,
-			transfers: d.Transfers, geocoder: d.Geocoder, mapSearch: d.MapSearch, favorites: d.Favorites, auth: d.Auth, previews: linkpreview.New(), stay: d.Stay, road: d.Road, weather: d.Weather, stops: d.Stops, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
+			transfers: d.Transfers, geocoder: d.Geocoder, mapSearch: d.MapSearch, favorites: d.Favorites, auth: d.Auth, previews: linkpreview.New(), stay: d.Stay, road: d.Road, weather: d.Weather, stops: d.Stops, tours: d.Tours, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
 			RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 				httpx.WriteProblem(w, httpx.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 			},

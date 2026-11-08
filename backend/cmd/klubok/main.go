@@ -36,6 +36,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stay"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stops"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/tours"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/transfer"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/weather"
 )
@@ -133,8 +134,10 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pg
 	prices := fares.NewCached(tp, pool, travelpayouts.Source, snapshotMaxAge, log)
 	// Без ID проекта ссылки на Островок обычные, без партнёрской метки
 	var ostrovokLinker hotels.PartnerLinker
+	var toursLinker tours.PartnerLinker
 	if cfg.TravelpayoutsTRS != "" {
 		ostrovokLinker = tp.Linker(cfg.TravelpayoutsTRS)
+		toursLinker = tp.Linker(cfg.TravelpayoutsTRS)
 	}
 	stayPrices := stay.NewService(pool, cache, log)
 	searchSvc := search.NewService(geoSvc, roadSvc, carcost.NewRefs(pool), prices, fares.NewHistory(pool),
@@ -167,6 +170,9 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pg
 		Road:      roadSvc,
 		Stops:     stopsSvc,
 		Weather:   weather.NewService(weather.NewOpenMeteo(), weather.NewRedisCache(cache), log),
+		// Горящие туры (ADR-0027): пока ссылки на поиск Level.Travel; партнёрские — если программа
+		// Level.Travel подключена в том же проекте Travelpayouts, что и Островок
+		Tours: tours.NewService(tours.LevelTravelLinks{Destinations: tours.HotDestinations}, tours.Departures, toursLinker, log),
 	})
 	if err != nil {
 		return err

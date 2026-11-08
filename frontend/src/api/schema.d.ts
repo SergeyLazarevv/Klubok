@@ -144,6 +144,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tours/hot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Горящие туры из ближайшего к городу пользователя города вылета
+         * @description Город вылета — ближайший к from из городов вылета Level.Travel. Пока API Level.Travel не подключён
+         *     (ADR-0027), это направления сезона со ссылками на поиск туров с вылетом через несколько дней, без цен
+         *     (price не приходит). Переход — через /tours/go: там ссылка становится партнёрской.
+         */
+        get: operations["listHotTours"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tours/go": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Переход на туры Level.Travel — партнёрской ссылкой, перенаправлением
+         * @description С country — поиск туров в страну из /tours/hot, без него — все горящие туры из города вылета.
+         */
+        get: operations["goToTours"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/car-hubs": {
         parameters: {
             query?: never;
@@ -569,6 +611,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/me/home-place": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Сохранить город пользователя */
+        put: operations["setHomePlace"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -912,6 +971,36 @@ export interface components {
             cost: components["schemas"]["CarCost"];
             border?: components["schemas"]["BorderInfo"];
         };
+        HotToursResponse: {
+            departure: components["schemas"]["TourDeparture"];
+            /** @description Все горящие туры из города вылета — адрес /tours/go без country */
+            all_url: string;
+            items: components["schemas"]["HotTour"][];
+        };
+        TourDeparture: {
+            /** @example Казань */
+            name: string;
+            /** @example из Казани */
+            name_from: string;
+            /**
+             * Format: double
+             * @description От города пользователя по прямой
+             */
+            distance_km: number;
+        };
+        HotTour: {
+            /** @example EG */
+            country: string;
+            /** @example Египет */
+            name: string;
+            /** @example 7 */
+            nights: number;
+            /** Format: date */
+            departure_date: string;
+            /** @description Переход — адрес /tours/go */
+            url: string;
+            price?: components["schemas"]["Money"];
+        };
         /**
          * @default ostrovok
          * @enum {string}
@@ -1238,6 +1327,7 @@ export interface components {
             /** Format: uri */
             avatar_url?: string;
             email?: string;
+            home_place?: components["schemas"]["Place"];
             /** @description Через какие способы входа привязан аккаунт */
             providers: components["schemas"]["AuthProvider"][];
         };
@@ -1474,6 +1564,56 @@ export interface operations {
             };
             404: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
+        };
+    };
+    listHotTours: {
+        parameters: {
+            query: {
+                /** @description Город пользователя (город или аэропорт справочника) */
+                from: string;
+                travelers?: components["parameters"]["Travelers"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Горящие туры */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HotToursResponse"];
+                };
+            };
+            404: components["responses"]["Problem"];
+        };
+    };
+    goToTours: {
+        parameters: {
+            query: {
+                from: string;
+                /** @description Код страны направления из /tours/hot */
+                country?: string;
+                travelers?: components["parameters"]["Travelers"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Перенаправление на Level.Travel */
+            302: {
+                headers: {
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            404: components["responses"]["Problem"];
         };
     };
     listCarHubs: {
@@ -2136,6 +2276,34 @@ export interface operations {
                     "application/json": components["schemas"]["Me"];
                 };
             };
+        };
+    };
+    setHomePlace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: uuid */
+                    place_id: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Город сохранён */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            401: components["responses"]["Problem"];
+            404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
         };
     };
 }

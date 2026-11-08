@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/SergeyLazarevv/Klubok/backend/internal/auth"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/httpx"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/session"
@@ -34,11 +35,53 @@ func (h *handlers) GetMe(ctx context.Context, _ apigen.GetMeRequestObject) (apig
 	}
 	user := apigen.User{Id: u.ID, Name: u.Name, AvatarUrl: optional(u.AvatarURL), Email: optional(u.Email),
 		Providers: make([]apigen.AuthProvider, len(u.Providers))}
+	if u.HomePlaceID != nil {
+		place, err := h.geo.Get(ctx, *u.HomePlaceID)
+		if err != nil {
+			return nil, err
+		}
+		homePlace := toAPIPlace(place)
+		user.HomePlace = &homePlace
+	}
 	for i, p := range u.Providers {
 		user.Providers[i] = apigen.AuthProvider(p)
 	}
 	out.User = &user
 	return apigen.GetMe200JSONResponse(out), nil
+}
+
+func (h *handlers) SetHomePlace(ctx context.Context, req apigen.SetHomePlaceRequestObject) (apigen.SetHomePlaceResponseObject, error) {
+	userID, ok := session.UserFromContext(ctx)
+	if !ok {
+		detail := "войдите, чтобы сохранить город в аккаунте"
+		return apigen.SetHomePlace401ApplicationProblemPlusJSONResponse{
+			ProblemApplicationProblemPlusJSONResponse: apigen.ProblemApplicationProblemPlusJSONResponse{
+				Status: http.StatusUnauthorized, Title: "Unauthorized", Detail: &detail,
+			},
+		}, nil
+	}
+	if req.Body == nil {
+		return apigen.SetHomePlace422ApplicationProblemPlusJSONResponse(apigen.Problem{
+			Status: http.StatusUnprocessableEntity, Title: "Validation failed",
+		}), nil
+	}
+	place, err := h.geo.Get(ctx, req.Body.PlaceId)
+	if errors.Is(err, geo.ErrNotFound) {
+		return apigen.SetHomePlace404ApplicationProblemPlusJSONResponse(notFound("place")), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if place.Kind != geo.KindCity && place.Kind != geo.KindTown {
+		detail := "домашней точкой должен быть город"
+		return apigen.SetHomePlace422ApplicationProblemPlusJSONResponse(apigen.Problem{
+			Status: http.StatusUnprocessableEntity, Title: "Validation failed", Detail: &detail,
+		}), nil
+	}
+	if err := h.auth.SetHomePlace(ctx, userID, place.ID); err != nil {
+		return nil, err
+	}
+	return apigen.SetHomePlace204Response{}, nil
 }
 
 // authRoutes — сам вход: редиректы на провайдера и обратно, выход. Вне OpenAPI: это переходы браузера,

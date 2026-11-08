@@ -8,8 +8,7 @@ import { useProfileStore } from '@/stores/profile'
 import { maxRangeEnd, maxSearchDate, stopsEditorKey, todayISO, useSearchStore, VIA_RE } from '@/stores/search'
 import { dateRangeLabel, plural } from '@/lib/format'
 import { collapseAll, useIsPhone } from '@/lib/tripOpen'
-import CarSettings from '@/components/CarSettings.vue'
-import SearchLoader from '@/components/SearchLoader.vue'
+import CarSettings from '@/components/CarSettings.vue'import SearchLoader from '@/components/SearchLoader.vue'
 import SearchForm from '@/components/SearchForm.vue'
 import TripResults from '@/components/TripResults.vue'
 
@@ -201,6 +200,5 @@ provide(stopsEditorKey, {
     <TripResults v-if="result" :result="result" :travelers="travelers" :date-from="searchedDateFrom" :date-to="searchedDateTo" />
     <p v-else-if="!loading" class="py-6 text-center text-sm text-muted-foreground">
       Укажите, откуда и куда летите, — найдём самый дешёвый вариант. Настройки сохраняются в этом браузере.
-    </p>
-  </section>
+    </p>  </section>
 </template>
