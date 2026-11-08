@@ -27,7 +27,6 @@ type FareSnapshot struct {
 type Favorite struct {
 	ID          pgtype.UUID
 	SessionID   pgtype.UUID
-	UserID      pgtype.UUID
 	Kind        string
 	Title       string
 	Params      []byte
@@ -185,6 +184,7 @@ type Session struct {
 	UserID     pgtype.UUID
 	CreatedAt  pgtype.Timestamptz
 	LastSeenAt pgtype.Timestamptz
+	EndedAt    pgtype.Timestamptz
 }
 
 type StayPrice struct {
@@ -213,4 +213,21 @@ type TripItem struct {
 	ImageUrl    pgtype.Text
 	Description pgtype.Text
 	City        pgtype.Text
+}
+
+type User struct {
+	ID          pgtype.UUID
+	Name        string
+	AvatarUrl   pgtype.Text
+	Email       pgtype.Text
+	CreatedAt   pgtype.Timestamptz
+	LastLoginAt pgtype.Timestamptz
+}
+
+type UserIdentity struct {
+	Provider  string
+	Subject   string
+	UserID    pgtype.UUID
+	Email     pgtype.Text
+	CreatedAt pgtype.Timestamptz
 }

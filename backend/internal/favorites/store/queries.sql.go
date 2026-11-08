@@ -15,7 +15,7 @@ import (
 
 const deleteFavorite = `-- name: DeleteFavorite :execrows
 UPDATE favorites SET deleted_at = now()
-WHERE id = $1 AND session_id = $2 AND deleted_at IS NULL
+WHERE id = $1 AND session_id IN (SELECT owner_sessions($2::uuid)) AND deleted_at IS NULL
 `
 
 type DeleteFavoriteParams struct {
@@ -35,7 +35,7 @@ const deleteTripItem = `-- name: DeleteTripItem :execrows
 DELETE FROM trip_items i
 USING favorites f
 WHERE i.id = $1 AND i.favorite_id = $2
-  AND f.id = i.favorite_id AND f.session_id = $3 AND f.deleted_at IS NULL
+  AND f.id = i.favorite_id AND f.session_id IN (SELECT owner_sessions($3::uuid)) AND f.deleted_at IS NULL
 `
 
 type DeleteTripItemParams struct {
@@ -52,10 +52,31 @@ func (q *Queries) DeleteTripItem(ctx context.Context, arg DeleteTripItemParams) 
 	return result.RowsAffected(), nil
 }
 
+const dropAdoptedDuplicates = `-- name: DropAdoptedDuplicates :execrows
+UPDATE favorites d SET deleted_at = now()
+WHERE d.session_id = $1 AND d.deleted_at IS NULL
+  AND NOT EXISTS (SELECT 1 FROM trip_items i WHERE i.favorite_id = d.id)
+  AND EXISTS (
+      SELECT 1 FROM favorites k
+      WHERE k.session_id IN (SELECT owner_sessions($1::uuid)) AND k.session_id <> d.session_id
+        AND k.fingerprint = d.fingerprint AND k.deleted_at IS NULL
+  )
+`
+
+// После входа: анонимная сессия перешла пользователю, а такой же вариант у него уже был — убираем копию
+// из анонимной сессии, если к ней ничего не добавляли (путевой лист пуст). Иначе оставляем обе.
+func (q *Queries) DropAdoptedDuplicates(ctx context.Context, sessionID uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, dropAdoptedDuplicates, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const getFavorite = `-- name: GetFavorite :one
 SELECT id, title, params, pick, snapshot, created_at
 FROM favorites
-WHERE id = $1 AND session_id = $2 AND deleted_at IS NULL
+WHERE id = $1 AND session_id IN (SELECT owner_sessions($2::uuid)) AND deleted_at IS NULL
 `
 
 type GetFavoriteParams struct {
@@ -88,28 +109,32 @@ func (q *Queries) GetFavorite(ctx context.Context, arg GetFavoriteParams) (GetFa
 
 const insertFavorite = `-- name: InsertFavorite :one
 
-WITH ins AS (
+WITH existing AS (
+    SELECT e.id, e.title, e.params, e.pick, e.snapshot, e.created_at FROM favorites e
+    WHERE e.session_id IN (SELECT owner_sessions($1::uuid)) AND e.fingerprint = $2 AND e.deleted_at IS NULL
+    LIMIT 1
+), ins AS (
     INSERT INTO favorites (id, session_id, kind, title, params, pick, snapshot, fingerprint)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    SELECT $3::uuid, $1::uuid, $4::text, $5::text, $6::jsonb, $7::jsonb, $8::jsonb, $2::text
+    WHERE NOT EXISTS (SELECT 1 FROM existing)
     ON CONFLICT (session_id, fingerprint) WHERE deleted_at IS NULL DO NOTHING
     RETURNING id, title, params, pick, snapshot, created_at, true AS created
 )
 SELECT id, title, params, pick, snapshot, created_at, created FROM ins
 UNION ALL
-SELECT id, title, params, pick, snapshot, created_at, false FROM favorites
-WHERE session_id = $2 AND fingerprint = $8 AND deleted_at IS NULL
+SELECT id, title, params, pick, snapshot, created_at, false FROM existing
 LIMIT 1
 `
 
 type InsertFavoriteParams struct {
-	ID          uuid.UUID
 	SessionID   uuid.UUID
+	Fingerprint string
+	ID          uuid.UUID
 	Kind        string
 	Title       string
 	Params      json.RawMessage
 	Pick        json.RawMessage
 	Snapshot    json.RawMessage
-	Fingerprint string
 }
 
 type InsertFavoriteRow struct {
@@ -122,18 +147,19 @@ type InsertFavoriteRow struct {
 	Created   bool
 }
 
-// Владелец пока — сессия. С авторизацией добавится условие OR user_id = @user_id.
-// Тот же вариант уже в избранном — вернуть существующую запись.
+// Владелец — сессия, а после входа пользователь: owner_sessions(сессия) — она сама и все сессии того же
+// пользователя (ADR-0026). Новые записи пишутся в текущую сессию.
+// Тот же вариант уже в избранном у владельца (в любой его сессии) — вернуть существующую запись.
 func (q *Queries) InsertFavorite(ctx context.Context, arg InsertFavoriteParams) (InsertFavoriteRow, error) {
 	row := q.db.QueryRow(ctx, insertFavorite,
-		arg.ID,
 		arg.SessionID,
+		arg.Fingerprint,
+		arg.ID,
 		arg.Kind,
 		arg.Title,
 		arg.Params,
 		arg.Pick,
 		arg.Snapshot,
-		arg.Fingerprint,
 	)
 	var i InsertFavoriteRow
 	err := row.Scan(
@@ -153,7 +179,7 @@ INSERT INTO trip_items (id, favorite_id, stage, kind, title, url, price, lat, lo
 SELECT $1, f.id, $2, $3, $4, $5, $6, $7, $8,
        $9, $10, $11
 FROM favorites f
-WHERE f.id = $12 AND f.session_id = $13 AND f.deleted_at IS NULL
+WHERE f.id = $12 AND f.session_id IN (SELECT owner_sessions($13::uuid)) AND f.deleted_at IS NULL
 RETURNING id, stage, kind, title, url, price, done, created_at, lat, lon, image_url, description, city
 `
 
@@ -227,7 +253,7 @@ func (q *Queries) InsertTripItem(ctx context.Context, arg InsertTripItemParams) 
 const listFavorites = `-- name: ListFavorites :many
 SELECT id, title, params, pick, snapshot, created_at
 FROM favorites
-WHERE session_id = $1 AND deleted_at IS NULL
+WHERE session_id IN (SELECT owner_sessions($1::uuid)) AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
@@ -272,7 +298,7 @@ const listTripItems = `-- name: ListTripItems :many
 SELECT i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description, i.city
 FROM trip_items i
 JOIN favorites f ON f.id = i.favorite_id
-WHERE i.favorite_id = $1 AND f.session_id = $2 AND f.deleted_at IS NULL
+WHERE i.favorite_id = $1 AND f.session_id IN (SELECT owner_sessions($2::uuid)) AND f.deleted_at IS NULL
 ORDER BY i.created_at
 `
 
@@ -297,7 +323,7 @@ type ListTripItemsRow struct {
 	City        pgtype.Text
 }
 
-// Путевой лист. Владелец пункта — владелец сохранённой поездки, поэтому везде проверяем сессию через favorites.
+// Путевой лист. Владелец пункта — владелец сохранённой поездки, поэтому везде проверяем сессию через favorites и owner_sessions.
 func (q *Queries) ListTripItems(ctx context.Context, arg ListTripItemsParams) ([]ListTripItemsRow, error) {
 	rows, err := q.db.Query(ctx, listTripItems, arg.FavoriteID, arg.SessionID)
 	if err != nil {
@@ -336,11 +362,11 @@ const restoreFavorite = `-- name: RestoreFavorite :one
 UPDATE favorites SET deleted_at = NULL, title = $1, snapshot = $2, created_at = now()
 WHERE id = (
     SELECT f.id FROM favorites f
-    WHERE f.session_id = $3 AND f.fingerprint = $4 AND f.deleted_at IS NOT NULL
+    WHERE f.session_id IN (SELECT owner_sessions($3::uuid)) AND f.fingerprint = $4 AND f.deleted_at IS NOT NULL
     ORDER BY f.deleted_at DESC LIMIT 1
 )
 AND NOT EXISTS (
-    SELECT 1 FROM favorites a WHERE a.session_id = $3 AND a.fingerprint = $4 AND a.deleted_at IS NULL
+    SELECT 1 FROM favorites a WHERE a.session_id IN (SELECT owner_sessions($3::uuid)) AND a.fingerprint = $4 AND a.deleted_at IS NULL
 )
 RETURNING id, title, params, pick, snapshot, created_at
 `
@@ -383,7 +409,7 @@ func (q *Queries) RestoreFavorite(ctx context.Context, arg RestoreFavoriteParams
 
 const updateFavorite = `-- name: UpdateFavorite :one
 UPDATE favorites SET params = $1, snapshot = $2, fingerprint = $3
-WHERE id = $4 AND session_id = $5 AND deleted_at IS NULL
+WHERE id = $4 AND session_id IN (SELECT owner_sessions($5::uuid)) AND deleted_at IS NULL
 RETURNING id, title, params, pick, snapshot, created_at
 `
 
@@ -434,7 +460,7 @@ UPDATE trip_items i SET
     price = CASE WHEN $5::boolean THEN NULL ELSE COALESCE($6, i.price) END
 FROM favorites f
 WHERE i.id = $7 AND i.favorite_id = $8
-  AND f.id = i.favorite_id AND f.session_id = $9 AND f.deleted_at IS NULL
+  AND f.id = i.favorite_id AND f.session_id IN (SELECT owner_sessions($9::uuid)) AND f.deleted_at IS NULL
 RETURNING i.id, i.stage, i.kind, i.title, i.url, i.price, i.done, i.created_at, i.lat, i.lon, i.image_url, i.description, i.city
 `
 

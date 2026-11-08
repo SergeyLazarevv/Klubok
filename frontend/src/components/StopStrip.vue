@@ -5,8 +5,11 @@ import { hours, rub } from '@/lib/format'
 import { armsUrl, photoUrl } from '@/lib/map/cities'
 import { detourLabel } from '@/lib/stopPicker'
 
-/** Города, где можно остановиться по дороге: лента карточек, «Заехать» добавляет город в маршрут. */
-defineProps<{ items: StopSuggestion[]; chosen: string[]; busy?: string }>()
+/**
+ * Города, где можно остановиться по дороге: лента карточек, «Заехать» добавляет город в маршрут.
+ * back — лента обратной дороги: время до города — от места назначения.
+ */
+defineProps<{ items: StopSuggestion[]; chosen: string[]; busy?: string; travelers: number; back?: boolean }>()
 const emit = defineEmits<{ toggle: [StopSuggestion] }>()
 </script>
 
@@ -39,9 +42,10 @@ const emit = defineEmits<{ toggle: [StopSuggestion] }>()
         <span class="font-semibold">{{ s.city.name }}</span>
         <span v-if="s.city.landmark" class="line-clamp-1 text-xs text-muted-foreground">{{ s.city.landmark }}</span>
         <span class="text-xs">
-          {{ detourLabel(s) }}{{ s.detour.duration_min < 10 ? '' : ' к дороге' }} · через {{ hours(s.drive_to_hours) }} от дома
+          {{ detourLabel(s) }}{{ s.detour.duration_min < 10 ? '' : ' к дороге' }} ·
+          {{ back ? `через ${hours(s.drive_from_hours)} в пути домой` : `через ${hours(s.drive_to_hours)} от дома` }}
         </span>
-        <span v-if="s.stay_per_night" class="text-xs text-muted-foreground">гостиница ≈ {{ rub(s.stay_per_night) }} / чел.</span>
+        <span v-if="s.stay_per_night" class="text-xs text-muted-foreground">гостиница ≈ {{ rub(s.stay_per_night.amount * travelers) }} за ночь</span>
         <button
           type="button"
           class="mt-auto flex h-10 items-center justify-center gap-1.5 rounded-full text-sm font-medium transition-colors disabled:opacity-60"

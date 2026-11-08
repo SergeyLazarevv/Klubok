@@ -45,10 +45,10 @@ async function renderRoad() {
   const version = ++roadVersion
   const [drawn] = await Promise.all([loadRoad(props), ready])
   if (!map || version !== roadVersion) return
-  setTripRoute(map, props, drawn?.line)
-  if (version === 1 && drawn) map.fitBounds(tripBounds(props, drawn.line), { padding: FIT_PADDING, duration: 0 })
+  setTripRoute(map, props, drawn?.line, drawn?.back)
+  if (version === 1 && drawn) map.fitBounds(tripBounds(props, [...drawn.line, ...(drawn.back ?? [])]), { padding: FIT_PADDING, duration: 0 })
 }
-watch(() => roadStops(props).join(';'), () => void renderRoad())
+watch(() => `${roadStops(props).join(';')}|${roadStops(props, true).join(';')}`, () => void renderRoad())
 
 async function loadPois(): Promise<Poi[]> {
   const requests = [api.GET('/places/{id}/pois', { params: { path: { id: props.destination.id } } })]
@@ -143,7 +143,7 @@ onBeforeUnmount(() => {
             <span class="text-sm">
               {{ detourLabel(picked) }}{{ picked.detour.duration_min < 10 ? '' : ' к дороге' }} · {{ hours(picked.drive_to_hours) }} от дома
             </span>
-            <span v-if="picked.stay_per_night" class="text-xs text-muted-foreground">гостиница ≈ {{ rub(picked.stay_per_night) }} / чел.</span>
+            <span v-if="picked.stay_per_night" class="text-xs text-muted-foreground">гостиница ≈ {{ rub(picked.stay_per_night.amount * (picker?.travelers.value ?? 1)) }} за ночь</span>
             <span v-if="picked.overnight" class="flex items-center gap-1 text-xs font-medium text-[#0d4f22]">
               <MoonIcon class="size-3" /> удобно заночевать: оба дня за рулём в вашем лимите
             </span>

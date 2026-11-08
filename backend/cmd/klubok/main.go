@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
+	"github.com/SergeyLazarevv/Klubok/backend/internal/auth"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/carcost"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/fares"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites"
@@ -24,6 +25,7 @@ import (
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/mapsearch"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/config"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/database"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/poi"
@@ -156,8 +158,10 @@ func serveAPI(ctx context.Context, cfg config.Config, log *slog.Logger, pool *pg
 
 		Transfers: transfer.NewService(road.NewOSRM(cfg.OSRMURL), road.NewOSRM(cfg.OSRMFootURL), log),
 		Geocoder:  transfer.NewPhoton(cfg.PhotonURL),
+		MapSearch: mapsearch.NewService(transfer.NewPhoton(cfg.PhotonURL), mapsearch.NewWikidata(), cache, log),
 
 		Sessions:  session.NewManager(pool, log),
+		Auth:      newAuth(cfg, log, pool),
 		Favorites: favorites.NewService(pool),
 		Stay:      stayPrices,
 		Road:      roadSvc,
@@ -268,6 +272,21 @@ func faresWarm(ctx context.Context, cfg config.Config, log *slog.Logger, pool *p
 	log.Info("fares-warm finished", slog.Int("origins", len(list)), slog.Int("requests", st.Requests),
 		slog.Int("failed", st.Failed), slog.Int("quotes", st.Quotes), slog.Duration("took", time.Since(start)))
 	return err
+}
+
+// newAuth — вход через Яндекс ID и VK ID; провайдер без ключей не включается.
+func newAuth(cfg config.Config, log *slog.Logger, pool *pgxpool.Pool) *auth.Service {
+	var providers []auth.Provider
+	if cfg.YandexClientID != "" && cfg.YandexClientSecret != "" {
+		providers = append(providers, auth.NewYandex(cfg.YandexClientID, cfg.YandexClientSecret))
+	}
+	if cfg.VKClientID != "" {
+		providers = append(providers, auth.NewVK(cfg.VKClientID))
+	}
+	if len(providers) == 0 {
+		log.Warn("YANDEX_CLIENT_ID/VK_CLIENT_ID не заданы — вход на сайт выключен")
+	}
+	return auth.NewService(pool, cfg.PublicURL, providers...)
 }
 
 // newRedis — клиент кэша. Подключение ленивое: недоступный Redis не мешает запуску, кэш просто не работает.

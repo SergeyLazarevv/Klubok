@@ -7,7 +7,7 @@
 ```mermaid
 erDiagram
     users ||--o{ user_identities : has
-    users ||--o{ refresh_tokens : has
+    users ||--o{ sessions : has
     users ||--|| profiles : has
     profiles }o--|| places : "home"
     places ||--o{ road_distances : from
@@ -15,25 +15,22 @@ erDiagram
 
     users {
         uuid id PK
-        text email UK "nullable при входе через VK"
-        text password_hash "nullable"
-        timestamptz email_verified_at
+        text name
+        text avatar_url
+        text email "если провайдер отдал; не логин"
         timestamptz created_at
-        timestamptz deleted_at
+        timestamptz last_login_at
     }
     user_identities {
-        uuid id PK
+        text provider PK "yandex | vk"
+        text subject PK "id у провайдера"
         uuid user_id FK
-        text provider "vk"
-        text provider_user_id
+        text email
     }
-    refresh_tokens {
-        uuid id PK
-        uuid user_id FK
-        bytea token_hash
-        text user_agent
-        timestamptz expires_at
-        timestamptz revoked_at
+    sessions {
+        uuid id PK "cookie klubok_sid"
+        uuid user_id FK "пусто — анонимная"
+        timestamptz ended_at
     }
     profiles {
         uuid user_id PK
@@ -187,29 +184,35 @@ erDiagram
 
 ## 5.6. Сессии и избранное
 
-Решение — [ADR-0018](adr/0018-favorites.md).
+Решения — [ADR-0018](adr/0018-favorites.md), [ADR-0026](adr/0026-login-yandex-vk.md); как это работает при входе — [12-auth.md](12-auth.md).
 
-**`sessions`** — анонимные сессии (cookie `klubok_sid`).
+**`sessions`** — сессии (cookie `klubok_sid`): анонимные и вошедшие.
 
 | Поле | Тип | Примечание |
 |---|---|---|
 | id | uuid | Значение cookie |
-| user_id | uuid | Пусто до авторизации |
+| user_id | uuid → users | Пусто — анонимная. При входе анонимная сессия получает `user_id` и закрывается |
 | created_at, last_seen_at | timestamptz | Визит отмечается не чаще раза в сутки |
+| ended_at | timestamptz | Закрыта (выход, вход): cookie не действует, данные остаются за пользователем |
+
+Владелец данных — функция `owner_sessions(сессия)`: сама сессия и все сессии её пользователя.
+
+**`users`** — пользователи: `id`, `name`, `avatar_url`, `email` (из профиля провайдера), `created_at`, `last_login_at`.
+
+**`user_identities`** — способы входа: ключ `(provider, subject)`, где provider — `yandex` или `vk`, subject — id у провайдера; `user_id`, `email`.
 
 **`favorites`** — избранные маршруты.
 
 | Поле | Тип | Примечание |
 |---|---|---|
 | id | uuid | |
-| session_id | uuid | Владелец до авторизации |
-| user_id | uuid | Проставляется после авторизации |
+| session_id | uuid | Где сохранили; владелец — `owner_sessions` (сессия и её пользователь) |
 | kind | text | `trip`; позже — отели, места |
 | title | text | «Самара → Алматы, ноябрь 2026 г.» |
 | params | jsonb | Параметры поиска в формате `GET /trips` |
 | pick | jsonb | `{kind: flight, hub_iata, depart_date, return_date}` или `{kind: drive}` |
 | snapshot | jsonb | Цена и детали на момент сохранения |
-| fingerprint | text | Уникален среди неудалённых в сессии — без дублей |
+| fingerprint | text | Уникален среди неудалённых у владельца — без дублей |
 | note | text | Заметка (задел под «блокнот») |
 | created_at, deleted_at | timestamptz | Удаление мягкое |
 

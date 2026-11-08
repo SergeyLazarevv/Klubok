@@ -118,7 +118,7 @@ func (h *handlers) favoriteCurrent(ctx context.Context, fav favorites.Favorite) 
 	if datePassed(params.DateTo, time.Now()) {
 		return apigen.FavoriteCurrent{Status: apigen.Past}, nil
 	}
-	resp, err := h.SearchTrips(ctx, apigen.SearchTripsRequestObject{Params: params})
+	resp, err := h.searchTrips(ctx, params, pick.Kind == apigen.Drive)
 	if err != nil {
 		return apigen.FavoriteCurrent{}, err
 	}

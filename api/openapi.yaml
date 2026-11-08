@@ -19,6 +19,11 @@ tags:
     description: Как добраться внутри города — из аэропорта или с вокзала до жилья
   - name: favorites
     description: Избранные маршруты; до авторизации — по анонимной сессии
+  - name: auth
+    description: |
+      Вход через Яндекс ID и VK ID (ADR-0026). Сам вход — редиректы вне этого контракта:
+      GET /auth/{provider}/start?return=/путь → страница провайдера → GET /auth/{provider}/callback → return;
+      POST /auth/logout — выход. Подробно — docs/12-auth.md.
 
 paths:
   /places:
@@ -523,6 +528,51 @@ paths:
         '422': { $ref: '#/components/responses/Problem' }
         '502': { $ref: '#/components/responses/Problem' }
 
+  /map/search:
+    get:
+      tags: [map]
+      operationId: searchMap
+      summary: Поиск по карте — город, село, достопримечательность, улица или адрес
+      description: |
+        По всему миру, данные OpenStreetMap (Photon). Центр и масштаб карты поднимают ближние места
+        при равной известности. Координаты разбирает фронтенд, сюда не отправляет.
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 200 }
+        - name: lat
+          in: query
+          required: false
+          description: Центр карты
+          schema: { type: number, format: double, minimum: -90, maximum: 90 }
+        - name: lon
+          in: query
+          required: false
+          schema: { type: number, format: double, minimum: -180, maximum: 180 }
+        - name: zoom
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 18, default: 6 }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 10, default: 7 }
+      responses:
+        '200':
+          description: Найденные места, лучшие первыми
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/MapSearchItem' }
+        '422': { $ref: '#/components/responses/Problem' }
+        '502': { $ref: '#/components/responses/Problem' }
+
   /geocode:
     get:
       tags: [transfers]
@@ -597,7 +647,8 @@ paths:
       operationId: listFavorites
       summary: Избранные маршруты текущего пользователя
       description: |
-        Пока нет авторизации, владелец — анонимная сессия (cookie klubok_sid, выдаётся сервером).
+        Владелец — сессия (cookie klubok_sid, выдаётся сервером), а после входа — пользователь: видны записи
+        всех его сессий, в том числе сохранённые до входа и на других устройствах.
         Цены в списке — на момент сохранения; актуальные — GET /favorites/{id}/current.
       responses:
         '200':
@@ -781,6 +832,19 @@ paths:
         '204': { description: Удалено }
         '404': { $ref: '#/components/responses/Problem' }
 
+  /me:
+    get:
+      tags: [auth]
+      operationId: getMe
+      summary: Кто вошёл и какими способами можно войти
+      description: Без входа user не приходит; providers — включённые на сервере способы входа (для кнопок).
+      responses:
+        '200':
+          description: Текущий пользователь
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Me' }
+
 components:
   parameters:
     Via:
@@ -789,12 +853,13 @@ components:
       required: false
       description: |
         Остановки по дороге на машине, по порядку: «<id города карты>:<ночей>», параметр повторяется.
-        0 ночей — заезд на несколько часов. Учитываются только в варианте «целиком на машине».
+        0 ночей — заезд на несколько часов; суффикс «:back» — остановка на обратном пути (по порядку от места
+        назначения). Учитываются только в варианте «целиком на машине».
       style: form
       explode: true
       schema:
         type: array
-        items: { type: string, pattern: '^Q\d+:[0-3]$', example: 'Q900:1' }
+        items: { type: string, pattern: '^Q\d+:[0-3](:back)?$', example: 'Q900:1' }
     RadiusKm:
       name: radius_km
       in: query
@@ -1085,11 +1150,16 @@ components:
           $ref: '#/components/schemas/Money'
         stops:
           type: array
-          description: Остановки по пути (параметр via), по порядку; туда — через них, обратно — напрямую
+          description: |
+            Остановки по пути (параметр via): сначала туда, потом обратно (back), каждые по порядку.
+            В сторону без остановок — напрямую
           items: { $ref: '#/components/schemas/DriveStop' }
         via_road:
           $ref: '#/components/schemas/RoadLeg'
-          description: Дорога туда через остановки; есть, только когда есть остановки
+          description: Дорога туда через остановки; есть, только когда есть остановки туда
+        back_road:
+          $ref: '#/components/schemas/RoadLeg'
+          description: Дорога обратно через остановки; есть, только когда есть остановки на обратном пути
         stay:
           $ref: '#/components/schemas/Money'
           description: Ночёвки в остановках на всех — уже в total
@@ -1115,10 +1185,11 @@ components:
 
     DriveStop:
       type: object
-      required: [city, nights]
+      required: [city, nights, back]
       properties:
         city: { $ref: '#/components/schemas/StopCity' }
         nights: { type: integer, minimum: 0, maximum: 3 }
+        back: { type: boolean, description: На обратном пути }
         stay:
           $ref: '#/components/schemas/Money'
           description: Ночёвки на всех; нет — 0 ночей или нет цены
@@ -1312,6 +1383,23 @@ components:
         page: { type: string, description: Страница файла — автор и лицензия }
         credit: { type: string, example: 'Иван Иванов · CC BY-SA 4.0' }
 
+    MapSearchItem:
+      type: object
+      required: [name, kind, location]
+      properties:
+        name: { type: string, example: Кижский погост }
+        subtitle: { type: string, example: 'Карелия, Россия' }
+        kind:
+          type: string
+          enum: [city, village, sight, nature, street, house, other]
+        location: { $ref: '#/components/schemas/Point' }
+        bbox:
+          type: array
+          description: Границы протяжённого объекта — запад, юг, восток, север
+          minItems: 4
+          maxItems: 4
+          items: { type: number, format: double }
+
     Address:
       type: object
       required: [label, location]
@@ -1379,7 +1467,7 @@ components:
         via:
           type: array
           description: Остановки по дороге на машине — как параметр via у GET /trips
-          items: { type: string, pattern: '^Q\d+:[0-3]$' }
+          items: { type: string, pattern: '^Q\d+:[0-3](:back)?$' }
 
     FavoritePick:
       type: object
@@ -1415,7 +1503,7 @@ components:
         via:
           type: array
           description: Остановки по пути — как via у GET /trips; пусто — без остановок
-          items: { type: string, pattern: '^Q\d+:[0-3]$' }
+          items: { type: string, pattern: '^Q\d+:[0-3](:back)?$' }
 
     FavoriteUpdated:
       type: object
@@ -1540,6 +1628,32 @@ components:
       properties:
         lat: { type: number, format: double }
         lon: { type: number, format: double }
+
+    AuthProvider:
+      type: string
+      enum: [yandex, vk]
+
+    Me:
+      type: object
+      required: [providers]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+        providers:
+          type: array
+          items: { $ref: '#/components/schemas/AuthProvider' }
+
+    User:
+      type: object
+      required: [id, name, providers]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        avatar_url: { type: string, format: uri }
+        email: { type: string }
+        providers:
+          type: array
+          description: Через какие способы входа привязан аккаунт
+          items: { $ref: '#/components/schemas/AuthProvider' }
 
     Problem:
       type: object

@@ -4,8 +4,8 @@ import { api, type Favorite, type FavoritePick, type FavoriteSnapshot, type Trip
 import { favoriteKey } from '@/lib/favorites'
 
 /**
- * Избранное. Хранится на сервере по анонимной сессии (cookie klubok_sid); после авторизации
- * перейдёт в аккаунт. Здесь — копия списка, чтобы звёздочки в результатах загорались без запросов.
+ * Избранное. Хранится на сервере по сессии (cookie klubok_sid); после входа сервер отдаёт записи
+ * пользователя со всех его сессий, включая сохранённое до входа (ADR-0026). Здесь — копия списка, чтобы звёздочки в результатах загорались без запросов.
  */
 export const useFavoritesStore = defineStore('favorites', () => {
   const items = ref<Favorite[]>([])

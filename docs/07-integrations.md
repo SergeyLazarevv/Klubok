@@ -34,17 +34,21 @@
 - По редким направлениям данных может не быть → честно показываем «нет данных», а не «нет рейсов».
 - Поиск в реальном времени (Flight Search API) требует отдельной заявки и объёма трафика — рассматриваем после роста аудитории.
 
-## 7.2. VK ID — вход (MVP)
+## 7.2. Яндекс ID и VK ID — вход (MVP)
 
-Решение: [ADR-0007](adr/0007-auth.md).
+Решение: [ADR-0026](adr/0026-login-yandex-vk.md); поток, хранение и сессии — [12-auth.md](12-auth.md). Код — `backend/internal/auth`.
 
-- Протокол: OAuth 2.1 Authorization Code + **PKCE (S256)** — обязательно.
-- Поток: бэкенд генерирует `state` и `code_verifier` → редирект на VK ID → callback с `code`, `state`, `device_id` → обмен кода на токены (с `code_verifier` и `device_id`) → получение профиля (id, имя, email если разрешён) → наша сессия.
-- `code_verifier` и `state` хранятся в Redis на 10 минут, привязаны к cookie браузера.
-- От VK храним только `provider_user_id`; токены VK не храним (не нужны после входа).
-- Домен и параметры эндпоинтов: `[сверить по документации VK ID на dev.vk.com — встречаются id.vk.com и id.vk.ru]`.
-- Порядок: VK ID подключаем **последним шагом MVP**, когда будет домен; до этого вход только по email.
-- Нужно: создать приложение в кабинете VK ID, указать доверенный redirect URI (`https://<домен>/api/v1/auth/vk/callback`; для локальной разработки — отдельный).
+**Яндекс ID** — OAuth 2.0 Authorization Code + PKCE (S256).
+- `https://oauth.yandex.ru/authorize` → `POST https://oauth.yandex.ru/token` (`client_id`, `client_secret`, `code`, `code_verifier`) → `GET https://login.yandex.ru/info?format=json` с `Authorization: OAuth <token>`.
+- Из профиля: `id`, `first_name`/`last_name` (или `display_name`), `default_email`, `default_avatar_id` → `https://avatars.yandex.net/get-yapic/<id>/islands-200`.
+- Приложение на oauth.yandex.ru, доступы `login:info`, `login:email`, `login:avatar`, Redirect URI `<KLUBOK_PUBLIC_URL>/api/v1/auth/yandex/callback`.
+
+**VK ID** — OAuth 2.1 Authorization Code + PKCE (S256), публичный клиент (без секрета).
+- `https://id.vk.com/authorize` (`scope=email`) → callback с `code`, `state`, **`device_id`** → `POST https://id.vk.com/oauth2/auth` (`code`, `code_verifier`, `device_id`, `redirect_uri`, `client_id`, `state`) → `POST https://id.vk.com/oauth2/user_info` (`client_id`, `access_token`).
+- Из профиля: `user_id`, `first_name`, `last_name`, `avatar`, `email` (может не прийти).
+- Приложение в кабинете VK ID (тип «Web»), доверенный Redirect URL `<KLUBOK_PUBLIC_URL>/api/v1/auth/vk/callback`. **[сверить]** на живом приложении: принимает ли VK `http://localhost` для разработки.
+
+Общее: `state` и `code_verifier` живут 10 минут в HttpOnly-cookie браузера, который начал вход. Токены провайдеров после получения профиля не храним.
 
 ## 7.3. Маршрутизация на машине (MVP)
 

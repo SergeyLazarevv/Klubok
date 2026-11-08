@@ -239,10 +239,11 @@ export function onCityClick(map: MapLibreMap, pick: (id: string) => void) {
   for (const layer of [CITY_LAYER, CITY_CHOSEN, CITY_DOT]) map.on('click', layer, handler)
 }
 
-/** Дорога (линия — от loadRoad) и дуга перелёта. */
-export function setTripRoute(map: MapLibreMap, t: Trip, road?: LatLon[]) {
+/** Дорога (линия — от loadRoad), дорога домой через остановки на обратном пути и дуга перелёта. */
+export function setTripRoute(map: MapLibreMap, t: Trip, road?: LatLon[], back?: LatLon[]) {
   const segments: RouteSegment[] = []
   if (road?.length) segments.push({ kind: 'road', coords: road.map(toLonLat) })
+  if (back?.length) segments.push({ kind: 'road', coords: back.map(toLonLat) })
   if (t.option) segments.push({ kind: 'flight', coords: greatCircleArc(at(t.option.hub), at(arrivalOf(t))).map(toLonLat) })
   setRoute(map, segments)
 }

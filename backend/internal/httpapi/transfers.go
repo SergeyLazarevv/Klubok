@@ -79,3 +79,33 @@ func (h *handlers) ListTransfers(ctx context.Context, req apigen.ListTransfersRe
 	}
 	return apigen.ListTransfers200JSONResponse{Items: items}, nil
 }
+
+func (h *handlers) SearchMap(ctx context.Context, req apigen.SearchMapRequestObject) (apigen.SearchMapResponseObject, error) {
+	p := req.Params
+	var near *transfer.Point
+	if p.Lat != nil && p.Lon != nil {
+		near = &transfer.Point{Lat: *p.Lat, Lon: *p.Lon}
+	}
+	found, err := h.mapSearch.Search(ctx, p.Q, near, valueOr(p.Zoom, 6), valueOr(p.Limit, 7))
+	if err != nil {
+		h.log.WarnContext(ctx, "map search failed", "err", err)
+		detail := "поиск по карте временно недоступен, попробуйте позже"
+		return apigen.SearchMap502ApplicationProblemPlusJSONResponse(apigen.Problem{
+			Status: http.StatusBadGateway, Title: "Bad Gateway", Detail: &detail,
+		}), nil
+	}
+	items := make([]apigen.MapSearchItem, len(found))
+	for i, a := range found {
+		items[i] = apigen.MapSearchItem{
+			Name:     a.Name,
+			Subtitle: optional(a.Subtitle),
+			Kind:     apigen.MapSearchItemKind(a.Kind),
+			Location: apigen.Point{Lat: a.Point.Lat, Lon: a.Point.Lon},
+		}
+		if a.BBox != nil {
+			b := a.BBox[:]
+			items[i].Bbox = &b
+		}
+	}
+	return apigen.SearchMap200JSONResponse{Items: items}, nil
+}

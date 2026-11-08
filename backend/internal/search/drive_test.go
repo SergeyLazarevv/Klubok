@@ -39,12 +39,14 @@ func TestWorthFlying(t *testing.T) {
 
 func TestLongestDay(t *testing.T) {
 	h := func(hours float64) road.Leg { return road.Leg{DurationS: int(hours * 3600)} }
-	via := h(11)
+	via, back := h(11), h(10)
+	// Обратно с ночёвкой: 0,5 на границе + 5 ч и 5 ч — короче, чем туда
 	d := &DriveOption{
 		Leg: h(10), DriveHours: 10.5, // полчаса на границе
-		ViaLeg: &via,
-		parts:  []road.Leg{h(4), h(3), h(4)},
-		Stops:  []DriveStop{{Nights: 0}, {Nights: 1}},
+		ViaLeg: &via, BackLeg: &back,
+		parts:     []road.Leg{h(4), h(3), h(4)},
+		backParts: []road.Leg{h(5), h(5)},
+		Stops:     []DriveStop{{Nights: 0}, {Nights: 1}, {Nights: 1, Back: true}},
 	}
 	// Заезд на пару часов день не делит: 4 + 3 = 7 ч, ночёвка, затем 4 ч + граница
 	if got := longestDay(d); got != 7 {
@@ -58,5 +60,24 @@ func TestLongestDay(t *testing.T) {
 	d.parts = nil
 	if got := longestDay(d); got != 11.5 {
 		t.Errorf("без участков longestDay = %v, want 11.5", got)
+	}
+
+	// Обратно с ночёвкой: граница в первый день (0,5 + 6), затем 6 ч; туда напрямую — 10,5 ч
+	back = h(12)
+	d = &DriveOption{
+		Leg: h(10), DriveHours: 10.5,
+		BackLeg:   &back,
+		backParts: []road.Leg{h(6), h(6)},
+		Stops:     []DriveStop{{Nights: 1, Back: true}},
+	}
+	if got := longestDay(d); got != 10.5 {
+		t.Errorf("обратно с ночёвкой longestDay = %v, want 10.5 (прямая туда)", got)
+	}
+	// И туда с ночёвкой: 5 + 5,5 с границей; обратно 6,5 и 6
+	via = h(10.5)
+	d.ViaLeg, d.parts = &via, []road.Leg{h(5), h(5.5)}
+	d.Stops = []DriveStop{{Nights: 1}, {Nights: 1, Back: true}}
+	if got := longestDay(d); got != 6.5 {
+		t.Errorf("с ночёвками в обе стороны longestDay = %v, want 6.5", got)
 	}
 }

@@ -20,6 +20,7 @@ export interface Stop {
   at: LatLon
   onRoad: boolean
   city?: boolean // город-остановка (ADR-0023): подпись видна всегда
+  back?: boolean // город-остановка на обратном пути: через него идёт дорога домой, а не туда
 }
 
 export const at = (p: Place): LatLon => [p.location.lat, p.location.lon]
@@ -50,25 +51,31 @@ function fetchRoad(from: string, to: string, via: LatLon[]) {
  * Места по пути — в порядке удаления от дома: для дороги между городами этого достаточно,
  * чтобы не петлять туда-обратно.
  */
-export function roadStops(t: Trip): LatLon[] {
-  const home = at(t.home)
+export function roadStops(t: Trip, back = false): LatLon[] {
+  const from = back ? at(t.destination) : at(t.home)
   return (t.stops ?? [])
-    .filter((s) => s.onRoad)
+    .filter((s) => s.onRoad && !!s.back === back)
     .map((s) => s.at)
-    .sort((a, b) => greatCircleKm(home, a) - greatCircleKm(home, b))
+    .sort((a, b) => greatCircleKm(from, a) - greatCircleKm(from, b))
 }
 
 /**
  * Дорога через места по пути с линией. Сервер не ответил — ломаная через точки с пометкой approximate.
- * undefined — до аэропорта не на машине.
+ * С остановками на обратном пути — ещё и линия дороги домой через них (back). undefined — до аэропорта не на машине.
  */
-export async function loadRoad(t: Trip): Promise<{ route: RoadRoute; line: LatLon[] } | undefined> {
+export async function loadRoad(t: Trip): Promise<{ route: RoadRoute; line: LatLon[]; back?: LatLon[] } | undefined> {
   if (!byCar(t)) return undefined
   const end = roadEnd(t)
   const via = roadStops(t)
-  const fetched = await fetchRoad(t.home.id, end.id, via)
+  const viaBack = roadStops(t, true)
+  const [fetched, fetchedBack] = await Promise.all([
+    fetchRoad(t.home.id, end.id, via),
+    viaBack.length ? fetchRoad(end.id, t.home.id, viaBack) : undefined,
+  ])
   const known = t.option?.car?.road ?? t.drive?.road ?? { distance_km: 0, duration_min: 0, approximate: true }
   const route: RoadRoute = fetched ?? { road: { ...known, approximate: true }, polyline: '' }
   const line = fetched?.polyline ? decodePolyline(fetched.polyline) : [at(t.home), ...via, at(end)]
-  return { route, line }
+  if (!viaBack.length) return { route, line }
+  const back = fetchedBack?.polyline ? decodePolyline(fetchedBack.polyline) : [at(end), ...viaBack, at(t.home)]
+  return { route, line, back }
 }

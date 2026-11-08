@@ -25,6 +25,8 @@ const props = defineProps<{
   searchParams?: TripSearchParams // для избранного: параметры поиска, в котором найден вариант
   favorite?: Favorite // открыто из избранного: путевой лист этой записи
   openKey?: string // ключ варианта в адресе (?trip=), чтобы на телефоне открыть подробности отдельным экраном
+  total?: number // из избранного: вся стоимость с выбранным жильём и тратами, копейки
+  totalLabel?: string
 }>()
 const { open, screen, linked } = useTripOpen(() => props.openKey)
 // Открыли ссылкой на этот вариант — показываем его, а не начало списка
@@ -33,14 +35,24 @@ onMounted(() => linked && root.value?.scrollIntoView({ behavior: 'smooth', block
 const destName = computed(() => props.destination.city_name ?? props.destination.name)
 const routeUrl = computed(() => yandexRouteUrl(props.home.location, props.destination.location))
 const search = useSearchStore()
-// Остановки по пути (ADR-0023): дорога туда — через них
-const viaLabel = computed(() =>
-  (props.drive.stops ?? []).map((s) => (s.nights ? `${s.city.name} (${s.nights} ${s.nights === 1 ? 'ночь' : 'ночи'})` : s.city.name)).join(', '),
-)
+// Остановки по пути (ADR-0023): туда и обратно — каждая дорога через свои
+const stopNames = (back: boolean) =>
+  (props.drive.stops ?? [])
+    .filter((s) => s.back === back)
+    .map((s) => (s.nights ? `${s.city.name} (${s.nights} ${s.nights === 1 ? 'ночь' : 'ночи'})` : s.city.name))
+    .join(', ')
+const viaLabel = computed(() => {
+  const to = stopNames(false)
+  const back = stopNames(true)
+  return [to && `через ${to}`, back && `обратно через ${back}`].filter(Boolean).join(', ')
+})
 const leg = computed(() => props.drive.via_road ?? { ...props.drive.road, duration_min: props.drive.drive_hours * 60 })
-// Дней в пути туда: ночёвки в остановках делят дорогу
-const roadDays = computed(() => 1 + (props.drive.stops ?? []).reduce((n, s) => n + s.nights, 0))
-const costLabel = computed(() => (props.drive.stay ? 'бензин и ночёвки в пути' : 'бензин и страховка'))
+// Дней в пути туда и обратно: ночёвки в остановках делят дорогу
+const days = (back: boolean) => 1 + (props.drive.stops ?? []).filter((s) => s.back === back).reduce((n, s) => n + s.nights, 0)
+const roadDays = computed(() => days(false))
+const backDays = computed(() => days(true))
+const costLabel = computed(() => props.totalLabel ?? (props.drive.stay ? 'бензин и ночёвки в пути' : 'бензин и страховка'))
+const total = computed(() => props.total ?? props.drive.total.amount)
 
 // Даты у машины свободные — погода на те же дни, что в плане поездки (TripPlan): с начала периода, но не раньше
 // завтрашнего дня, на trip_days
@@ -78,9 +90,15 @@ const tagLabels: Record<Highlight, string> = {
             </span>
           </div>
           <h3 class="text-xl font-semibold tracking-tight">На своей машине</h3>
-          <span v-if="roadDays > 1" class="flex w-fit items-center gap-1.5 rounded-full bg-[#fef3e6] px-2.5 py-0.5 text-xs font-medium text-[#7a3d00]">
+          <span
+            v-if="roadDays > 1 || backDays > 1"
+            class="flex w-fit items-center gap-1.5 rounded-full bg-[#fef3e6] px-2.5 py-0.5 text-xs font-medium text-[#7a3d00]"
+          >
             <MoonIcon class="size-3" />
-            {{ roadDays }} {{ plural(roadDays, 'день', 'дня', 'дней') }} в пути
+            <template v-if="backDays === 1">{{ roadDays }} {{ plural(roadDays, 'день', 'дня', 'дней') }} в пути</template>
+            <template v-else>
+              туда {{ roadDays }} {{ plural(roadDays, 'день', 'дня', 'дней') }}, обратно {{ backDays }} {{ plural(backDays, 'день', 'дня', 'дней') }}
+            </template>
           </span>
           <!-- Дорогу сами не делим: города по пути — в «Подробнее», там же выбирают ночёвку -->
           <span
@@ -89,7 +107,7 @@ const tagLabels: Record<Highlight, string> = {
           >
             <InfoIcon class="size-3" /> дольше вашего лимита за рулём — можно переночевать по пути
           </span>
-          <span v-if="viaLabel" class="text-sm text-muted-foreground">через {{ viaLabel }} · в любые даты</span>
+          <span v-if="viaLabel" class="text-sm text-muted-foreground">{{ viaLabel }} · в любые даты</span>
           <span v-else class="text-sm text-muted-foreground">без самолёта · в любые даты · туда и обратно</span>
         </div>
         <div class="flex flex-col items-start sm:items-end">
@@ -97,7 +115,7 @@ const tagLabels: Record<Highlight, string> = {
             class="text-3xl font-semibold tracking-tight tabular-nums transition-opacity"
             :class="search.refreshing && 'animate-pulse opacity-50'"
           >
-            {{ rub(drive.total) }}
+            {{ rub(total) }}
           </span>
           <span class="text-xs text-muted-foreground">{{ costLabel }}</span>
           <span v-if="drive.savings_vs_home && drive.savings_vs_home.amount > 0" class="text-sm font-medium text-success tabular-nums">
@@ -145,7 +163,7 @@ const tagLabels: Record<Highlight, string> = {
     <TripScreen
       v-if="screen"
       :title="`На машине → ${destName}`"
-      :subtitle="viaLabel ? `через ${viaLabel}` : `${km(drive.road.distance_km)} · ${hours(drive.drive_hours)} в одну сторону`"
+      :subtitle="viaLabel ? viaLabel : `${km(drive.road.distance_km)} · ${hours(drive.drive_hours)} в одну сторону`"
       @close="open = false"
     >
       <div class="flex flex-col gap-5 bg-[#f8fafd] p-4">
@@ -155,9 +173,9 @@ const tagLabels: Record<Highlight, string> = {
       <template #footer>
         <div class="flex min-w-0 flex-1 flex-col">
           <span class="text-xl leading-tight font-semibold tracking-tight tabular-nums" :class="search.refreshing && 'animate-pulse opacity-50'">
-            {{ rub(drive.total) }}
+            {{ rub(total) }}
           </span>
-          <span class="truncate text-xs text-muted-foreground">{{ costLabel }} на всех</span>
+          <span class="truncate text-xs text-muted-foreground">{{ costLabel }}</span>
         </div>
         <a
           :href="routeUrl"

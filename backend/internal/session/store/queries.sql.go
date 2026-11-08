@@ -9,30 +9,66 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createSession = `-- name: CreateSession :exec
-INSERT INTO sessions (id) VALUES ($1)
+const adoptSession = `-- name: AdoptSession :execrows
+UPDATE sessions SET user_id = $1, ended_at = now()
+WHERE id = $2 AND user_id IS NULL AND ended_at IS NULL
 `
 
-func (q *Queries) CreateSession(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.Exec(ctx, createSession, id)
+type AdoptSessionParams struct {
+	UserID pgtype.UUID
+	ID     uuid.UUID
+}
+
+// Вход из анонимной сессии: она переходит пользователю и закрывается — её данные теперь его.
+func (q *Queries) AdoptSession(ctx context.Context, arg AdoptSessionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, adoptSession, arg.UserID, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const createSession = `-- name: CreateSession :exec
+INSERT INTO sessions (id, user_id) VALUES ($1, $2)
+`
+
+type CreateSessionParams struct {
+	ID     uuid.UUID
+	UserID pgtype.UUID
+}
+
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
+	_, err := q.db.Exec(ctx, createSession, arg.ID, arg.UserID)
+	return err
+}
+
+const endSession = `-- name: EndSession :exec
+UPDATE sessions SET ended_at = now() WHERE id = $1 AND ended_at IS NULL
+`
+
+// Выход (или вход под другим аккаунтом): cookie больше не действует, данные остаются за пользователем.
+func (q *Queries) EndSession(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, endSession, id)
 	return err
 }
 
 const touchSession = `-- name: TouchSession :one
 WITH touched AS (
     UPDATE sessions t SET last_seen_at = now()
-    WHERE t.id = $1 AND t.last_seen_at < now() - interval '1 day'
+    WHERE t.id = $1 AND t.ended_at IS NULL AND t.last_seen_at < now() - interval '1 day'
     RETURNING t.id
 )
-SELECT (EXISTS (SELECT 1 FROM sessions s WHERE s.id = $1) OR EXISTS (SELECT 1 FROM touched))::bool
+SELECT s.user_id FROM sessions s WHERE s.id = $1 AND s.ended_at IS NULL
 `
 
-// Сессия существует? Заодно отмечаем визит — не чаще раза в сутки, чтобы не писать в БД на каждый запрос.
-func (q *Queries) TouchSession(ctx context.Context, sid uuid.UUID) (bool, error) {
+// Открытая сессия — её пользователь (NULL — анонимная); нет строки — сессии нет или она закрыта.
+// Заодно отмечаем визит — не чаще раза в сутки, чтобы не писать в БД на каждый запрос.
+func (q *Queries) TouchSession(ctx context.Context, sid uuid.UUID) (pgtype.UUID, error) {
 	row := q.db.QueryRow(ctx, touchSession, sid)
-	var column_1 bool
-	err := row.Scan(&column_1)
-	return column_1, err
+	var user_id pgtype.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
 }

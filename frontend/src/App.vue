@@ -1,17 +1,38 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { CompassIcon, MapIcon, SearchIcon, StarIcon } from '@lucide/vue'
+import { onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { CompassIcon, SearchIcon, StarIcon } from '@lucide/vue'
+import { useAuthStore } from '@/stores/auth'
 import { useFavoritesStore } from '@/stores/favorites'
+import AccountButton from '@/components/AccountButton.vue'
+import LoginSheet from '@/components/LoginSheet.vue'
 import logoUrl from '@/assets/logo.svg?inline'
 
 const favorites = useFavoritesStore()
-onMounted(favorites.load)
+const auth = useAuthStore()
+onMounted(() => {
+  favorites.load()
+  auth.load()
+})
+
+// Сервер вернул с ?login=failed — снова открываем вход с сообщением и убираем метку из адреса
+const route = useRoute()
+const router = useRouter()
+watch(
+  () => route.query.login,
+  (v) => {
+    if (v !== 'failed') return
+    auth.loginFailed = true
+    auth.loginOpen = true
+    const { login: _, ...query } = route.query
+    router.replace({ query, hash: route.hash })
+  },
+)
 
 // /map2 — рабочая карта для экспериментов, в меню её нет
 const tabs = [
   { to: '/', label: 'Поиск', icon: SearchIcon },
   { to: '/explore', label: 'Куда угодно', icon: CompassIcon },
-  { to: '/map', label: 'Карта', icon: MapIcon },
   { to: '/favorites', label: 'Избранное', icon: StarIcon },
 ]
 </script>
@@ -47,14 +68,19 @@ const tabs = [
             </span>
           </RouterLink>
         </nav>
+        <!-- Профиль — справа в углу: «Войти» или аватар со ссылкой на личный кабинет -->
+        <div class="ml-auto flex items-center sm:ml-2">
+          <AccountButton />
+        </div>
       </div>
     </header>
+    <LoginSheet />
     <main class="pb-(--tabbar-h)">
       <RouterView />
     </main>
 
     <nav
-      class="fixed inset-x-0 bottom-0 z-40 grid h-(--tabbar-h) grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-40 grid h-(--tabbar-h) grid-cols-3 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
       aria-label="Разделы"
     >
       <RouterLink

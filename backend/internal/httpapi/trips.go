@@ -23,7 +23,11 @@ const searchHorizon = 90 * 24 * time.Hour
 const maxRangeDays = 60
 
 func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsRequestObject) (apigen.SearchTripsResponseObject, error) {
-	p := req.Params
+	return h.searchTrips(ctx, req.Params, false)
+}
+
+// searchTrips — поиск поездок; longDrive — для сохранённой поездки на машине (search.TripsQuery.LongDrive).
+func (h *handlers) searchTrips(ctx context.Context, p apigen.SearchTripsParams, longDrive bool) (apigen.SearchTripsResponseObject, error) {
 	dateFrom, dateTo := p.DateFrom.Time, p.DateTo.Time
 	if problem := checkDates(dateFrom, dateTo); problem != nil {
 		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(*problem), nil
@@ -40,6 +44,7 @@ func (h *handlers) SearchTrips(ctx context.Context, req apigen.SearchTripsReques
 		Car:           carParams(p.RadiusKm, p.MaxDriveHours, p.ConsumptionL100, p.FuelType, p.FuelPriceRub, p.AllowBorder),
 		Weekends:      valueOr(p.Weekends, false),
 		Via:           parseVia(p.Via),
+		LongDrive:     longDrive,
 	}
 	if q.MinDays > q.MaxDays {
 		return apigen.SearchTrips422ApplicationProblemPlusJSONResponse(fieldProblem("min_days", "не может быть больше max_days")), nil

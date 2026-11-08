@@ -23,6 +23,8 @@ const props = defineProps<{
   searchParams?: TripSearchParams // для избранного: параметры поиска, в котором найден вариант
   favorite?: Favorite // открыто из избранного: путевой лист этой записи
   openKey?: string // ключ варианта в адресе (?trip=), чтобы на телефоне открыть подробности отдельным экраном
+  total?: number // из избранного: вся стоимость с выбранным жильём и тратами, копейки
+  totalLabel?: string
 }>()
 const { open, screen, linked } = useTripOpen(() => props.openKey)
 // Открыли ссылкой на этот вариант — показываем его, а не начало списка
@@ -76,9 +78,9 @@ const weather = computed(() => ({
           </span>
         </div>
         <div class="flex flex-col items-start sm:items-end">
-          <span class="text-3xl font-semibold tracking-tight tabular-nums">{{ rub(option.total) }}</span>
+          <span class="text-3xl font-semibold tracking-tight tabular-nums">{{ rub(total ?? option.total) }}</span>
           <span class="text-xs text-muted-foreground">
-            дорога и билеты на всех
+            {{ totalLabel ?? 'дорога и билеты' }}
           </span>
           <span v-if="option.savings_vs_home && option.savings_vs_home.amount > 0" class="text-sm font-medium text-success tabular-nums">
             −{{ rub(option.savings_vs_home.amount) }} к вылету из дома
@@ -150,8 +152,8 @@ const weather = computed(() => ({
       </div>
       <template #footer>
         <div class="flex min-w-0 flex-1 flex-col">
-          <span class="text-xl leading-tight font-semibold tracking-tight tabular-nums">{{ rub(option.total) }}</span>
-          <span class="truncate text-xs text-muted-foreground">дорога и билеты на всех</span>
+          <span class="text-xl leading-tight font-semibold tracking-tight tabular-nums">{{ rub(total ?? option.total) }}</span>
+          <span class="truncate text-xs text-muted-foreground">{{ totalLabel ?? 'дорога и билеты' }}</span>
         </div>
         <a
           v-if="option.booking_url"

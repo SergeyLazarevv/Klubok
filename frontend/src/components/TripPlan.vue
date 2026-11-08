@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, onUnmounted, provide, ref, watch } from 'vue'
+import { computed, inject, onUnmounted, provide, ref, toRef, watch } from 'vue'
 import {
   BedDoubleIcon,
   CarIcon,
@@ -12,8 +12,6 @@ import {
   LandmarkIcon,
   MapIcon,
   MapPinIcon,
-  MapPinnedIcon,
-  XIcon,
   PlaneLandingIcon,
   PlaneTakeoffIcon,
 } from '@lucide/vue'
@@ -25,11 +23,11 @@ import { drivePick, driveSnapshot, favoriteTitle, flightPick, flightSnapshot } f
 import { tripSheetKey, useTripSheet } from '@/lib/tripSheet'
 import { replacedStopStays } from '@/lib/sheet'
 import type { Stop } from '@/lib/tripMap'
-import { armsUrl, photoUrl } from '@/lib/map/cities'
 import { stopPickerKey } from '@/lib/stopPicker'
 import { useProfileStore } from '@/stores/profile'
-import { parseVia, stopsEditorKey, useSearchStore } from '@/stores/search'
+import { formatVia, parseVia, stopsEditorKey, useSearchStore } from '@/stores/search'
 import PlanStage from '@/components/PlanStage.vue'
+import RoadStopStage from '@/components/RoadStopStage.vue'
 import StopStrip from '@/components/StopStrip.vue'
 import SheetStage from '@/components/SheetStage.vue'
 import SightStrip from '@/components/SightStrip.vue'
@@ -61,7 +59,7 @@ const driveStart = computed(() => {
   return chosen > tomorrow ? chosen : tomorrow
 })
 // На машине с ночёвками в пути до места доезжаем на столько дней позже
-const roadNights = computed(() => (props.drive?.stops ?? []).reduce((n, s) => n + s.nights, 0))
+const roadNights = computed(() => (props.drive?.stops ?? []).filter((s) => !s.back).reduce((n, s) => n + s.nights, 0))
 const arrivalDay = computed(() => {
   const d = new Date(driveStart.value)
   d.setUTCDate(d.getUTCDate() + roadNights.value)
@@ -96,8 +94,12 @@ const stopsEditor = inject(stopsEditorKey, undefined)
 const stopsEditable = computed(() => !!props.drive && !!stopsEditor)
 const currentVia = () => stopsEditor?.via(props.favorite) ?? []
 const cityStops = computed<DriveStop[]>(() => props.drive?.stops ?? [])
+// Остановки туда — после этапа «Дорога», обратно — после «Домой»
+const toStops = computed(() => cityStops.value.filter((s) => !s.back))
+const backStops = computed(() => cityStops.value.filter((s) => s.back))
 const roadLeg = computed(() => props.drive?.via_road ?? car.value?.road)
-const viaNames = computed(() => cityStops.value.map((s) => s.city.name).join(', '))
+const viaNames = computed(() => toStops.value.map((s) => s.city.name).join(', '))
+const backNames = computed(() => backStops.value.map((s) => s.city.name).join(', '))
 const profile = useProfileStore()
 const suggestions = ref<StopSuggestion[]>()
 const longRoad = computed(() => warnings.value.includes('long_drive_day') || (suggestions.value?.some((s) => s.overnight) ?? false))
@@ -113,17 +115,24 @@ watch(
   { immediate: true },
 )
 
+interface ChosenStop {
+  id: string
+  nights: number
+  back: boolean
+  at: [number, number]
+}
 const stopBusy = ref<string>()
-// Остановки — по порядку от дома: по прямой от дома до города
 // Пересчёт не удался — остановки как были, сообщение у того города, который меняли
 const stopError = ref<string>()
-async function setStops(list: { id: string; nights: number; at: [number, number] }[], busy: string) {
-  const home: [number, number] = [props.home.location.lat, props.home.location.lon]
-  list.sort((a, b) => greatCircleKm(home, a.at) - greatCircleKm(home, b.at))
+async function setStops(list: ChosenStop[], busy: string) {
+  // Туда — по порядку от дома, обратно — от места назначения: по прямой до города
+  const from = (s: ChosenStop): [number, number] =>
+    s.back ? [props.destination.location.lat, props.destination.location.lon] : [props.home.location.lat, props.home.location.lon]
+  list.sort((a, b) => Number(a.back) - Number(b.back) || greatCircleKm(from(a), a.at) - greatCircleKm(from(b), b.at))
   stopBusy.value = busy
   stopError.value = undefined
   try {
-    const failed = await stopsEditor?.set(list.map((s) => `${s.id}:${s.nights}`), props.favorite)
+    const failed = await stopsEditor?.set(list.map(formatVia), props.favorite)
     if (failed) {
       stopError.value = busy
       stopErrorText.value = failed
@@ -133,45 +142,54 @@ async function setStops(list: { id: string; nights: number; at: [number, number]
   }
 }
 const stopErrorText = ref('')
-const currentStops = () =>
-  cityStops.value.map((s) => ({ id: s.city.id, nights: s.nights, at: [s.city.location.lat, s.city.location.lon] as [number, number] }))
-function toggleStop(sg: StopSuggestion) {
+const currentStops = (): ChosenStop[] =>
+  cityStops.value.map((s) => ({ id: s.city.id, nights: s.nights, back: s.back, at: [s.city.location.lat, s.city.location.lon] }))
+// Город в маршруте — убрать; иначе добавить туда или, из ленты у «Домой», на обратном пути
+// В какой ленте добавляли город — там и сообщение, если пересчёт не удался
+const toggledBack = ref(false)
+function toggleStop(sg: StopSuggestion, back = false) {
+  toggledBack.value = back
   const list = currentStops()
   const i = list.findIndex((s) => s.id === sg.city.id)
   if (i >= 0) list.splice(i, 1)
   // Сначала — просто заезд; переночевать или нет, пользователь выбирает в этапе остановки
-  else list.push({ id: sg.city.id, nights: 0, at: [sg.city.location.lat, sg.city.location.lon] })
+  else list.push({ id: sg.city.id, nights: 0, back, at: [sg.city.location.lat, sg.city.location.lon] })
   return setStops(list, sg.city.id)
 }
 const setNights = (id: string, nights: number) =>
   setStops(currentStops().map((s) => (s.id === id ? { ...s, nights } : s)), id)
 const removeStop = (id: string) => setStops(currentStops().filter((s) => s.id !== id), id)
-// Выбранные: в варианте (в том числе подобранные сами) и уже в параметрах, пока вариант пересчитывается
-const chosenIds = computed(() => [
-  ...new Set([...cityStops.value.map((s) => s.city.id), ...currentVia().map((v) => parseVia(v)?.id).filter((id): id is string => !!id)]),
-])
-// Карта поездки тоже предлагает города и даёт заехать в них
-provide(stopPickerKey, { suggestions, chosen: chosenIds, busy: stopBusy, error: stopError, toggle: toggleStop })
+// Выбранные: в варианте и уже в параметрах, пока вариант пересчитывается
+const chosen = computed(() => {
+  const list = [...cityStops.value.map((s) => ({ id: s.city.id, back: s.back })), ...currentVia().map(parseVia).filter((v) => !!v)]
+  const ids = (back: boolean) => [...new Set(list.filter((s) => s.back === back).map((s) => s.id))]
+  return { to: ids(false), back: ids(true) }
+})
+const chosenIds = computed(() => [...chosen.value.to, ...chosen.value.back])
+// Город — только в одной из дорог: в ленте другой его нет. Обратно — по порядку от места назначения
+const toSuggestions = computed(() => suggestions.value?.filter((s) => !chosen.value.back.includes(s.city.id)))
+const backSuggestions = computed(() =>
+  suggestions.value?.filter((s) => !chosen.value.to.includes(s.city.id)).sort((a, b) => b.position - a.position),
+)
+// Карта поездки тоже предлагает города и даёт заехать в них (по дороге туда)
+provide(stopPickerKey, { suggestions, chosen: chosenIds, busy: stopBusy, error: stopError, toggle: (s) => toggleStop(s), travelers: toRef(props, 'travelers') })
 
-// Жильё в городе-остановке: заезд — в день, когда до него доезжаем (после ночёвок в прошлых остановках)
-function stopStayUrl(i: number, provider: 'sutochno' | 'avito') {
-  const st = cityStops.value[i]!
-  const before = cityStops.value.slice(0, i).reduce((n, s) => n + s.nights, 0)
-  const checkIn = new Date(driveStart.value)
+// Жильё в городе-остановке: заезд — в день, когда до него доезжаем (после ночёвок в прошлых остановках);
+// обратно — от дня выезда с места
+function stopStayUrls(st: DriveStop) {
+  const way = st.back ? backStops.value : toStops.value
+  const before = way.slice(0, way.indexOf(st)).reduce((n, s) => n + s.nights, 0)
+  const checkIn = new Date(st.back ? checkOut.value + 'T00:00:00Z' : driveStart.value)
   checkIn.setUTCDate(checkIn.getUTCDate() + before)
-  const checkOut = new Date(checkIn)
-  checkOut.setUTCDate(checkOut.getUTCDate() + Math.max(st.nights, 1))
-  return goUrl({ city: st.city.id, check_in: isoDay(checkIn), check_out: isoDay(checkOut), travelers: props.travelers, provider })
+  const out = new Date(checkIn)
+  out.setUTCDate(out.getUTCDate() + Math.max(st.nights, 1))
+  const url = (provider: string) =>
+    goUrl({ city: st.city.id, check_in: isoDay(checkIn), check_out: isoDay(out), travelers: props.travelers, provider })
+  return { sutochno: url('sutochno'), avito: url('avito') }
 }
-const nightOptions = [
-  { n: 0, label: 'Заезд' },
-  { n: 1, label: '1 ночь' },
-  { n: 2, label: '2 ночи' },
-]
 // Своё жильё в остановке выбрано и с ценой — оно в итоге вместо оценки
 const ownStay = (s: DriveStop) =>
   sheet.items.value.some((i) => i.city === s.city.id && i.stage === 'stay' && i.done && i.price)
-const stopSubtitle = (s: DriveStop) => (s.nights ? `${s.nights} ${plural(s.nights, 'ночь', 'ночи', 'ночей')}` : 'заезд на несколько часов')
 
 // Путевой лист: пункты пользователя на этапах поездки. Первый пункт сохраняет поездку в избранное.
 const search = useSearchStore()
@@ -204,12 +222,20 @@ function toggleSight(stage: TripItemStage, s: SightItem) {
 // Места из листа на карте: через места по пути прокладываем дорогу, места в городе просто отмечаем.
 // Города-остановки — тоже по пути, дорога идёт через них
 const stops = computed<Stop[]>(() => [
-  ...cityStops.value.map((s) => ({ id: `city-${s.city.id}`, title: s.city.name, at: [s.city.location.lat, s.city.location.lon] as [number, number], onRoad: true, city: true })),
+  ...cityStops.value.map((s) => ({
+    id: `city-${s.city.id}`,
+    title: s.city.name,
+    at: [s.city.location.lat, s.city.location.lon] as [number, number],
+    onRoad: true,
+    city: true,
+    back: s.back,
+  })),
   ...sheet.items.value
     .filter((i) => i.location)
     .map((i) => ({ id: i.id, title: i.title, at: [i.location!.lat, i.location!.lon] as [number, number], onRoad: i.stage === 'road' && byCar.value })),
 ])
 const roadStopCount = computed(() => stops.value.filter((s) => s.onRoad && !s.city).length)
+const backLeg = computed(() => props.drive?.back_road ?? car.value?.road)
 // Во что обходятся заезды: разница с прямой дорогой; бензин — по той же цене за км, что в расчёте машины
 const mapRoad = ref<RoadRoute>()
 const detour = computed(() => {
@@ -219,8 +245,8 @@ const detour = computed(() => {
   const base = roadLeg.value ?? c.road
   const km = mapRoad.value.road.distance_km - base.distance_km
   const min = mapRoad.value.road.duration_min - base.duration_min
-  // Бензин в цене — туда по base, обратно напрямую
-  const fuelKm = base.distance_km + c.road.distance_km
+  // Бензин в цене — туда по base, обратно напрямую или через остановки обратно
+  const fuelKm = base.distance_km + (backLeg.value ?? c.road).distance_km
   const fuelPerKm = fuelKm ? c.cost.fuel.amount / fuelKm : 0
   return { km: Math.max(km, 0), min: Math.max(min, 0), fuel: Math.max(km, 0) * fuelPerKm, approximate: mapRoad.value.road.approximate }
 })
@@ -390,13 +416,13 @@ watch(
             <InfoIcon class="mt-0.5 size-3.5 shrink-0" /> {{ car.border.note }}
           </p>
         </article>
-        <template v-if="stopsEditable && suggestions?.length">
+        <template v-if="stopsEditable && toSuggestions?.length">
           <span class="mt-1 text-sm font-semibold">
             Остановиться в городе
             <span class="font-normal text-muted-foreground">— {{ longRoad ? 'дорога длинная, можно заночевать' : 'размяться, пообедать, посмотреть город' }}</span>
           </span>
-          <StopStrip :items="suggestions" :chosen="chosenIds" :busy="stopBusy" @toggle="toggleStop" />
-          <p v-if="stopError && !cityStops.some((s) => s.city.id === stopError)" class="text-sm text-destructive" role="alert">
+          <StopStrip :items="toSuggestions" :chosen="chosen.to" :busy="stopBusy" :travelers="travelers" @toggle="toggleStop($event)" />
+          <p v-if="stopError && !cityStops.some((s) => s.city.id === stopError) && !toggledBack" class="text-sm text-destructive" role="alert">
             {{ stopErrorText }}
           </p>
         </template>
@@ -413,102 +439,21 @@ watch(
         <SheetStage stage="road" add-label="Заметка в дорогу" placeholder="Например: заехать на озеро, заправиться в Тольятти" />
       </PlanStage>
 
-      <PlanStage v-for="(st, i) in cityStops" :key="st.city.id" :icon="MapPinnedIcon" :title="st.city.name" :subtitle="stopSubtitle(st)">
-        <article class="plan-card">
-          <div class="flex items-start gap-3">
-            <span class="relative size-16 shrink-0 overflow-hidden rounded-xl bg-muted">
-              <img v-if="st.city.photo" :src="photoUrl(st.city.photo)" alt="" loading="lazy" class="size-full object-cover" />
-              <img
-                v-if="st.city.arms"
-                :src="armsUrl(st.city.id)"
-                alt=""
-                class="absolute object-contain drop-shadow"
-                :class="st.city.photo ? 'right-1 bottom-1 size-6' : 'inset-2 size-12'"
-              />
-            </span>
-            <div class="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span class="font-semibold">{{ st.nights ? 'Ночёвка в пути' : 'Заезд по пути' }}</span>
-              <span v-if="st.city.landmark" class="line-clamp-2 text-sm text-muted-foreground">{{ st.city.landmark }}</span>
-            </div>
-          </div>
-          <div v-if="stopsEditable" class="flex items-center gap-2">
-            <div class="flex flex-1 rounded-full bg-muted p-1" role="radiogroup" :aria-label="`Сколько быть в г. ${st.city.name}`">
-              <button
-                v-for="o in nightOptions"
-                :key="o.n"
-                type="button"
-                role="radio"
-                class="h-9 flex-1 rounded-full text-sm font-medium transition-colors disabled:opacity-60"
-                :class="st.nights === o.n ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'"
-                :aria-checked="st.nights === o.n"
-                :disabled="!!stopBusy"
-                @click="st.nights !== o.n && setNights(st.city.id, o.n)"
-              >
-                {{ o.label }}
-              </button>
-            </div>
-            <button
-              type="button"
-              class="flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground ring-1 ring-input hover:bg-muted disabled:opacity-60"
-              :aria-label="`Убрать остановку в г. ${st.city.name}`"
-              title="Убрать остановку"
-              :disabled="!!stopBusy"
-              @click="removeStop(st.city.id)"
-            >
-              <XIcon class="size-4" />
-            </button>
-          </div>
-          <p class="text-xs text-muted-foreground">
-            <template v-if="st.nights && ownStay(st)">В итоге — цена выбранного жилья ниже, а не оценка.</template>
-            <template v-else-if="st.nights && st.stay_per_night">
-              Гостиница 3* ≈ {{ rub(st.stay_per_night) }} за сутки с человека (Росстат) — на всех
-              <b class="font-semibold text-foreground tabular-nums">{{ rub(st.stay!) }}</b>, уже в итоге.
-            </template>
-            <template v-else-if="st.nights">Цены на гостиницу здесь нет — ночёвка в итог не вошла.</template>
-            <template v-else>Без ночёвки: в итоге только бензин на заезд.</template>
-          </p>
-          <p v-if="stopError === st.city.id" class="text-sm text-destructive" role="alert">{{ stopErrorText }}</p>
-          <div v-if="st.nights" class="flex flex-wrap gap-2">
-            <a
-              :href="stopStayUrl(i, 'sutochno')"
-              @click="leaveForStay(st.city.id)"
-              target="_blank"
-              rel="noopener"
-              class="flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary ring-1 ring-input hover:bg-accent"
-            >
-              Жильё на Суточно.ру <ExternalLinkIcon class="size-3.5" />
-            </a>
-            <a
-              :href="stopStayUrl(i, 'avito')"
-              @click="leaveForStay(st.city.id)"
-              target="_blank"
-              rel="noopener"
-              class="flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-medium text-primary ring-1 ring-input hover:bg-accent"
-            >
-              Посуточно на Авито <ExternalLinkIcon class="size-3.5" />
-            </a>
-          </div>
-        </article>
-        <!-- Жильё и дела в этом городе — рядом с ним, а не у места назначения -->
-        <SheetStage
-          v-if="st.nights"
-          stage="stay"
-          :city="st.city.id"
-          add-label="Выбрали жильё? Добавьте ссылку на объявление"
-          placeholder="Ссылка на объявление или отель"
-          :nights="st.nights"
-          :prompt="stayPrompt === st.city.id"
-          more-label="Ещё вариант жилья"
-          @prompted="stayPrompt = undefined"
-        />
-        <SheetStage
-          stage="see"
-          :city="st.city.id"
-          :add-label="`Дело или место в г. ${st.city.name}`"
-          placeholder="Например: пообедать в центре, музей, набережная"
-          :more-label="`Ещё дело в г. ${st.city.name}`"
-        />
-      </PlanStage>
+      <RoadStopStage
+        v-for="st in toStops"
+        :key="st.city.id"
+        :stop="st"
+        :editable="stopsEditable"
+        :busy="stopBusy"
+        :error="stopError === st.city.id ? stopErrorText : undefined"
+        :stay-urls="stopStayUrls(st)"
+        :own-stay="ownStay(st)"
+        :prompt="stayPrompt === st.city.id"
+        @nights="setNights(st.city.id, $event)"
+        @remove="removeStop(st.city.id)"
+        @leave="leaveForStay(st.city.id)"
+        @prompted="stayPrompt = undefined"
+      />
 
       <PlanStage v-if="option" :icon="PlaneTakeoffIcon" title="Вылет" :subtitle="localDayWeek(option.depart_at)">
         <article class="plan-card">
@@ -674,14 +619,45 @@ watch(
         </article>
       </PlanStage>
 
-      <PlanStage v-if="car" :icon="HouseIcon" title="Домой" :subtitle="returnLabel" last>
+      <PlanStage v-if="car" :icon="HouseIcon" title="Домой" :subtitle="returnLabel" :last="!backStops.length">
         <article class="plan-card">
           <span class="font-semibold">{{ roadTo.name }} → {{ home.name }}</span>
-          <span class="text-sm text-muted-foreground">
-            {{ cityStops.length ? 'напрямую' : 'тот же путь' }}, {{ km(car.road.distance_km) }} · {{ hours(car.drive_hours) }} — уже учтено в стоимости машины
+          <span v-if="drive?.back_road" class="text-sm text-muted-foreground">
+            через {{ backNames }} · {{ km(drive.back_road.distance_km) }} · {{ hours(drive.back_road.duration_min / 60) }} за рулём — уже учтено
+            в стоимости машины
+          </span>
+          <span v-else class="text-sm text-muted-foreground">
+            {{ toStops.length ? 'напрямую' : 'тот же путь' }}, {{ km(car.road.distance_km) }} · {{ hours(car.drive_hours) }} — уже учтено в стоимости машины
           </span>
         </article>
+        <template v-if="stopsEditable && backSuggestions?.length">
+          <span class="mt-1 text-sm font-semibold">
+            Остановиться на обратном пути
+            <span class="font-normal text-muted-foreground">— {{ longRoad ? 'дорога длинная, можно заночевать' : 'размяться, пообедать, посмотреть город' }}</span>
+          </span>
+          <StopStrip :items="backSuggestions" :chosen="chosen.back" :busy="stopBusy" :travelers="travelers" back @toggle="toggleStop($event, true)" />
+          <p v-if="stopError && !cityStops.some((s) => s.city.id === stopError) && toggledBack" class="text-sm text-destructive" role="alert">
+            {{ stopErrorText }}
+          </p>
+        </template>
       </PlanStage>
+
+      <RoadStopStage
+        v-for="(st, i) in backStops"
+        :key="st.city.id"
+        :stop="st"
+        :editable="stopsEditable"
+        :busy="stopBusy"
+        :error="stopError === st.city.id ? stopErrorText : undefined"
+        :stay-urls="stopStayUrls(st)"
+        :own-stay="ownStay(st)"
+        :prompt="stayPrompt === st.city.id"
+        :last="i === backStops.length - 1"
+        @nights="setNights(st.city.id, $event)"
+        @remove="removeStop(st.city.id)"
+        @leave="leaveForStay(st.city.id)"
+        @prompted="stayPrompt = undefined"
+      />
     </ol>
 
     <section v-if="sheet.items.value.length" class="flex flex-col gap-1 rounded-2xl bg-card p-4 ring-1 ring-border">

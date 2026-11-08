@@ -43,7 +43,7 @@ func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{q: store.New(pool)}
 }
 
-// Add сохраняет вариант. created=false — такой уже был в избранном этой сессии.
+// Add сохраняет вариант. created=false — такой уже был в избранном владельца (сессии или её пользователя).
 func (s *Service) Add(ctx context.Context, sessionID uuid.UUID, f Favorite) (Favorite, bool, error) {
 	fp, err := Fingerprint(f.Params, f.Pick)
 	if err != nil {
@@ -126,6 +126,16 @@ func (s *Service) Delete(ctx context.Context, sessionID, id uuid.UUID) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+// DropAdoptedDuplicates — после входа: анонимная сессия перешла пользователю; копии вариантов, которые у него
+// уже были, убираем (кроме тех, где начат путевой лист). Ошибка не мешает входу — останутся дубли.
+func (s *Service) DropAdoptedDuplicates(ctx context.Context, adoptedSessionID uuid.UUID) (int64, error) {
+	n, err := s.q.DropAdoptedDuplicates(ctx, adoptedSessionID)
+	if err != nil {
+		return 0, fmt.Errorf("drop adopted duplicates: %w", err)
+	}
+	return n, nil
 }
 
 // fingerprintParams — по каким параметрам вариант считается «тем же самым». Настройки машины не входят:

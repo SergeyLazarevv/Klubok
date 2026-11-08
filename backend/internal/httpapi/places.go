@@ -6,12 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/SergeyLazarevv/Klubok/backend/internal/auth"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/linkpreview"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/mapsearch"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/stay"
@@ -28,7 +30,9 @@ type handlers struct {
 	// Как добраться внутри города
 	transfers *transfer.Service
 	geocoder  *transfer.Photon
+	mapSearch *mapsearch.Service
 	favorites *favorites.Service
+	auth      *auth.Service
 	previews  *linkpreview.Fetcher
 	stay      *stay.Service
 	road      *road.Service

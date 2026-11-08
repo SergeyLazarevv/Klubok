@@ -9,6 +9,7 @@ import {
 import { useLocalStorage, watchDebounced } from '@vueuse/core'
 import { api, type ExploreItem, type ExploreResponse, type FavoritePick, type FavoriteSnapshot, type Place, type StayPrice, type StopSuggestion, type TripOption, type TripSearchParams } from '@/api/client'
 import { useProfileStore } from '@/stores/profile'
+import MapSearch from '@/components/MapSearch.vue'
 import { createStyledMap, maplibregl, type MapLibreMap } from '@/lib/map/maplibre'
 import { PASTEL, cartoonStyle } from '@/lib/map/cartoonStyle'
 import { armsUrl, photoUrl, warmStickerCache, withCities, type City } from '@/lib/map/cities'
@@ -257,6 +258,7 @@ function explain(c: CityFeature) {
   const [d] = addStay([{ key: c.city.id, name: c.city.name, lon: c.lon, lat: c.lat, city: c.city, price: Infinity, by: 'car', unreachable: { drive } }])
   unreachable.value = d
   selectedKey.value = d.key
+  if (drive) resolveDrivePlace(d) // дальше лимита за рулём — всё равно можно в избранное
   nextTick(() => card.value?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
 }
 
@@ -315,6 +317,7 @@ function select(d: Destination | undefined, fly = true) {
 // --- Карта ---
 const el = ref<HTMLElement>()
 let map: MapLibreMap | undefined
+const searchMap = shallowRef<MapLibreMap>() // поиску карта нужна реактивно: создаётся в onMounted
 let homeMarker: maplibregl.Marker | undefined
 const mapReady = ref(false)
 const PANEL_WIDTH = 432 // ширина панели с отступом, px
@@ -339,7 +342,7 @@ onMounted(() => {
   const wide = window.matchMedia('(min-width: 1024px)').matches
   const m = createStyledMap(el.value!, style, { center, zoom: 4.3 })
   if (wide) m.setPadding({ left: PANEL_WIDTH, top: 0, right: 0, bottom: 0 })
-  map = m
+  map = searchMap.value = m
   m.once('load', warmStickerCache)
   placeHome(homePlace.value)
   // Слоям нужен разобранный стиль, но не тайлы: style.load приходит сразу, load — после всех тайлов
@@ -496,7 +499,7 @@ watch(
 const favorite = computed(() => {
   const d = selected.value
   const home = homePlace.value
-  if (!d || !home || d.lookup || d.unreachable) return
+  if (!d || !home || d.lookup) return
   const base = searchQuery()
   const common = {
     from: home.id,
@@ -519,14 +522,16 @@ const favorite = computed(() => {
     const params: TripSearchParams = { ...common, to: d.flight.city.id }
     return { home, destination: d.flight.city, params, pick: flightPick(b), snapshot: flightSnapshot(b) }
   }
+  // Город дальше лимита за рулём — в избранное с оценкой дороги, как у поездок на машине
+  const drive = d.drive ?? d.unreachable?.drive
   const place = drivePlaces.value.get(d.key)
-  if (!d.drive || !place) return
+  if (!drive || !place) return
   const params: TripSearchParams = { ...common, to: place.id }
-  const total = d.drive.total
+  const total = drive.total
   const snapshot: FavoriteSnapshot = {
     total: { amount: total, currency: 'RUB' },
     per_person: { amount: Math.round(total / Math.max(1, travelers.value)), currency: 'RUB' },
-    drive_hours: d.drive.hours,
+    drive_hours: drive.hours,
     trip_days: duration.value.min,
   }
   return { home, destination: place, params, pick: drivePick as FavoritePick, snapshot }
@@ -553,10 +558,12 @@ const tabs = computed(() =>
 <template>
   <div class="relative flex flex-col lg:block lg:h-[calc(100dvh-3.5rem-1px)]">
     <!-- Карта на всю ширину, панель — поверх -->
-    <div class="relative h-[55dvh] lg:absolute lg:inset-0 lg:h-auto">
+    <div class="map-with-search relative h-[55dvh] lg:absolute lg:inset-0 lg:h-auto">
       <div ref="el" class="size-full bg-[#d9f0ff]" />
+      <!-- На компьютере — по центру видимой части карты, справа от панели -->
+      <MapSearch :map="searchMap" class="lg:left-[calc(50%+216px)] lg:w-[min(36rem,calc(100%-432px-8rem))]" />
       <Transition name="fade">
-        <div v-if="loading" class="pointer-events-none absolute top-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-background/90 px-4 py-2 text-sm font-medium shadow-lg ring-1 ring-black/5 backdrop-blur lg:left-[calc(50%+210px)]">
+        <div v-if="loading" class="pointer-events-none absolute top-[4.25rem] left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full bg-background/90 px-4 py-2 text-sm font-medium shadow-lg ring-1 ring-black/5 backdrop-blur lg:left-[calc(50%+210px)]">
           <span class="loader-dot" /> Ищем цены
         </div>
       </Transition>
@@ -652,6 +659,19 @@ const tabs = computed(() =>
             <div v-if="selected.stay" class="flex items-baseline justify-between gap-2 rounded-2xl bg-muted p-3">
               <span class="flex items-center gap-2"><BedDoubleIcon class="size-4 text-muted-foreground" /> Сутки в гостинице 3*</span>
               <span class="font-semibold tabular-nums">≈ {{ rub(selected.stay.perNight) }}</span>
+            </div>
+            <div v-if="favorite" class="flex gap-2">
+              <a :href="routeLink(selected)" target="_blank" rel="noopener" class="btn btn--ghost flex-1">
+                Маршрут в Яндекс Картах <ExternalLinkIcon class="size-4" />
+              </a>
+              <FavoriteButton
+                :pick="favorite.pick"
+                :snapshot="favorite.snapshot"
+                :home="favorite.home"
+                :destination="favorite.destination"
+                :params="favorite.params"
+                class="size-11!"
+              />
             </div>
           </div>
           <div v-else-if="selected.lookup" class="flex items-center gap-3 p-4 text-sm">

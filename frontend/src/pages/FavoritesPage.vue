@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onUnmounted, provide, reactive, watch } from 'vue'
 import {
-  ArrowRightIcon, BedDoubleIcon, CalendarIcon, CarIcon, ReceiptIcon, EqualIcon, PlaneIcon, RotateCcwIcon, SearchIcon, StarIcon, TrashIcon, TrendingDownIcon, TrendingUpIcon, UsersIcon,
+  ArrowRightIcon, CalendarIcon, CarIcon, EqualIcon, PlaneIcon, RotateCcwIcon, SearchIcon, StarIcon, TrashIcon, TrendingDownIcon, TrendingUpIcon, UsersIcon,
 } from '@lucide/vue'
 import { api, type Favorite, type FavoriteCurrent } from '@/api/client'
 import { hours, localDay, plural, rub } from '@/lib/format'
 import { useFavoritesStore } from '@/stores/favorites'
 import { stopsEditorKey } from '@/stores/search'
 import { useSheetStore } from '@/stores/sheet'
-import { countedInTotal, replacedStopStays, sheetExtras } from '@/lib/sheet'
+import { replacedStopStays, sheetExtras } from '@/lib/sheet'
 import DriveOptionCard from '@/components/DriveOptionCard.vue'
 import TripOptionCard from '@/components/TripOptionCard.vue'
 
@@ -38,11 +38,20 @@ watch(() => favorites.items, refreshAll, { immediate: true })
 const sheets = useSheetStore()
 watch(() => favorites.items, (list) => list.forEach((f) => void sheets.load(f.id)), { immediate: true })
 const extras = (f: Favorite) => sheetExtras(sheets.byFavorite[f.id] ?? [])
-const unchosen = (f: Favorite) => (sheets.byFavorite[f.id] ?? []).filter((i) => i.price && !countedInTotal(i)).length
 /** Цена самой поездки: актуальная, а пока не обновилась или источник не ответил — на момент сохранения. */
 // Ночёвки в остановках, где выбрано своё жильё, — по цене объявления (оно в extras), а не по оценке
 const tripTotal = (f: Favorite) =>
   (cur(f)?.total ?? f.snapshot.total).amount - replacedStopStays(sheets.byFavorite[f.id] ?? [], cur(f)?.drive?.stops)
+/** Вся стоимость поездки — в углу карточки: дорога + выбранное в путевом листе жильё и траты. */
+const fullTotal = (f: Favorite) => tripTotal(f) + extras(f).total
+function totalLabel(f: Favorite) {
+  const drive = cur(f)?.drive
+  const parts = [drive ? 'бензин' : 'дорога и билеты']
+  if (extras(f).stay || drive?.stay) parts.push('жильё')
+  if (drive?.border) parts.push('страховка')
+  if (extras(f).other) parts.push('траты')
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} и ${parts.at(-1)}` : parts[0]
+}
 
 async function undo() {
   const fav = await favorites.undoRemove()
@@ -226,37 +235,6 @@ const count = computed(() => favorites.items.length)
           </div>
         </header>
 
-        <!-- Итог с путевым листом: билеты/дорога + выбранное жильё + траты -->
-        <div v-if="extras(f).total" class="budget" :aria-busy="pending(f)">
-          <span class="budget__part">
-            <span class="budget__label">{{ f.pick.kind === 'drive' ? 'Дорога' : 'Билеты и дорога' }}</span>
-            <div v-if="pending(f)" class="skeleton h-5 w-20" />
-            <span v-else class="budget__value">{{ rub(tripTotal(f)) }}</span>
-          </span>
-          <template v-if="extras(f).stay">
-            <span class="budget__op">+</span>
-            <span class="budget__part">
-              <span class="budget__label"><BedDoubleIcon class="size-3.5" /> Жильё</span>
-              <span class="budget__value">{{ rub(extras(f).stay) }}</span>
-            </span>
-          </template>
-          <template v-if="extras(f).other">
-            <span class="budget__op">+</span>
-            <span class="budget__part">
-              <span class="budget__label"><ReceiptIcon class="size-3.5" /> Траты</span>
-              <span class="budget__value">{{ rub(extras(f).other) }}</span>
-            </span>
-          </template>
-          <span class="budget__op budget__op--eq">=</span>
-          <span class="budget__part budget__part--total">
-            <span class="budget__label">Итого на всех</span>
-            <div v-if="pending(f)" class="skeleton h-6 w-28" />
-            <span v-else class="budget__value">{{ rub(tripTotal(f) + extras(f).total) }}</span>
-          </span>
-          <span v-if="unchosen(f)" class="budget__note">
-            {{ unchosen(f) }} {{ plural(unchosen(f), 'вариант', 'варианта', 'вариантов') }} без отметки «Выбрано» — не в итоге
-          </span>
-        </div>
 
         <p v-if="cur(f) && cur(f)!.status !== 'found'" class="rounded-2xl bg-muted px-4 py-2.5 text-sm text-muted-foreground">
           {{ statusText[cur(f)!.status] }}
@@ -282,6 +260,8 @@ const count = computed(() => favorites.items.length)
             :search-params="f.params"
             :favorite="f"
             :open-key="f.id"
+            :total="fullTotal(f)"
+            :total-label="totalLabel(f)"
           />
           <DriveOptionCard
             v-else-if="cur(f)!.drive"
@@ -293,6 +273,8 @@ const count = computed(() => favorites.items.length)
             :search-params="f.params"
             :favorite="f"
             :open-key="f.id"
+            :total="fullTotal(f)"
+            :total-label="totalLabel(f)"
           />
         </template>
       </article>
@@ -382,103 +364,5 @@ const count = computed(() => favorites.items.length)
 .change--up {
   background: #feefc3;
   color: #6b4a00;
-}
-
-/* Итог поездки «слагаемыми»: билеты + жильё + траты = итого */
-.budget {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 8px 12px;
-  padding: 12px 16px;
-  border-radius: 20px;
-  background: linear-gradient(90deg, #eef3fb, #f6f8fc);
-}
-.budget__part {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.budget__label {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 11.5px;
-  color: var(--muted-foreground);
-}
-.budget__value {
-  font-size: 17px;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  font-feature-settings: 'tnum', 'ss01';
-}
-.budget__op {
-  padding-bottom: 2px;
-  font-size: 17px;
-  color: var(--muted-foreground);
-}
-.budget__op--eq {
-  margin-left: auto;
-}
-.budget__part--total {
-  align-items: flex-end;
-}
-.budget__note {
-  flex-basis: 100%;
-  font-size: 11.5px;
-  color: var(--muted-foreground);
-}
-.budget__part--total .budget__label {
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-size: 10.5px;
-}
-.budget__part--total .budget__value {
-  font-size: 24px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
-  color: var(--primary);
-}
-
-/* Строки появляются каскадом, удалённая — уезжает и схлопывается */
-.fav-enter-active {
-  transition: opacity 0.45s ease, transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
-  transition-delay: calc(var(--i) * 60ms);
-}
-.fav-enter-from {
-  opacity: 0;
-  transform: translateY(12px);
-}
-.fav-leave-active {
-  position: absolute;
-  inset-inline: 0;
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-.fav-leave-to {
-  opacity: 0;
-  transform: translateX(-24px);
-}
-.fav-move {
-  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-.toast-enter-active,
-.toast-leave-active {
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-.toast-enter-from,
-.toast-leave-to {
-  opacity: 0;
-  transform: translateY(12px);
-}
-@media (prefers-reduced-motion: reduce) {
-  .fav-enter-active,
-  .fav-leave-active,
-  .fav-move,
-  .toast-enter-active,
-  .toast-leave-active {
-    transition: none;
-  }
 }
 </style>

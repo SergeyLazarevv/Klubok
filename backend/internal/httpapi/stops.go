@@ -80,16 +80,19 @@ func toAPIStopCity(c stay.MapCity) apigen.StopCity {
 	}
 }
 
-// parseVia разбирает остановки «Q900:1» (формат проверил валидатор по схеме).
+// parseVia разбирает остановки «Q900:1», на обратном пути — «Q900:1:back» (формат проверил валидатор по схеме).
 func parseVia(via *[]string) []search.ViaStop {
 	var out []search.ViaStop
 	for _, v := range derefSlice(via) {
-		id, n, ok := strings.Cut(v, ":")
-		nights, err := strconv.Atoi(n)
-		if !ok || err != nil {
+		parts := strings.Split(v, ":")
+		if len(parts) < 2 {
 			continue
 		}
-		out = append(out, search.ViaStop{CityID: id, Nights: nights})
+		nights, err := strconv.Atoi(parts[1])
+		if err != nil {
+			continue
+		}
+		out = append(out, search.ViaStop{CityID: parts[0], Nights: nights, Back: len(parts) > 2 && parts[2] == "back"})
 	}
 	return out
 }
@@ -100,7 +103,7 @@ func toAPIDriveStops(d search.DriveOption, t *apigen.DriveTrip) {
 	}
 	stops := make([]apigen.DriveStop, len(d.Stops))
 	for i, st := range d.Stops {
-		stops[i] = apigen.DriveStop{City: toAPIStopCity(st.City), Nights: st.Nights}
+		stops[i] = apigen.DriveStop{City: toAPIStopCity(st.City), Nights: st.Nights, Back: st.Back}
 		if st.PerNight > 0 {
 			per := rub(st.PerNight)
 			stops[i].StayPerNight = &per
@@ -114,6 +117,10 @@ func toAPIDriveStops(d search.DriveOption, t *apigen.DriveTrip) {
 	if d.ViaLeg != nil {
 		v := toAPIRoad(*d.ViaLeg)
 		t.ViaRoad = &v
+	}
+	if d.BackLeg != nil {
+		b := toAPIRoad(*d.BackLeg)
+		t.BackRoad = &b
 	}
 	if d.Stay > 0 {
 		s := rub(d.Stay)

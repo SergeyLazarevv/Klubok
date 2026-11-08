@@ -44,11 +44,14 @@ type DriveOption struct {
 	TripDays   int // для расчёта; даты у поездки на машине свободные
 	Warnings   []Warning
 
-	// С остановками по пути (TripsQuery.Via): туда — через них, обратно — напрямую
-	Stops  []DriveStop
-	ViaLeg *road.Leg   // дорога туда через остановки
-	Stay   carcost.Kop // ночёвки в остановках на всех; входит в Total
-	parts  []road.Leg  // участки дороги туда между остановками
+	// С остановками по пути (TripsQuery.Via): туда и обратно — каждый путь через свои остановки,
+	// без остановок в эту сторону — напрямую
+	Stops     []DriveStop // сначала остановки туда, потом обратно, каждые по порядку
+	ViaLeg    *road.Leg   // дорога туда через остановки; nil — туда без остановок
+	BackLeg   *road.Leg   // дорога обратно через остановки; nil — обратно без остановок
+	Stay      carcost.Kop // ночёвки в остановках на всех; входит в Total
+	parts     []road.Leg  // участки дороги туда между остановками
+	backParts []road.Leg  // участки дороги обратно между остановками
 }
 
 // DriveStop — остановка по пути с ценой ночёвок.
@@ -57,14 +60,15 @@ type DriveStop struct {
 	Nights   int
 	PerNight carcost.Kop // сутки с человека; 0 — цены нет
 	Stay     carcost.Kop // ночёвки на всех
+	Back     bool        // на обратном пути
 }
 
 // drive считает вариант «только на машине». nil и причина — вариант не подходит.
 func (s *Service) drive(ctx context.Context, home, dest geo.Place, q TripsQuery, fuelPrice carcost.Kop) (*DriveOption, DriveSkip, error) {
 	stops := s.viaStops(q.Via)
-	// Длинную дорогу не прячем и сами её не делим: пользователь видит города по пути и сам выбирает,
-	// где заехать и где переночевать (ADR-0023). С ночёвками лимит «за рулём» — на каждый день
-	relaxed := s.stops != nil && q.Car.MaxDriveHours > 0
+	// В поиске машина целиком — только в пределах лимита «за рулём». В сохранённой поездке и с выбранными
+	// ночёвками (ADR-0023) лимит проверяется по каждому дню, а длинный день лишь помечается
+	relaxed := s.stops != nil && q.Car.MaxDriveHours > 0 && (q.LongDrive || overnight(stops))
 	dq := q
 	if relaxed {
 		dq.Car.MaxDriveHours = 0
@@ -102,7 +106,7 @@ func (s *Service) viaStops(via []ViaStop) []DriveStop {
 	var out []DriveStop
 	for _, v := range via {
 		if c, ok := s.stops.City(v.CityID); ok {
-			out = append(out, DriveStop{City: c, Nights: v.Nights})
+			out = append(out, DriveStop{City: c, Nights: v.Nights, Back: v.Back})
 		}
 	}
 	return out
@@ -117,37 +121,42 @@ func overnight(stops []DriveStop) bool {
 	return false
 }
 
-// applyStops — дорога туда через остановки и ночёвки в них. Бензин — туда через остановки и обратно напрямую,
-// ночёвка — сутки в гостинице 3* × люди × ночи (Росстат, ADR-0021).
+// applyStops — дорога туда и обратно через свои остановки и ночёвки в них. Бензин — по сумме путей туда
+// и обратно, ночёвка — сутки в гостинице 3* × люди × ночи (Росстат, ADR-0021).
 func (s *Service) applyStops(ctx context.Context, d *DriveOption, home, dest geo.Place, stops []DriveStop, q TripsQuery, fuelPrice carcost.Kop) error {
-	via := make([]road.Point, len(stops))
-	for i, st := range stops {
-		via[i] = road.Point{Lat: st.City.Lat, Lon: st.City.Lon}
+	to, back := splitStops(stops)
+	toM, backM := d.Leg.DistanceM, d.Leg.DistanceM
+	if len(to) > 0 {
+		route, err := s.road.Route(ctx, roadPoint(home), roadPoint(dest), stopPoints(to)...)
+		if err != nil {
+			return err
+		}
+		d.ViaLeg, d.parts, toM = &route.Leg, route.Parts, route.DistanceM
+		d.markApproximate(route.Approximate)
 	}
-	route, err := s.road.Route(ctx, roadPoint(home), roadPoint(dest), via...)
-	if err != nil {
-		return err
+	if len(back) > 0 {
+		route, err := s.road.Route(ctx, roadPoint(dest), roadPoint(home), stopPoints(back)...)
+		if err != nil {
+			return err
+		}
+		d.BackLeg, d.backParts, backM = &route.Leg, route.Parts, route.DistanceM
+		d.markApproximate(route.Approximate)
 	}
 	prices, err := s.stops.StayPerNight(ctx)
 	if err != nil {
 		s.log.WarnContext(ctx, "stay prices unavailable, stops without stay", "err", err)
 	}
 	travelers := carcost.Kop(max(q.Travelers, 1))
+	d.Stops = append(to, back...)
 	d.Stay = 0
-	for i := range stops {
-		st := &stops[i]
+	for i := range d.Stops {
+		st := &d.Stops[i]
 		st.PerNight = carcost.Kop(prices[st.City.ID])
 		st.Stay = st.PerNight * travelers * carcost.Kop(st.Nights)
 		d.Stay += st.Stay
 	}
-	d.Stops = stops
-	d.ViaLeg = &route.Leg
-	d.parts = route.Parts
-	if route.Approximate && !slices.Contains(d.Warnings, WarnRoadApproximate) {
-		d.Warnings = append(d.Warnings, WarnRoadApproximate)
-	}
 	d.Cost = carcost.Calc(carcost.Input{
-		OneWayKm:        float64(route.DistanceM+d.Leg.DistanceM) / 2 / 1000, // Calc считает туда и обратно
+		OneWayKm:        float64(toM+backM) / 2 / 1000, // Calc считает туда и обратно
 		ConsumptionL100: q.Car.ConsumptionL100,
 		FuelPrice:       fuelPrice,
 		BorderInsurance: d.Cost.Border,
@@ -157,25 +166,61 @@ func (s *Service) applyStops(ctx context.Context, d *DriveOption, home, dest geo
 	return nil
 }
 
-// longestDay — самый долгий день за рулём на пути туда: дорога делится на дни ночёвками в остановках.
-// Без деления на участки (маршрутизатор их не вернул) — вся дорога через остановки.
-func longestDay(d *DriveOption) float64 {
-	if d.ViaLeg == nil {
-		return d.DriveHours
-	}
-	border := d.DriveHours - float64(d.Leg.DurationS)/3600 // время на границе
-	if len(d.parts) != len(d.Stops)+1 {
-		return float64(d.ViaLeg.DurationS)/3600 + border
-	}
-	var longest, day float64
-	for i, p := range d.parts {
-		day += float64(p.DurationS) / 3600
-		if i < len(d.Stops) && d.Stops[i].Nights > 0 {
-			longest = max(longest, day)
-			day = 0
+// splitStops — остановки туда и обратно, каждые в прежнем порядке.
+func splitStops(stops []DriveStop) (to, back []DriveStop) {
+	for _, st := range stops {
+		if st.Back {
+			back = append(back, st)
+		} else {
+			to = append(to, st)
 		}
 	}
-	return max(longest, day+border)
+	return to, back
+}
+
+func stopPoints(stops []DriveStop) []road.Point {
+	out := make([]road.Point, len(stops))
+	for i, st := range stops {
+		out[i] = road.Point{Lat: st.City.Lat, Lon: st.City.Lon}
+	}
+	return out
+}
+
+func (d *DriveOption) markApproximate(approximate bool) {
+	if approximate && !slices.Contains(d.Warnings, WarnRoadApproximate) {
+		d.Warnings = append(d.Warnings, WarnRoadApproximate)
+	}
+}
+
+// longestDay — самый долгий день за рулём туда или обратно: дорога делится на дни ночёвками в остановках.
+func longestDay(d *DriveOption) float64 {
+	border := d.DriveHours - float64(d.Leg.DurationS)/3600 // время на границе
+	to, back := splitStops(d.Stops)
+	// Граница — у места назначения: туда в последний день, обратно — в первый
+	toDays := wayDays(d.ViaLeg, d.parts, to, d.DriveHours-border)
+	toDays[len(toDays)-1] += border
+	backDays := wayDays(d.BackLeg, d.backParts, back, d.DriveHours-border)
+	backDays[0] += border
+	return max(slices.Max(toDays), slices.Max(backDays))
+}
+
+// wayDays — часы за рулём по дням в одну сторону, без границы. Без остановок — прямая дорога одним днём;
+// без деления на участки (маршрутизатор их не вернул) — вся дорога через остановки.
+func wayDays(leg *road.Leg, parts []road.Leg, stops []DriveStop, direct float64) []float64 {
+	if leg == nil {
+		return []float64{direct}
+	}
+	if len(parts) != len(stops)+1 {
+		return []float64{float64(leg.DurationS) / 3600}
+	}
+	days := []float64{0}
+	for i, p := range parts {
+		days[len(days)-1] += float64(p.DurationS) / 3600
+		if i < len(stops) && stops[i].Nights > 0 {
+			days = append(days, 0)
+		}
+	}
+	return days
 }
 
 // drives — варианты «только на машине» до нескольких мест: дорога — одним запросом к маршрутизатору (с кэшем).

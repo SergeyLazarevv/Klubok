@@ -5,8 +5,10 @@ export const router = createRouter({
   routes: [
     { path: '/', name: 'home', component: () => import('@/pages/HomePage.vue') },
     { path: '/explore', name: 'explore', component: () => import('@/pages/ExplorePage.vue') },
-    { path: '/map', name: 'map', component: () => import('@/pages/MapPage.vue') },
+    // Страница «Карта» убрана — поиск по карте теперь в «Куда угодно»; старые ссылки ведут туда
+    { path: '/map', redirect: (to) => ({ path: '/explore', hash: to.hash }) },
     { path: '/map2', name: 'map2', component: () => import('@/pages/CitiesMapPage.vue') },
     { path: '/favorites', name: 'favorites', component: () => import('@/pages/FavoritesPage.vue') },
+    { path: '/account', name: 'account', component: () => import('@/pages/AccountPage.vue') },
   ],
 })

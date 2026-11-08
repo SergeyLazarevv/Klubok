@@ -33,12 +33,13 @@ export interface StopsEditor {
 }
 export const stopsEditorKey: InjectionKey<StopsEditor> = Symbol('stopsEditor')
 
-/** Остановка в параметре via: «Q900:1» → город и ночи. */
-export const VIA_RE = /^(Q\d+):([0-3])$/
+/** Остановка в параметре via: «Q900:1» → город и ночи; «Q900:1:back» — на обратном пути. */
+export const VIA_RE = /^(Q\d+):([0-3])(:back)?$/
 export const parseVia = (v: string) => {
   const m = VIA_RE.exec(v)
-  return m ? { id: m[1]!, nights: Number(m[2]) } : undefined
+  return m ? { id: m[1]!, nights: Number(m[2]), back: !!m[3] } : undefined
 }
+export const formatVia = (s: { id: string; nights: number; back: boolean }) => `${s.id}:${s.nights}${s.back ? ':back' : ''}`
 
 /** Параметры поиска: куда, когда и на сколько. Хранятся в URL, чтобы результатом можно было поделиться. */
 export const useSearchStore = defineStore('search', () => {
@@ -49,7 +50,8 @@ export const useSearchStore = defineStore('search', () => {
   const maxDays = ref(10)
   // Только выходные (вылет чт–сб, возвращение вс–пн) — приходит из подборки «Куда угодно»
   const weekends = ref(false)
-  // Остановки по дороге на машине: «<id города карты>:<ночей>», по порядку от дома (ADR-0023)
+  // Остановки по дороге на машине: «<id города карты>:<ночей>[:back]», туда — по порядку от дома,
+  // обратно (back) — от места назначения (ADR-0023)
   const via = ref<string[]>([])
   // Параметры последнего выполненного поиска — с ними вариант сохраняется в избранное
   const lastQuery = ref<TripSearchParams | null>(null)

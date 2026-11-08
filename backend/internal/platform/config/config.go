@@ -32,6 +32,12 @@ type Config struct {
 	TravelpayoutsTRS    string // ID проекта, к которому подключены программы брендов (Островок)
 
 	CitiesFile string // справочник городов карты (frontend/public/data/cities.geojson) — для цен на жильё
+
+	// Вход (ADR-0026). Провайдер без client id выключен — кнопки входа через него нет.
+	PublicURL          string // адрес сайта, как его открывает браузер: из него — обратные редиректы OAuth
+	YandexClientID     string
+	YandexClientSecret string
+	VKClientID         string
 }
 
 func Load() Config {
@@ -60,6 +66,11 @@ func Load() Config {
 		TravelpayoutsTRS:    env("TRAVELPAYOUTS_TRS", ""),
 
 		CitiesFile: env("KLUBOK_CITIES_FILE", "frontend/public/data/cities.geojson"),
+
+		PublicURL:          env("KLUBOK_PUBLIC_URL", "http://localhost:5173"),
+		YandexClientID:     env("YANDEX_CLIENT_ID", ""),
+		YandexClientSecret: env("YANDEX_CLIENT_SECRET", ""),
+		VKClientID:         env("VK_CLIENT_ID", ""),
 	}
 }
 

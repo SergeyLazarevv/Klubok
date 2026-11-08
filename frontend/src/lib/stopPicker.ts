@@ -9,6 +9,7 @@ export interface StopPicker {
   busy: Ref<string | undefined>
   error: Ref<string | undefined> // id города, у которого пересчёт не удался
   toggle: (s: StopSuggestion) => Promise<void>
+  travelers: Ref<number>
 }
 
 export const stopPickerKey: InjectionKey<StopPicker> = Symbol('stopPicker')

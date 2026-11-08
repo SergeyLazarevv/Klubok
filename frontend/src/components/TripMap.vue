@@ -47,15 +47,15 @@ async function renderRoad() {
   const version = ++roadVersion
   const [drawn] = await Promise.all([loadRoad(props), ready])
   if (!map || version !== roadVersion) return
-  setTripRoute(map, props, drawn?.line)
+  setTripRoute(map, props, drawn?.line, drawn?.back)
   // Первый раз — масштаб по всей дороге: она бывает заметно в стороне от прямой
-  if (version === 1 && drawn) map.fitBounds(tripBounds(props, drawn.line), { padding: FIT_PADDING, duration: 0 })
+  if (version === 1 && drawn) map.fitBounds(tripBounds(props, [...drawn.line, ...(drawn.back ?? [])]), { padding: FIT_PADDING, duration: 0 })
   if (!drawn) return
   road.value = drawn.route
   emit('road', drawn.route)
   return drawn
 }
-const viaKey = computed(() => roadStops(props).join(';'))
+const viaKey = computed(() => `${roadStops(props).join(';')}|${roadStops(props, true).join(';')}`)
 watch(viaKey, () => void renderRoad())
 
 onMounted(async () => {

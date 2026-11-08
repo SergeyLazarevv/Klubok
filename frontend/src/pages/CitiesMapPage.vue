@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import MapSearch from '@/components/MapSearch.vue'
 import '@fontsource/nunito/700.css'
 import '@fontsource/nunito/900.css'
 import { createStyledMap, maplibregl, type MapLibreMap } from '@/lib/map/maplibre'
@@ -10,7 +11,7 @@ import { armsUrl, photoUrl, warmStickerCache, withCities, type City } from '@/li
 const SAMARA: [number, number] = [50.1, 53.2]
 
 const el = ref<HTMLElement>()
-let map: MapLibreMap | undefined
+const map = shallowRef<MapLibreMap>()
 
 const escape = (s: string) => s.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`)
 
@@ -26,7 +27,7 @@ function card(c: City) {
 onMounted(() => {
   const style = withCities(cartoonStyle(PASTEL), PASTEL.title, '#ffffff')
   const m = createStyledMap(el.value!, style, { center: SAMARA, zoom: 4.6 })
-  map = m
+  map.value = m
   m.once('load', warmStickerCache)
 
   m.on('click', 'cities', (e) => {
@@ -41,13 +42,14 @@ onMounted(() => {
   m.on('mouseleave', 'cities', () => (m.getCanvas().style.cursor = ''))
 })
 
-onUnmounted(() => map?.remove())
+onUnmounted(() => map.value?.remove())
 </script>
 
 <template>
   <!-- Вокруг глобуса — светлое небо -->
-  <div class="h-[calc(100dvh-3.5rem-1px-var(--tabbar-h))] w-full bg-gradient-to-b from-[#d9f0ff] to-[#fdf6e9]">
+  <div class="map-with-search relative h-[calc(100dvh-3.5rem-1px-var(--tabbar-h))] w-full bg-gradient-to-b from-[#d9f0ff] to-[#fdf6e9]">
     <div ref="el" class="h-full w-full" />
+    <MapSearch :map="map" />
   </div>
 </template>
 

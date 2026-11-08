@@ -16,12 +16,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	oapimw "github.com/oapi-codegen/nethttp-middleware"
 
+	"github.com/SergeyLazarevv/Klubok/backend/internal/auth"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/favorites"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/geo"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/guides"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/hotels"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/httpapi/apigen"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/linkpreview"
+	"github.com/SergeyLazarevv/Klubok/backend/internal/mapsearch"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/platform/httpx"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/road"
 	"github.com/SergeyLazarevv/Klubok/backend/internal/search"
@@ -44,8 +46,10 @@ type Deps struct {
 
 	Transfers *transfer.Service
 	Geocoder  *transfer.Photon
+	MapSearch *mapsearch.Service
 
 	Sessions  *session.Manager
+	Auth      *auth.Service
 	Favorites *favorites.Service
 	Stay      *stay.Service
 	Road      *road.Service
@@ -77,6 +81,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 		}
 		w.WriteHeader(http.StatusOK)
 	})
+	authRoutes(r, d)
 
 	r.Group(func(api chi.Router) {
 		api.Use(oapimw.OapiRequestValidatorWithOptions(spec, &oapimw.Options{
@@ -86,7 +91,7 @@ func NewRouter(d Deps) (http.Handler, error) {
 			ErrorHandlerWithOpts: validationError,
 		}))
 		strict := apigen.NewStrictHandlerWithOptions(&handlers{geo: d.Geo, search: d.Search, hotels: d.Hotels, guides: d.Guides,
-			transfers: d.Transfers, geocoder: d.Geocoder, favorites: d.Favorites, previews: linkpreview.New(), stay: d.Stay, road: d.Road, weather: d.Weather, stops: d.Stops, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
+			transfers: d.Transfers, geocoder: d.Geocoder, mapSearch: d.MapSearch, favorites: d.Favorites, auth: d.Auth, previews: linkpreview.New(), stay: d.Stay, road: d.Road, weather: d.Weather, stops: d.Stops, log: d.Log}, nil, apigen.StrictHTTPServerOptions{
 			RequestErrorHandlerFunc: func(w http.ResponseWriter, _ *http.Request, err error) {
 				httpx.WriteProblem(w, httpx.Problem{Status: http.StatusBadRequest, Detail: err.Error()})
 			},

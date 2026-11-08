@@ -29,7 +29,9 @@ const headline = computed(() => {
   if (cheapest.kind === 'drive') {
     const d = cheapest.drive
     // С остановками по пути — через какие города, а не время напрямую
-    const how = d.stops?.length ? `через ${d.stops.map((s) => s.city.name).join(', ')}` : `${hours(d.drive_hours)} в одну сторону`
+    const names = (back: boolean) => (d.stops ?? []).filter((s) => s.back === back).map((s) => s.city.name).join(', ')
+    const via = [names(false) && `через ${names(false)}`, names(true) && `обратно через ${names(true)}`].filter(Boolean).join(', ')
+    const how = via || `${hours(d.drive_hours)} в одну сторону`
     if (!props.result.options.length) return `Билетов нет — доехать на машине: ${rub(d.total)}, ${how}`
     return `Дешевле всего на машине — ${rub(d.total)}, ${how}`
   }

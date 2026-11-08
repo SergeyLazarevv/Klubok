@@ -346,6 +346,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/map/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Поиск по карте — город, село, достопримечательность, улица или адрес
+         * @description По всему миру, данные OpenStreetMap (Photon). Центр и масштаб карты поднимают ближние места
+         *     при равной известности. Координаты разбирает фронтенд, сюда не отправляет.
+         */
+        get: operations["searchMap"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/geocode": {
         parameters: {
             query?: never;
@@ -399,7 +420,8 @@ export interface paths {
         };
         /**
          * Избранные маршруты текущего пользователя
-         * @description Пока нет авторизации, владелец — анонимная сессия (cookie klubok_sid, выдаётся сервером).
+         * @description Владелец — сессия (cookie klubok_sid, выдаётся сервером), а после входа — пользователь: видны записи
+         *     всех его сессий, в том числе сохранённые до входа и на других устройствах.
          *     Цены в списке — на момент сохранения; актуальные — GET /favorites/{id}/current.
          */
         get: operations["listFavorites"];
@@ -525,6 +547,26 @@ export interface paths {
         head?: never;
         /** Отметить выполненным, переименовать, поменять цену */
         patch: operations["updateTripItem"];
+        trace?: never;
+    };
+    "/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Кто вошёл и какими способами можно войти
+         * @description Без входа user не приходит; providers — включённые на сервере способы входа (для кнопок).
+         */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
 }
@@ -761,10 +803,15 @@ export interface components {
             trip_days: number;
             border?: components["schemas"]["BorderInfo"];
             savings_vs_home?: components["schemas"]["Money"];
-            /** @description Остановки по пути (параметр via), по порядку; туда — через них, обратно — напрямую */
+            /**
+             * @description Остановки по пути (параметр via): сначала туда, потом обратно (back), каждые по порядку.
+             *     В сторону без остановок — напрямую
+             */
             stops?: components["schemas"]["DriveStop"][];
-            /** @description Дорога туда через остановки; есть, только когда есть остановки */
+            /** @description Дорога туда через остановки; есть, только когда есть остановки туда */
             via_road?: components["schemas"]["RoadLeg"];
+            /** @description Дорога обратно через остановки; есть, только когда есть остановки на обратном пути */
+            back_road?: components["schemas"]["RoadLeg"];
             /** @description Ночёвки в остановках на всех — уже в total */
             stay?: components["schemas"]["Money"];
             warnings: ("border_crossing_by_car" | "road_approximate" | "long_drive_day")[];
@@ -787,6 +834,8 @@ export interface components {
         DriveStop: {
             city: components["schemas"]["StopCity"];
             nights: number;
+            /** @description На обратном пути */
+            back: boolean;
             /** @description Ночёвки на всех; нет — 0 ночей или нет цены */
             stay?: components["schemas"]["Money"];
             /** @description Сутки в гостинице 3* с человека (Росстат) */
@@ -965,6 +1014,17 @@ export interface components {
             page: string;
             /** @example Иван Иванов · CC BY-SA 4.0 */
             credit?: string;
+        };
+        MapSearchItem: {
+            /** @example Кижский погост */
+            name: string;
+            /** @example Карелия, Россия */
+            subtitle?: string;
+            /** @enum {string} */
+            kind: "city" | "village" | "sight" | "nature" | "street" | "house" | "other";
+            location: components["schemas"]["Point"];
+            /** @description Границы протяжённого объекта — запад, юг, восток, север */
+            bbox?: number[];
         };
         Address: {
             /** @example Абай даңғылы 10, Алматы */
@@ -1165,6 +1225,22 @@ export interface components {
             /** Format: double */
             lon: number;
         };
+        /** @enum {string} */
+        AuthProvider: "yandex" | "vk";
+        Me: {
+            user?: components["schemas"]["User"];
+            providers: components["schemas"]["AuthProvider"][];
+        };
+        User: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** Format: uri */
+            avatar_url?: string;
+            email?: string;
+            /** @description Через какие способы входа привязан аккаунт */
+            providers: components["schemas"]["AuthProvider"][];
+        };
         Problem: {
             /** @default about:blank */
             type: string;
@@ -1191,7 +1267,8 @@ export interface components {
     parameters: {
         /**
          * @description Остановки по дороге на машине, по порядку: «<id города карты>:<ночей>», параметр повторяется.
-         *     0 ночей — заезд на несколько часов. Учитываются только в варианте «целиком на машине».
+         *     0 ночей — заезд на несколько часов; суффикс «:back» — остановка на обратном пути (по порядку от места
+         *     назначения). Учитываются только в варианте «целиком на машине».
          */
         Via: string[];
         RadiusKm: number;
@@ -1467,7 +1544,8 @@ export interface operations {
                 allow_border?: components["parameters"]["AllowBorder"];
                 /**
                  * @description Остановки по дороге на машине, по порядку: «<id города карты>:<ночей>», параметр повторяется.
-                 *     0 ночей — заезд на несколько часов. Учитываются только в варианте «целиком на машине».
+                 *     0 ночей — заезд на несколько часов; суффикс «:back» — остановка на обратном пути (по порядку от места
+                 *     назначения). Учитываются только в варианте «целиком на машине».
                  */
                 via?: components["parameters"]["Via"];
             };
@@ -1688,6 +1766,37 @@ export interface operations {
                 };
             };
             404: components["responses"]["Problem"];
+            422: components["responses"]["Problem"];
+            502: components["responses"]["Problem"];
+        };
+    };
+    searchMap: {
+        parameters: {
+            query: {
+                q: string;
+                /** @description Центр карты */
+                lat?: number;
+                lon?: number;
+                zoom?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Найденные места, лучшие первыми */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["MapSearchItem"][];
+                    };
+                };
+            };
             422: components["responses"]["Problem"];
             502: components["responses"]["Problem"];
         };
@@ -2007,6 +2116,26 @@ export interface operations {
             };
             404: components["responses"]["Problem"];
             422: components["responses"]["Problem"];
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Текущий пользователь */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Me"];
+                };
+            };
         };
     };
 }
