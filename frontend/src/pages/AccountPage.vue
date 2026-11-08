@@ -61,7 +61,7 @@ async function logout() {
       <section class="flex flex-col gap-3 rounded-xl border bg-card p-4">
         <div>
           <h2 class="font-semibold">Ваш город</h2>
-          <p class="mt-1 text-sm text-muted-foreground">Он будет подставляться в поиск и подборку «Куда угодно».</p>
+          <p class="mt-1 text-sm text-muted-foreground">Он будет подставляться в поиск и на карту.</p>
         </div>
         <PlaceSearch v-model="homePlace" kind="city" placeholder="Выберите город" />
         <p v-if="auth.homePlaceSaving" class="text-sm text-muted-foreground" aria-live="polite">Сохраняем город…</p>

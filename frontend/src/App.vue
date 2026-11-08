@@ -2,7 +2,7 @@
 import { onMounted, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { CompassIcon, SearchIcon, StarIcon } from '@lucide/vue'
+import { MapIcon, SearchIcon, StarIcon } from '@lucide/vue'
 import { useAuthStore } from '@/stores/auth'
 import { useFavoritesStore } from '@/stores/favorites'
 import { useProfileStore } from '@/stores/profile'
@@ -41,18 +41,24 @@ watch(
 // /map2 — рабочая карта для экспериментов, в меню её нет
 const tabs = [
   { to: '/', label: 'Поиск', icon: SearchIcon },
-  { to: '/explore', label: 'Куда угодно', icon: CompassIcon },
+  { to: '/explore', label: 'Карта', icon: MapIcon },
   { to: '/favorites', label: 'Избранное', icon: StarIcon },
 ]
 </script>
 
 <template>
   <div class="min-h-dvh bg-background">
-    <header class="border-b pt-[env(safe-area-inset-top)]">
-      <div class="mx-auto flex h-14 max-w-6xl items-center px-4">
-        <RouterLink to="/" class="flex items-center gap-2 text-lg font-bold tracking-tight">
-          <img :src="logoUrl" alt="" class="size-9" width="36" height="36" />
-          <span class="uppercase tracking-wide text-[#1f3a5f] dark:text-[#9bb7d4]">Клубок</span>
+    <header class="relative z-20 pt-[env(safe-area-inset-top)]">
+      <div class="mx-auto flex h-(--header-h) max-w-6xl items-center px-4">
+        <RouterLink to="/" class="group flex items-center gap-2.5" aria-label="Клубок — на главную">
+          <img
+            :src="logoUrl"
+            alt=""
+            class="size-9 transition-transform duration-500 ease-out group-hover:-rotate-[30deg] sm:size-10"
+            width="40"
+            height="40"
+          />
+          <span class="font-display text-lg font-semibold tracking-tight text-ink sm:text-xl">клубок</span>
         </RouterLink>
         <!-- На планшете и шире — меню в шапке, на телефоне — панель вкладок внизу -->
         <nav class="ml-auto flex items-center max-sm:hidden" aria-label="Разделы">
@@ -60,8 +66,8 @@ const tabs = [
             v-for="t in tabs.slice(1)"
             :key="t.to"
             :to="t.to"
-            class="flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-medium hover:bg-muted"
-            active-class="bg-muted"
+            class="flex h-10 items-center gap-1.5 rounded-full px-3.5 text-[15px] font-bold text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
+            active-class="bg-accent! text-accent-foreground!"
           >
             <component
               :is="t.icon"
@@ -89,7 +95,7 @@ const tabs = [
     </main>
 
     <nav
-      class="fixed inset-x-0 bottom-0 z-40 grid h-(--tabbar-h) grid-cols-3 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
+      class="fixed inset-x-0 bottom-0 z-40 grid h-(--tabbar-h) grid-cols-3 border-t bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden"
       aria-label="Разделы"
     >
       <RouterLink
@@ -121,7 +127,7 @@ const tabs = [
 @reference './style.css';
 
 .tab {
-  @apply flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors;
+  @apply flex flex-col items-center justify-center gap-1 text-[11px] font-bold text-muted-foreground transition-colors;
   -webkit-tap-highlight-color: transparent;
 }
 .tab__icon {

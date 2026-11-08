@@ -47,7 +47,7 @@ onUnmounted(() => map.value?.remove())
 
 <template>
   <!-- Вокруг глобуса — светлое небо -->
-  <div class="map-with-search relative h-[calc(100dvh-3.5rem-1px-var(--tabbar-h))] w-full bg-gradient-to-b from-[#d9f0ff] to-[#fdf6e9]">
+  <div class="map-with-search relative h-[calc(100dvh-var(--header-h)-var(--tabbar-h))] w-full bg-gradient-to-b from-[#d9f0ff] to-[#fdf6e9]">
     <div ref="el" class="h-full w-full" />
     <MapSearch :map="map" />
   </div>

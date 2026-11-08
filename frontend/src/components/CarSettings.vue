@@ -12,7 +12,7 @@ import { Slider } from '@/components/ui/slider'
 import { Switch } from '@/components/ui/switch'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 
-// narrow — узкая панель (карта «Куда угодно»): настройки в одну колонку
+// narrow — узкая панель («Карта»): настройки в одну колонку
 defineProps<{ referenceFuelPrice?: number; narrow?: boolean }>()
 
 const { hasCar, radiusKm, maxDriveHours, consumptionL100, fuelType, fuelPriceRub, allowBorder } =

@@ -564,7 +564,7 @@ const tabs = computed(() =>
 </script>
 
 <template>
-  <div class="relative flex flex-col lg:block lg:h-[calc(100dvh-3.5rem-1px)]">
+  <div class="relative flex flex-col lg:block lg:h-[calc(100dvh-var(--header-h))]">
     <!-- Карта на всю ширину, панель — поверх -->
     <div class="map-with-search relative h-[55dvh] lg:absolute lg:inset-0 lg:h-auto">
       <div ref="el" class="size-full bg-[#d9f0ff]" />
@@ -593,7 +593,7 @@ const tabs = computed(() =>
         >
           Из города {{ homePlace.name }}<ChevronDownIcon class="size-4" />
         </button>
-        <h1 class="text-[28px] leading-tight font-semibold tracking-tight">Куда угодно</h1>
+        <h1 class="text-[28px] leading-tight font-semibold tracking-tight">Карта</h1>
         <p class="text-sm text-muted-foreground">Самые дешёвые поездки на выбранные даты — с бензином и соседними аэропортами.</p>
       </header>
 
